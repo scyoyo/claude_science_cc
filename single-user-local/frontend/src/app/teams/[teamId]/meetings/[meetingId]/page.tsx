@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { meetingsAPI } from "@/lib/api";
-import type { MeetingWithMessages } from "@/types";
+import { useMeetingWebSocket, type WSMessage } from "@/hooks/useMeetingWebSocket";
+import type { MeetingWithMessages, MeetingMessage } from "@/types";
 
 export default function MeetingDetailPage() {
   const params = useParams();
@@ -17,30 +18,96 @@ export default function MeetingDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [userMessage, setUserMessage] = useState("");
   const [topic, setTopic] = useState("");
+  const [liveMessages, setLiveMessages] = useState<MeetingMessage[]>([]);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const loadMeeting = async () => {
-    try {
-      setLoading(true);
-      const data = await meetingsAPI.get(meetingId);
-      setMeeting(data);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load meeting");
-    } finally {
-      setLoading(false);
+  // Scroll to bottom when new messages arrive
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, []);
+
+  const onWSMessage = useCallback((msg: WSMessage) => {
+    if (msg.type === "message" || msg.type === "message_saved") {
+      const newMsg: MeetingMessage = {
+        id: `live-${Date.now()}-${Math.random()}`,
+        meeting_id: meetingId,
+        agent_id: msg.agent_id || null,
+        role: msg.role || (msg.agent_name ? "assistant" : "user"),
+        agent_name: msg.agent_name || null,
+        content: msg.content || "",
+        round_number: msg.round || 0,
+        created_at: new Date().toISOString(),
+      };
+      setLiveMessages((prev) => [...prev, newMsg]);
+      setTimeout(scrollToBottom, 50);
     }
-  };
+  }, [meetingId, scrollToBottom]);
 
+  const onWSError = useCallback((detail: string) => {
+    setError(detail);
+    setRunning(false);
+  }, []);
+
+  const onRoundComplete = useCallback((round: number, totalRounds: number) => {
+    setMeeting((prev) =>
+      prev ? { ...prev, current_round: round, status: round >= totalRounds ? "completed" : "pending" } : prev
+    );
+    setRunning(false);
+  }, []);
+
+  const onMeetingComplete = useCallback(() => {
+    setMeeting((prev) => (prev ? { ...prev, status: "completed" } : prev));
+    setRunning(false);
+  }, []);
+
+  const { connected, speaking, connect, disconnect, sendUserMessage, startRound } =
+    useMeetingWebSocket({
+      meetingId,
+      onMessage: onWSMessage,
+      onError: onWSError,
+      onRoundComplete,
+      onMeetingComplete,
+    });
+
+  // Load initial data via HTTP
   useEffect(() => {
-    loadMeeting();
+    (async () => {
+      try {
+        setLoading(true);
+        const data = await meetingsAPI.get(meetingId);
+        setMeeting(data);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load meeting");
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, [meetingId]);
 
-  const handleRun = async () => {
+  // Connect WebSocket when meeting loaded and not completed
+  useEffect(() => {
+    if (meeting && meeting.status !== "completed") {
+      connect();
+    }
+    return () => disconnect();
+  }, [meeting?.id, meeting?.status]);
+
+  const handleRunWS = () => {
+    if (!connected) return;
+    setRunning(true);
+    setError(null);
+    startRound(1, topic || undefined);
+    setTopic("");
+  };
+
+  const handleRunHTTP = async () => {
     try {
       setRunning(true);
       setError(null);
       const data = await meetingsAPI.run(meetingId, 1, topic || undefined);
       setMeeting(data);
+      setLiveMessages([]);
       setTopic("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to run meeting");
@@ -49,22 +116,25 @@ export default function MeetingDetailPage() {
     }
   };
 
-  const handleSendMessage = async (e: React.FormEvent) => {
+  const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!userMessage.trim()) return;
-    try {
-      await meetingsAPI.addMessage(meetingId, userMessage);
-      setUserMessage("");
-      loadMeeting();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to send message");
+
+    if (connected) {
+      sendUserMessage(userMessage);
+    } else {
+      meetingsAPI.addMessage(meetingId, userMessage).catch((err) =>
+        setError(err instanceof Error ? err.message : "Failed to send")
+      );
     }
+    setUserMessage("");
   };
 
   if (loading) return <p className="text-gray-500">Loading...</p>;
   if (!meeting) return <p className="text-red-500">Meeting not found</p>;
 
   const isCompleted = meeting.status === "completed";
+  const allMessages = [...(meeting.messages || []), ...liveMessages];
 
   return (
     <div className="space-y-6">
@@ -91,6 +161,11 @@ export default function MeetingDetailPage() {
           >
             {meeting.status}
           </span>
+          {/* WebSocket indicator */}
+          <span
+            className={`w-2 h-2 rounded-full ${connected ? "bg-green-500" : "bg-gray-300"}`}
+            title={connected ? "Real-time connected" : "Disconnected"}
+          />
         </div>
         <p className="text-sm text-gray-500 mt-1">
           Round {meeting.current_round}/{meeting.max_rounds}
@@ -102,13 +177,13 @@ export default function MeetingDetailPage() {
       )}
 
       {/* Messages */}
-      <div className="space-y-3">
-        {meeting.messages.length === 0 ? (
+      <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+        {allMessages.length === 0 ? (
           <p className="text-gray-500 text-sm">
             No messages yet. Run a round or send a message to start the discussion.
           </p>
         ) : (
-          meeting.messages.map((msg) => (
+          allMessages.map((msg) => (
             <div
               key={msg.id}
               className={`p-4 rounded-lg ${
@@ -121,9 +196,11 @@ export default function MeetingDetailPage() {
                 <span className="font-medium text-sm text-gray-900">
                   {msg.role === "user" ? "You" : msg.agent_name || "Assistant"}
                 </span>
-                <span className="text-xs text-gray-400">
-                  Round {msg.round_number}
-                </span>
+                {msg.round_number > 0 && (
+                  <span className="text-xs text-gray-400">
+                    Round {msg.round_number}
+                  </span>
+                )}
               </div>
               <p className="text-sm text-gray-700 whitespace-pre-wrap">
                 {msg.content}
@@ -131,6 +208,17 @@ export default function MeetingDetailPage() {
             </div>
           ))
         )}
+
+        {/* Typing indicator */}
+        {speaking && (
+          <div className="p-4 rounded-lg bg-gray-50 border border-gray-200 animate-pulse">
+            <span className="text-sm text-gray-500">
+              {speaking} is thinking...
+            </span>
+          </div>
+        )}
+
+        <div ref={messagesEndRef} />
       </div>
 
       {/* Controls */}
@@ -163,11 +251,11 @@ export default function MeetingDetailPage() {
               className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
             />
             <button
-              onClick={handleRun}
+              onClick={connected ? handleRunWS : handleRunHTTP}
               disabled={running}
               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {running ? "Running..." : "Run Round"}
+              {running ? "Running..." : connected ? "Run Round (Live)" : "Run Round"}
             </button>
           </div>
         </div>

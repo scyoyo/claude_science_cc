@@ -4,8 +4,9 @@ from typing import List, Optional
 
 from app.database import get_db
 from app.models import Team
-from app.models.user import User
+from app.models.user import User, UserTeamRole
 from app.schemas.team import TeamCreate, TeamUpdate, TeamResponse, TeamWithAgents
+from app.schemas.user import TeamRoleAssign, TeamRoleResponse
 from app.core.auth import get_current_user
 from app.core.permissions import check_team_access
 
@@ -111,5 +112,83 @@ def delete_team(
     check_team_access(db, current_user, team, min_role="owner")
 
     db.delete(team)
+    db.commit()
+    return None
+
+
+# ==================== Team Sharing ====================
+
+
+@router.get("/{team_id}/members", response_model=List[TeamRoleResponse])
+def list_team_members(
+    team_id: str,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user),
+):
+    """List team members and their roles (requires viewer access)."""
+    team = db.query(Team).filter(Team.id == team_id).first()
+    if not team:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
+    check_team_access(db, current_user, team, min_role="viewer")
+    return db.query(UserTeamRole).filter(UserTeamRole.team_id == team_id).all()
+
+
+@router.post("/{team_id}/members", response_model=TeamRoleResponse, status_code=status.HTTP_201_CREATED)
+def add_team_member(
+    team_id: str,
+    data: TeamRoleAssign,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user),
+):
+    """Add a member to the team (requires owner role)."""
+    team = db.query(Team).filter(Team.id == team_id).first()
+    if not team:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
+    check_team_access(db, current_user, team, min_role="owner")
+
+    # Verify target user exists
+    target = db.query(User).filter(User.id == data.user_id).first()
+    if not target:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    # Check if already a member
+    existing = db.query(UserTeamRole).filter(
+        UserTeamRole.user_id == data.user_id,
+        UserTeamRole.team_id == team_id,
+    ).first()
+    if existing:
+        existing.role = data.role
+        db.commit()
+        db.refresh(existing)
+        return existing
+
+    role = UserTeamRole(user_id=data.user_id, team_id=team_id, role=data.role)
+    db.add(role)
+    db.commit()
+    db.refresh(role)
+    return role
+
+
+@router.delete("/{team_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_team_member(
+    team_id: str,
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user),
+):
+    """Remove a member from the team (requires owner role)."""
+    team = db.query(Team).filter(Team.id == team_id).first()
+    if not team:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
+    check_team_access(db, current_user, team, min_role="owner")
+
+    role = db.query(UserTeamRole).filter(
+        UserTeamRole.user_id == user_id,
+        UserTeamRole.team_id == team_id,
+    ).first()
+    if not role:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")
+
+    db.delete(role)
     db.commit()
     return None
