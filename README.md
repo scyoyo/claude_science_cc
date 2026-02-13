@@ -22,39 +22,34 @@ Based on [virtual-lab](https://github.com/zou-group/virtual-lab) by Zou Group @ 
 - Node.js 18+
 - (Optional) Docker & Docker Compose
 
-### 1. Backend
+### One Command Start
 
 ```bash
-cd single-user-local/backend
+cd single-user-local
 
-# Create virtual environment
-python3 -m venv venv
-source venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Start the server
-uvicorn app.main:app --reload
-```
-
-Backend runs at **http://localhost:8000**. API docs at **http://localhost:8000/docs**.
-
-### 2. Frontend
-
-```bash
-cd single-user-local/frontend
-
-# Install dependencies
+# First time only: set up backend + frontend
+cd backend && python3 -m venv venv && ./venv/bin/pip install -r requirements.txt && cd ..
+cd frontend && npm install && cd ..
 npm install
 
-# Start dev server
+# Start both backend and frontend
 npm run dev
 ```
 
-Frontend runs at **http://localhost:3000**.
+This launches both services concurrently:
+- **Frontend**: http://localhost:3000
+- **Backend**: http://localhost:8000 (API docs at http://localhost:8000/docs)
 
-### 3. Configure LLM API Keys
+Other commands:
+
+```bash
+npm test          # Run 329 backend tests
+npm run build     # Build frontend for production
+npm run dev:backend   # Start backend only
+npm run dev:frontend  # Start frontend only
+```
+
+### Configure LLM API Keys
 
 Open **http://localhost:3000/settings** and add your API key for one of:
 - OpenAI (GPT-4)
