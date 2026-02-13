@@ -11,7 +11,7 @@ Building a web app based on https://github.com/zou-group/virtual-lab that allows
 ## Tech Stack
 
 - **Backend**: FastAPI + Python + SQLAlchemy + SQLite (V1)
-- **Frontend**: Next.js + React + React Flow + Monaco Editor (to be implemented)
+- **Frontend**: Next.js 16 + React 19 + React Flow + Monaco Editor
 - **LLM**: User-configured API keys, supports OpenAI / Claude / DeepSeek
 - **Deployment**: Docker Compose (V1 local) → Kubernetes (V2 cloud)
 
@@ -25,18 +25,18 @@ Building a web app based on https://github.com/zou-group/virtual-lab that allows
 │   │   │   ├── main.py          # FastAPI app entry point
 │   │   │   ├── config.py        # Settings (pydantic-settings)
 │   │   │   ├── database.py      # SQLite + SQLAlchemy setup
-│   │   │   ├── models/          # DB models (Team, Agent)
+│   │   │   ├── models/          # DB models (Team, Agent, Meeting, APIKey, CodeArtifact)
 │   │   │   ├── schemas/         # Pydantic schemas
-│   │   │   ├── api/             # API routers (teams, agents)
-│   │   │   └── core/            # Business logic (team_builder, mirror_validator)
-│   │   ├── tests/               # pytest tests (conftest + 4 test files)
+│   │   │   ├── api/             # API routers (7 modules, 28 endpoints)
+│   │   │   └── core/            # Business logic (team_builder, llm_client, meeting_engine, etc.)
+│   │   ├── tests/               # pytest tests (9 test files, 139 tests)
 │   │   ├── venv/                # Python 3.13 virtual environment
-│   │   ├── requirements.txt     # Updated for Python 3.13 compatibility
+│   │   ├── requirements.txt     # Python 3.13 compatible
 │   │   └── Dockerfile
-│   ├── frontend/                # Next.js (to be implemented)
+│   ├── frontend/                # Next.js 16 + React Flow + Monaco Editor
 │   └── docker-compose.yml
-├── shared/                      # Shared components (to be implemented)
-├── docs/                        # Documentation (to be implemented)
+├── shared/                      # Shared components (V2)
+├── docs/                        # V2 architecture plan
 ├── IMPLEMENTATION_STATUS.md     # Detailed progress tracking
 └── CLAUDE.md                    # This file
 ```
@@ -126,16 +126,17 @@ GET    /api/export/meeting/{id}/github     # Get GitHub-ready files
 
 ## Test Results (Last Run)
 
-- **130/130 tests passed**
-- test_main.py (2 tests): root endpoint, health check
-- test_models.py (4 tests): create team, create agent, cascade delete, mirror agent
-- test_teams_api.py (6 tests): CRUD + 404 handling
-- test_agents_api.py (7 tests): CRUD + invalid team + cascade delete
-- test_onboarding.py (27 tests): TeamBuilder (10), MirrorValidator (6), Onboarding API (11)
-- test_llm_client.py (35 tests): Encryption (3), Provider factory (10), Providers (11), API key mgmt (8), LLM chat (3)
-- test_meetings.py (19 tests): MeetingEngine (4), Meeting CRUD (8), Meeting run (7)
-- test_artifacts.py (19 tests): CodeExtractor (10), Artifact CRUD (6), Auto-extract (3)
-- test_export.py (11 tests): Exporter (6), Export API (5)
+- **139/139 tests passed**, 0 deprecation warnings
+- test_main.py (2): root endpoint, health check
+- test_models.py (4): create team, create agent, cascade delete, mirror agent
+- test_teams_api.py (6): CRUD + 404 handling
+- test_agents_api.py (7): CRUD + invalid team + cascade delete
+- test_onboarding.py (27): TeamBuilder, MirrorValidator, Onboarding API
+- test_llm_client.py (35): Encryption, Provider factory, Providers, API key mgmt, LLM chat
+- test_meetings.py (19): MeetingEngine, Meeting CRUD, Meeting run
+- test_artifacts.py (19): CodeExtractor, Artifact CRUD, Auto-extract
+- test_export.py (11): Exporter, Export API
+- test_integration.py (9): Full end-to-end workflows
 
 ## Git Commits
 
@@ -216,9 +217,14 @@ GET    /api/export/meeting/{id}/github     # Get GitHub-ready files
 
 ## V1 COMPLETE - All Steps Implemented
 
-## Deprecation Warnings (Non-blocking, fix later)
+All deprecation warnings fixed (SQLAlchemy DeclarativeBase, FastAPI lifespan, datetime.now(UTC), Pydantic ConfigDict).
 
-- `declarative_base()` → use `sqlalchemy.orm.declarative_base()` (SQLAlchemy 2.0)
-- `@app.on_event("startup")` → use lifespan event handlers (FastAPI)
-- `datetime.utcnow()` → use `datetime.now(datetime.UTC)` (Python 3.12+)
-- Pydantic `class Config` → use `ConfigDict` (Pydantic v2)
+## V2 Plan
+
+See `docs/V2_ARCHITECTURE.md` for detailed multi-user cloud architecture plan:
+- Phase 2.1: JWT + OAuth authentication
+- Phase 2.2: PostgreSQL + Alembic migrations
+- Phase 2.3: Redis (sessions, rate limiting, cache)
+- Phase 2.4: WebSocket real-time meetings
+- Phase 2.5: Production Docker Compose with Nginx
+- Phase 2.6: Kubernetes deployment
