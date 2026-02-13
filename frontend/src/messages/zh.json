@@ -136,7 +136,8 @@
     "passwordMin": "至少 8 个字符",
     "repeatPassword": "再次输入密码",
     "emailPlaceholder": "you@example.com",
-    "usernamePlaceholder": "用户名"
+    "usernamePlaceholder": "用户名",
+    "passwordMismatch": "两次输入的密码不一致"
   },
   "profile": {
     "title": "个人资料",

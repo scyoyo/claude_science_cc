@@ -9,6 +9,14 @@ import type {
 } from "@/types";
 import { getAuthHeaders } from "@/lib/auth";
 
+// Backend paginated response shape
+interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  skip: number;
+  limit: number;
+}
+
 // In browser: use relative path (proxied by Next.js rewrites)
 // In SSR/server: use full URL to backend
 const API_BASE = typeof window !== "undefined"
@@ -34,7 +42,10 @@ async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
 
 // Teams
 export const teamsAPI = {
-  list: () => fetchAPI<Team[]>("/teams/"),
+  list: async (): Promise<Team[]> => {
+    const res = await fetchAPI<PaginatedResponse<Team>>("/teams/");
+    return res.items;
+  },
   get: (id: string) => fetchAPI<TeamWithAgents>(`/teams/${id}`),
   create: (data: TeamCreate) =>
     fetchAPI<Team>("/teams/", { method: "POST", body: JSON.stringify(data) }),
@@ -47,7 +58,10 @@ export const teamsAPI = {
 // Agents
 export const agentsAPI = {
   get: (id: string) => fetchAPI<Agent>(`/agents/${id}`),
-  listByTeam: (teamId: string) => fetchAPI<Agent[]>(`/agents/team/${teamId}`),
+  listByTeam: async (teamId: string): Promise<Agent[]> => {
+    const res = await fetchAPI<PaginatedResponse<Agent>>(`/agents/team/${teamId}`);
+    return res.items;
+  },
   create: (data: AgentCreate) =>
     fetchAPI<Agent>("/agents/", { method: "POST", body: JSON.stringify(data) }),
   update: (id: string, data: Partial<AgentCreate>) =>
@@ -59,7 +73,10 @@ export const agentsAPI = {
 // Meetings
 export const meetingsAPI = {
   get: (id: string) => fetchAPI<MeetingWithMessages>(`/meetings/${id}`),
-  listByTeam: (teamId: string) => fetchAPI<Meeting[]>(`/meetings/team/${teamId}`),
+  listByTeam: async (teamId: string): Promise<Meeting[]> => {
+    const res = await fetchAPI<PaginatedResponse<Meeting>>(`/meetings/team/${teamId}`);
+    return res.items;
+  },
   create: (data: { team_id: string; title: string; description?: string; max_rounds?: number }) =>
     fetchAPI<Meeting>("/meetings/", { method: "POST", body: JSON.stringify(data) }),
   delete: (id: string) =>

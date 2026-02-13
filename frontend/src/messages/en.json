@@ -136,7 +136,8 @@
     "passwordMin": "Min 8 characters",
     "repeatPassword": "Repeat password",
     "emailPlaceholder": "you@example.com",
-    "usernamePlaceholder": "username"
+    "usernamePlaceholder": "username",
+    "passwordMismatch": "Passwords do not match"
   },
   "profile": {
     "title": "Profile",
