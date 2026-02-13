@@ -51,17 +51,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
-app.include_router(teams.router, prefix="/api")
-app.include_router(agents.router, prefix="/api")
-app.include_router(onboarding.router, prefix="/api")
-app.include_router(llm.router, prefix="/api")
-app.include_router(meetings.router, prefix="/api")
-app.include_router(artifacts.router, prefix="/api")
-app.include_router(export.router, prefix="/api")
-app.include_router(auth.router, prefix="/api")
-app.include_router(search.router, prefix="/api")
-app.include_router(templates.router, prefix="/api")
+# Include routers under both /api/ and /api/v1/ for versioning
+_api_routers = [
+    teams.router, agents.router, onboarding.router, llm.router,
+    meetings.router, artifacts.router, export.router, auth.router,
+    search.router, templates.router,
+]
+for router in _api_routers:
+    app.include_router(router, prefix="/api")
+    app.include_router(router, prefix="/api/v1")
+
 app.include_router(ws.router)
 
 

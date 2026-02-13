@@ -61,7 +61,8 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         else:
             logger.info(json.dumps(log_data))
 
-        # Add timing header
+        # Add timing and version headers
         response.headers["X-Response-Time"] = f"{duration_ms}ms"
+        response.headers["X-API-Version"] = "v1"
 
         return response
