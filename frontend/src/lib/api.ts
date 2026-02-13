@@ -6,6 +6,9 @@ import type {
   AgentCreate,
   Meeting,
   MeetingWithMessages,
+  OnboardingChatRequest,
+  OnboardingChatResponse,
+  GenerateTeamRequest,
 } from "@/types";
 import { getAuthHeaders } from "@/lib/auth";
 
@@ -91,4 +94,23 @@ export const meetingsAPI = {
       method: "POST",
       body: JSON.stringify({ rounds, topic }),
     }),
+};
+
+// Onboarding
+export const onboardingAPI = {
+  chat: (data: OnboardingChatRequest) =>
+    fetchAPI<OnboardingChatResponse>("/onboarding/chat", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  generateTeam: (data: GenerateTeamRequest) =>
+    fetchAPI<TeamWithAgents>("/onboarding/generate-team", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+};
+
+// LLM providers
+export const llmAPI = {
+  providers: () => fetchAPI<{ providers: string[] }>("/llm/providers"),
 };

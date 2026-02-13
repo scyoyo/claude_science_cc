@@ -3,7 +3,7 @@
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Users, Settings, Workflow } from "lucide-react";
+import { Users, Settings, Workflow, Wand2 } from "lucide-react";
 
 export default function Home() {
   const t = useTranslations("home");
@@ -15,7 +15,23 @@ export default function Home() {
         <p className="mt-2 text-muted-foreground">{t("subtitle")}</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Link href="/onboarding">
+          <Card className="hover:border-primary/50 hover:shadow-md transition-all cursor-pointer">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <Wand2 className="h-5 w-5 text-primary" />
+                <div>
+                  <CardTitle>{t("onboardingCard.title")}</CardTitle>
+                  <CardDescription className="mt-1">
+                    {t("onboardingCard.description")}
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+          </Card>
+        </Link>
+
         <Link href="/teams">
           <Card className="hover:border-primary/50 hover:shadow-md transition-all cursor-pointer">
             <CardHeader>

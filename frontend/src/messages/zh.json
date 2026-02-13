@@ -21,6 +21,7 @@
   },
   "nav": {
     "dashboard": "仪表盘",
+    "onboarding": "新建项目",
     "teams": "团队",
     "settings": "设置",
     "profile": "个人资料"
@@ -42,6 +43,10 @@
     "settingsCard": {
       "title": "设置",
       "description": "配置 API 密钥和模型偏好"
+    },
+    "onboardingCard": {
+      "title": "新建项目",
+      "description": "AI 引导的团队创建向导"
     },
     "editorCard": {
       "title": "可视化编辑器",
@@ -138,6 +143,29 @@
     "emailPlaceholder": "you@example.com",
     "usernamePlaceholder": "用户名",
     "passwordMismatch": "两次输入的密码不一致"
+  },
+  "wizard": {
+    "title": "开始一个新的研究项目",
+    "subtitle": "描述你的科学问题，我将帮你组建理想的研究团队。",
+    "placeholder": "例如：我想用计算方法研究抗生素耐药性的机制...",
+    "placeholderClarify": "分享你的偏好：团队规模、研究方向、模型选择...",
+    "placeholderReview": "查看上面的团队。输入「同意」继续，或提出修改建议...",
+    "placeholderMirror": "配置镜像智能体：输入「是」启用或「否」跳过...",
+    "thinking": "正在分析你的研究问题...",
+    "skipToManual": "跳过，手动配置",
+    "viewTeam": "查看团队",
+    "startOver": "重新开始",
+    "teamReady": "团队已就绪！",
+    "teamReadyDesc": "所有智能体已创建。前往团队页面查看和自定义配置。",
+    "proposedTeam": "建议团队",
+    "errorGeneric": "发生错误，请重试。",
+    "stage": {
+      "problem": "第 1 步：描述你的研究问题",
+      "clarification": "第 2 步：团队偏好",
+      "team_suggestion": "第 3 步：审查建议的团队",
+      "mirror_config": "第 4 步：镜像智能体配置",
+      "complete": "完成"
+    }
   },
   "profile": {
     "title": "个人资料",

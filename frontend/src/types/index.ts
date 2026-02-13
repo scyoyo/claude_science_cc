@@ -102,3 +102,58 @@ export interface MeetingMessage {
 export interface MeetingWithMessages extends Meeting {
   messages: MeetingMessage[];
 }
+
+// Onboarding
+export type OnboardingStage =
+  | "problem"
+  | "clarification"
+  | "team_suggestion"
+  | "mirror_config"
+  | "complete";
+
+export interface OnboardingChatMessage {
+  role: "user" | "assistant" | "system";
+  content: string;
+}
+
+export interface OnboardingChatRequest {
+  stage: OnboardingStage;
+  message: string;
+  conversation_history: OnboardingChatMessage[];
+  context: Record<string, unknown>;
+}
+
+export interface OnboardingChatResponse {
+  stage: OnboardingStage;
+  next_stage: OnboardingStage | null;
+  message: string;
+  data: Record<string, unknown>;
+}
+
+export interface AgentSuggestion {
+  name: string;
+  title: string;
+  expertise: string;
+  goal: string;
+  role: string;
+  model: string;
+}
+
+export interface TeamSuggestion {
+  team_name: string;
+  team_description: string;
+  agents: AgentSuggestion[];
+}
+
+export interface MirrorConfig {
+  enabled: boolean;
+  mirror_model: string;
+  agents_to_mirror: string[];
+}
+
+export interface GenerateTeamRequest {
+  team_name: string;
+  team_description: string;
+  agents: AgentSuggestion[];
+  mirror_config?: MirrorConfig;
+}

@@ -9,6 +9,7 @@ import {
   Settings,
   UserCircle,
   LayoutDashboard,
+  Wand2,
 } from "lucide-react";
 import {
   Tooltip,
@@ -19,6 +20,7 @@ import { useAuth } from "@/contexts/AuthContext";
 
 const navItems = [
   { key: "dashboard", href: "/", icon: LayoutDashboard },
+  { key: "onboarding", href: "/onboarding", icon: Wand2 },
   { key: "teams", href: "/teams", icon: Users },
   { key: "settings", href: "/settings", icon: Settings },
 ] as const;

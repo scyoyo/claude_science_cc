@@ -12,7 +12,7 @@ function useBreadcrumb() {
 
   if (pathname === "/") return t("dashboard");
   const segment = pathname.split("/").filter(Boolean)[0];
-  const validSegments = ["teams", "settings", "profile"] as const;
+  const validSegments = ["teams", "settings", "profile", "onboarding"] as const;
   if (segment && validSegments.includes(segment as typeof validSegments[number])) {
     return t(segment as typeof validSegments[number]);
   }
