@@ -131,26 +131,46 @@ See [docs/V2_ARCHITECTURE.md](docs/V2_ARCHITECTURE.md) for full architecture pla
 | 6.2 | Meeting summary generation | 4 | Done |
 | 6.3 | Agent templates/presets (10 templates) | 8 | Done |
 
-**Total: 264 tests passing across 21 test files.**
+## V7 Clone, Stats & Polish
 
-### All Endpoints (V1-V6)
+| Phase | Feature | Tests | Status |
+|-------|---------|-------|--------|
+| 7.1 | Meeting clone endpoint | 2 | Done |
+| 7.2 | Agent clone endpoint | 4 | Done |
+| 7.3 | Team statistics endpoint | 3 | Done |
+| 7.4 | OpenAPI schema metadata | 1 | Done |
+
+## V8 Robustness & Versioning
+
+| Phase | Feature | Tests | Status |
+|-------|---------|-------|--------|
+| 8.1 | Input validation & sanitization tests | 21 | Done |
+| 8.2 | Meeting transcript export (markdown) | 5 | Done |
+| 8.3 | API versioning (/api/v1/ prefix) | 7 | Done |
+
+**Total: 307 tests passing across 25 test files.**
+
+### All Endpoints (V1-V8)
+All endpoints available under both `/api/` and `/api/v1/`.
 ```
 # Auth
 POST  /api/auth/register     POST  /api/auth/login
 POST  /api/auth/refresh      GET/PUT  /api/auth/me
 
-# Team sharing
+# Team sharing & stats
 GET    /api/teams/{id}/members          POST  /api/teams/{id}/members
-DELETE /api/teams/{id}/members/{uid}
+DELETE /api/teams/{id}/members/{uid}    GET   /api/teams/{id}/stats
 
-# Batch agents
+# Agent batch & clone
 POST    /api/agents/batch     DELETE  /api/agents/batch
+POST    /api/agents/{id}/clone
 
 # Search
 GET  /api/search/teams?q=keyword     GET  /api/search/agents?q=keyword
 
-# Meeting summary
-GET  /api/meetings/{id}/summary
+# Meeting extras
+GET   /api/meetings/{id}/summary      GET  /api/meetings/{id}/transcript
+POST  /api/meetings/{id}/clone
 
 # Agent templates
 GET    /api/templates/          GET  /api/templates/{id}
@@ -161,7 +181,7 @@ WS    /ws/meetings/{id}
 ```
 
 ### Middleware Stack
-- **LoggingMiddleware** - Structured JSON access logs with timing
+- **LoggingMiddleware** - Structured JSON access logs + X-API-Version header
 - **RateLimitMiddleware** - Per-endpoint rate limiting (120/min API, 30/min LLM, 20/min auth)
 - **CORSMiddleware** - Cross-origin resource sharing
 
@@ -189,7 +209,7 @@ npm run dev                             # Frontend: http://localhost:3000
 # Tests
 cd single-user-local/backend
 source venv/bin/activate
-pytest tests/ -v                        # 264 tests
+pytest tests/ -v                        # 307 tests
 
 # Kubernetes
 cd single-user-local/k8s
