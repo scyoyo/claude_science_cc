@@ -96,7 +96,15 @@ export default function TeamDetailPage() {
         <Link href="/teams" className="text-sm text-blue-600 hover:text-blue-800">
           &larr; Back to Teams
         </Link>
-        <h1 className="mt-2 text-2xl font-bold text-gray-900">{team.name}</h1>
+        <div className="mt-2 flex items-center gap-4">
+          <h1 className="text-2xl font-bold text-gray-900">{team.name}</h1>
+          <Link
+            href={`/teams/${teamId}/editor`}
+            className="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700"
+          >
+            Visual Editor
+          </Link>
+        </div>
         {team.description && (
           <p className="mt-1 text-gray-600">{team.description}</p>
         )}
