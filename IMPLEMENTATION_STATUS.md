@@ -114,9 +114,26 @@ See [docs/V2_ARCHITECTURE.md](docs/V2_ARCHITECTURE.md) for full architecture pla
 | 4.3 | User profile page | - | Done |
 | 4.4 | Error boundary + loading skeletons | - | Done |
 
-**Total: 230 tests passing across 17 test files.**
+## V5 API Enhancements
 
-### All Endpoints (V1+V2+V4)
+| Phase | Feature | Tests | Status |
+|-------|---------|-------|--------|
+| 5.1 | Enhanced health checks (DB + Redis) | 2 | Done |
+| 5.2 | Pagination for all list endpoints | - | Done |
+| 5.3 | Search API (teams + agents) | 10 | Done |
+| 5.4 | Structured logging middleware | 5 | Done |
+
+## V6 Advanced Features
+
+| Phase | Feature | Tests | Status |
+|-------|---------|-------|--------|
+| 6.1 | Batch create/delete agents | 7 | Done |
+| 6.2 | Meeting summary generation | 4 | Done |
+| 6.3 | Agent templates/presets (10 templates) | 8 | Done |
+
+**Total: 264 tests passing across 21 test files.**
+
+### All Endpoints (V1-V6)
 ```
 # Auth
 POST  /api/auth/register     POST  /api/auth/login
@@ -126,9 +143,27 @@ POST  /api/auth/refresh      GET/PUT  /api/auth/me
 GET    /api/teams/{id}/members          POST  /api/teams/{id}/members
 DELETE /api/teams/{id}/members/{uid}
 
+# Batch agents
+POST    /api/agents/batch     DELETE  /api/agents/batch
+
+# Search
+GET  /api/search/teams?q=keyword     GET  /api/search/agents?q=keyword
+
+# Meeting summary
+GET  /api/meetings/{id}/summary
+
+# Agent templates
+GET    /api/templates/          GET  /api/templates/{id}
+POST   /api/templates/apply
+
 # WebSocket
 WS    /ws/meetings/{id}
 ```
+
+### Middleware Stack
+- **LoggingMiddleware** - Structured JSON access logs with timing
+- **RateLimitMiddleware** - Per-endpoint rate limiting (120/min API, 30/min LLM, 20/min auth)
+- **CORSMiddleware** - Cross-origin resource sharing
 
 ---
 
@@ -154,7 +189,7 @@ npm run dev                             # Frontend: http://localhost:3000
 # Tests
 cd single-user-local/backend
 source venv/bin/activate
-pytest tests/ -v                        # 230 tests
+pytest tests/ -v                        # 264 tests
 
 # Kubernetes
 cd single-user-local/k8s
