@@ -72,10 +72,13 @@ GET  /api/export/meeting/{id}/github
 
 ### Frontend Pages
 - `/` - Home with navigation cards
+- `/login` - Sign in (username/email + password)
+- `/register` - Create account
+- `/profile` - User profile (view/edit email, username, password)
 - `/teams` - Team list with create/delete
 - `/teams/[id]` - Team detail with agents, meetings, add agent form
 - `/teams/[id]/editor` - Visual editor (React Flow + Monaco)
-- `/teams/[id]/meetings/[id]` - Meeting detail with messages and controls
+- `/teams/[id]/meetings/[id]` - Live meeting with WebSocket streaming + typing indicators
 - `/settings` - API key management
 
 ---
@@ -93,8 +96,6 @@ See [docs/V2_ARCHITECTURE.md](docs/V2_ARCHITECTURE.md) for full architecture pla
 | 2.5 | Production Docker Compose (Nginx + PG + Redis) | - | Done |
 | 2.6 | Kubernetes deployment (manifests + HPA + Ingress) | - | Done |
 
-**Total: 223 tests passing.**
-
 ## V3 Polish
 
 | Phase | Feature | Tests | Status |
@@ -104,11 +105,29 @@ See [docs/V2_ARCHITECTURE.md](docs/V2_ARCHITECTURE.md) for full architecture pla
 | 3.3 | Rate limiting middleware | 6 | Done |
 | 3.4 | CI/CD (GitHub Actions) | - | Done |
 
-### V2 New Endpoints
+## V4 Features
+
+| Phase | Feature | Tests | Status |
+|-------|---------|-------|--------|
+| 4.1 | Frontend WebSocket live meetings | - | Done |
+| 4.2 | Team sharing/invite API | 7 | Done |
+| 4.3 | User profile page | - | Done |
+| 4.4 | Error boundary + loading skeletons | - | Done |
+
+**Total: 230 tests passing across 17 test files.**
+
+### All Endpoints (V1+V2+V4)
 ```
+# Auth
 POST  /api/auth/register     POST  /api/auth/login
 POST  /api/auth/refresh      GET/PUT  /api/auth/me
-WS    /ws/meetings/{id}      (real-time meeting execution)
+
+# Team sharing
+GET    /api/teams/{id}/members          POST  /api/teams/{id}/members
+DELETE /api/teams/{id}/members/{uid}
+
+# WebSocket
+WS    /ws/meetings/{id}
 ```
 
 ---
@@ -135,7 +154,7 @@ npm run dev                             # Frontend: http://localhost:3000
 # Tests
 cd single-user-local/backend
 source venv/bin/activate
-pytest tests/ -v                        # 223 tests
+pytest tests/ -v                        # 230 tests
 
 # Kubernetes
 cd single-user-local/k8s

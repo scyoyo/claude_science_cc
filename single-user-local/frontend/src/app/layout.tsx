@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AuthProvider } from "@/contexts/AuthContext";
 import NavBar from "@/components/NavBar";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -31,7 +32,9 @@ export default function RootLayout({
       >
         <AuthProvider>
           <NavBar />
-          <main className="max-w-7xl mx-auto px-6 py-8">{children}</main>
+          <main className="max-w-7xl mx-auto px-6 py-8">
+            <ErrorBoundary>{children}</ErrorBoundary>
+          </main>
         </AuthProvider>
       </body>
     </html>
