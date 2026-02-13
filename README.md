@@ -1,4 +1,4 @@
-# Virtual Lab
+# Virtual Lab Web App (aka Claude Science)
 
 AI-powered research team collaboration platform. Create virtual research teams with AI agents, run collaborative meetings, generate executable code, and export results.
 
