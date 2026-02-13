@@ -1,0 +1,155 @@
+{
+  "common": {
+    "appName": "Virtual Lab",
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "confirm": "Confirm",
+    "back": "Back",
+    "search": "Search",
+    "noData": "No data",
+    "error": "Error",
+    "success": "Success",
+    "submit": "Submit",
+    "close": "Close",
+    "add": "Add",
+    "send": "Send",
+    "run": "Run"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "teams": "Teams",
+    "settings": "Settings",
+    "profile": "Profile"
+  },
+  "header": {
+    "language": "Language",
+    "theme": "Theme",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  },
+  "home": {
+    "title": "Virtual Lab",
+    "subtitle": "AI-powered virtual research lab for multi-agent collaboration",
+    "teamsCard": {
+      "title": "Teams",
+      "description": "Create and manage virtual lab teams with AI agents"
+    },
+    "settingsCard": {
+      "title": "Settings",
+      "description": "Configure API keys and model preferences"
+    },
+    "editorCard": {
+      "title": "Visual Editor",
+      "description": "Drag-and-drop agent graph editor"
+    }
+  },
+  "teams": {
+    "title": "Teams",
+    "create": "New Team",
+    "name": "Team name",
+    "description": "Description (optional)",
+    "noTeams": "No teams yet. Create one to get started.",
+    "deleteConfirm": "Delete this team and all its agents?",
+    "createTeam": "Create Team"
+  },
+  "teamDetail": {
+    "backToTeams": "Back to Teams",
+    "visualEditor": "Visual Editor",
+    "agents": "Agents",
+    "meetings": "Meetings",
+    "addAgent": "Add Agent",
+    "addMeeting": "New Meeting",
+    "noAgents": "No agents yet.",
+    "noMeetings": "No meetings yet.",
+    "createAgent": "Create Agent",
+    "deleteAgent": "Delete this agent?",
+    "agentName": "Agent name",
+    "agentTitle": "Title (e.g., Senior Researcher)",
+    "expertise": "Expertise",
+    "goal": "Goal",
+    "role": "Role",
+    "model": "Model",
+    "meetingTitle": "Meeting title",
+    "round": "Round",
+    "mirror": "Mirror"
+  },
+  "meeting": {
+    "backToTeam": "Back to Team",
+    "title": "Meeting",
+    "messages": "Messages",
+    "run": "Run Round",
+    "runLive": "Run Round (Live)",
+    "running": "Running...",
+    "topic": "Discussion topic (optional)",
+    "sendMessage": "Send a message to the agents...",
+    "noMessages": "No messages yet. Run a round or send a message to start the discussion.",
+    "thinking": "{agent} is thinking...",
+    "round": "Round {current}/{max}",
+    "status": {
+      "pending": "Pending",
+      "running": "Running",
+      "completed": "Completed",
+      "failed": "Failed"
+    },
+    "wsConnected": "Real-time connected",
+    "wsDisconnected": "Disconnected",
+    "you": "You"
+  },
+  "editor": {
+    "title": "Visual Editor",
+    "back": "Back",
+    "hint": "Double-click an agent to edit its prompt",
+    "savePrompt": "Save Prompt",
+    "selectAgent": "Select an agent to edit"
+  },
+  "settings": {
+    "title": "Settings",
+    "apiKeys": "API Keys",
+    "provider": "Provider",
+    "addKey": "Add",
+    "deleteKey": "Delete",
+    "apiKeyPlaceholder": "API key",
+    "noKeys": "No API keys configured.",
+    "inactive": "inactive"
+  },
+  "auth": {
+    "login": "Sign In",
+    "register": "Create Account",
+    "email": "Email",
+    "username": "Username or Email",
+    "usernameOnly": "Username",
+    "password": "Password",
+    "confirmPassword": "Confirm Password",
+    "logout": "Logout",
+    "signingIn": "Signing in...",
+    "creatingAccount": "Creating account...",
+    "noAccount": "Don't have an account?",
+    "hasAccount": "Already have an account?",
+    "createOne": "Create one",
+    "signIn": "Sign in",
+    "usernameHint": "Letters, numbers, hyphens, and underscores only",
+    "passwordMin": "Min 8 characters",
+    "repeatPassword": "Repeat password",
+    "emailPlaceholder": "you@example.com",
+    "usernamePlaceholder": "username"
+  },
+  "profile": {
+    "title": "Profile",
+    "email": "Email",
+    "username": "Username",
+    "role": "Role",
+    "memberSince": "Member since",
+    "admin": "Admin",
+    "user": "User",
+    "editProfile": "Edit Profile",
+    "changePassword": "New Password (leave blank to keep current)",
+    "update": "Save Changes",
+    "saving": "Saving...",
+    "updated": "Profile updated. Refresh to see changes."
+  }
+}

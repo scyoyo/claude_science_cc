@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import Link from "next/link";
+import { useTranslations } from "next-intl";
+import { Link } from "@/i18n/navigation";
 import {
   ReactFlow,
   Background,
@@ -21,10 +22,14 @@ import Editor from "@monaco-editor/react";
 import { teamsAPI, agentsAPI } from "@/lib/api";
 import type { Agent, TeamWithAgents } from "@/types";
 import AgentNode from "@/components/AgentNode";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft } from "lucide-react";
 
 export default function EditorPage() {
   const params = useParams();
   const teamId = params.teamId as string;
+  const t = useTranslations("editor");
+  const tc = useTranslations("common");
 
   const [team, setTeam] = useState<TeamWithAgents | null>(null);
   const [loading, setLoading] = useState(true);
@@ -54,7 +59,6 @@ export default function EditorPage() {
       const data = await teamsAPI.get(teamId);
       setTeam(data);
 
-      // Convert agents to React Flow nodes
       const newNodes: Node[] = data.agents.map((agent, index) => ({
         id: agent.id,
         type: "agent",
@@ -73,7 +77,6 @@ export default function EditorPage() {
         },
       }));
 
-      // Create edges for mirror agents
       const newEdges: Edge[] = data.agents
         .filter((a) => a.is_mirror && a.primary_agent_id)
         .map((a) => ({
@@ -103,12 +106,10 @@ export default function EditorPage() {
     [setEdges]
   );
 
-  // Save node positions when dragging stops
   const handleNodesChange: OnNodesChange = useCallback(
     (changes) => {
       onNodesChange(changes);
 
-      // Save positions for drag-end changes
       for (const change of changes) {
         if (change.type === "position" && change.dragging === false && change.position) {
           agentsAPI.update(change.id, {
@@ -134,36 +135,34 @@ export default function EditorPage() {
     }
   };
 
-  if (loading) return <p className="text-gray-500">Loading...</p>;
-  if (!team) return <p className="text-red-500">Team not found</p>;
+  if (loading) return <p className="text-muted-foreground">{tc("loading")}</p>;
+  if (!team) return <p className="text-destructive">Team not found</p>;
 
   return (
     <div className="h-[calc(100vh-120px)] flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <Link
-            href={`/teams/${teamId}`}
-            className="text-sm text-blue-600 hover:text-blue-800"
-          >
-            &larr; Back
-          </Link>
-          <h1 className="text-xl font-bold text-gray-900">
-            {team.name} - Visual Editor
+          <Button asChild variant="ghost" size="sm">
+            <Link href={`/teams/${teamId}`}>
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              {t("back")}
+            </Link>
+          </Button>
+          <h1 className="text-xl font-bold">
+            {team.name} - {t("title")}
           </h1>
         </div>
-        <span className="text-sm text-gray-500">
-          Double-click an agent to edit its prompt
-        </span>
+        <span className="text-sm text-muted-foreground">{t("hint")}</span>
       </div>
 
       {error && (
-        <div className="p-2 mb-2 bg-red-50 text-red-700 rounded text-sm">{error}</div>
+        <div className="p-2 mb-2 bg-destructive/10 text-destructive rounded text-sm">{error}</div>
       )}
 
       <div className="flex-1 flex gap-4">
         {/* Graph */}
-        <div className="flex-1 border border-gray-200 rounded-lg overflow-hidden bg-white">
+        <div className="flex-1 border rounded-lg overflow-hidden bg-card">
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -181,20 +180,19 @@ export default function EditorPage() {
 
         {/* Prompt Editor Panel */}
         {selectedAgent && (
-          <div className="w-[500px] border border-gray-200 rounded-lg bg-white flex flex-col">
-            <div className="p-3 border-b border-gray-200">
+          <div className="w-[500px] border rounded-lg bg-card flex flex-col">
+            <div className="p-3 border-b">
               <div className="flex items-center justify-between">
-                <h2 className="font-semibold text-gray-900">
-                  {selectedAgent.name}
-                </h2>
-                <button
+                <h2 className="font-semibold">{selectedAgent.name}</h2>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
                   onClick={() => setSelectedAgent(null)}
-                  className="text-gray-400 hover:text-gray-600"
                 >
                   &times;
-                </button>
+                </Button>
               </div>
-              <p className="text-xs text-gray-500 mt-1">{selectedAgent.title}</p>
+              <p className="text-xs text-muted-foreground mt-1">{selectedAgent.title}</p>
             </div>
             <div className="flex-1">
               <Editor
@@ -210,19 +208,13 @@ export default function EditorPage() {
                 }}
               />
             </div>
-            <div className="p-3 border-t border-gray-200 flex justify-end gap-2">
-              <button
-                onClick={() => setSelectedAgent(null)}
-                className="px-3 py-1.5 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSavePrompt}
-                className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                Save Prompt
-              </button>
+            <div className="p-3 border-t flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setSelectedAgent(null)}>
+                {tc("cancel")}
+              </Button>
+              <Button size="sm" onClick={handleSavePrompt}>
+                {t("savePrompt")}
+              </Button>
             </div>
           </div>
         )}

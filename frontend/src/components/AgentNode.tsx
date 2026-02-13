@@ -2,6 +2,7 @@
 
 import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
+import { Badge } from "@/components/ui/badge";
 
 export interface AgentNodeData {
   agent_id: string;
@@ -19,27 +20,27 @@ function AgentNode({ data }: NodeProps) {
 
   return (
     <div
-      className={`px-4 py-3 rounded-lg border-2 shadow-sm min-w-[180px] cursor-pointer ${
+      className={`px-4 py-3 rounded-lg border-2 shadow-sm min-w-[180px] cursor-pointer bg-card text-card-foreground ${
         nodeData.is_mirror
-          ? "bg-purple-50 border-purple-300"
-          : "bg-white border-gray-300"
-      } hover:border-blue-400 transition-colors`}
+          ? "border-purple-400 dark:border-purple-600"
+          : "border-border"
+      } hover:border-primary transition-colors`}
       onDoubleClick={() => nodeData.onEdit(nodeData.agent_id)}
     >
-      <Handle type="target" position={Position.Top} className="!bg-gray-400" />
-      <div className="text-sm font-semibold text-gray-900">{nodeData.name}</div>
-      <div className="text-xs text-gray-500">{nodeData.title}</div>
+      <Handle type="target" position={Position.Top} className="!bg-muted-foreground" />
+      <div className="text-sm font-semibold">{nodeData.name}</div>
+      <div className="text-xs text-muted-foreground">{nodeData.title}</div>
       <div className="mt-1 flex items-center gap-1">
-        <span className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">
+        <Badge variant="outline" className="text-[10px] px-1.5 py-0">
           {nodeData.model}
-        </span>
+        </Badge>
         {nodeData.is_mirror && (
-          <span className="text-xs px-1.5 py-0.5 bg-purple-100 text-purple-600 rounded">
+          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
             Mirror
-          </span>
+          </Badge>
         )}
       </div>
-      <Handle type="source" position={Position.Bottom} className="!bg-gray-400" />
+      <Handle type="source" position={Position.Bottom} className="!bg-muted-foreground" />
     </div>
   );
 }

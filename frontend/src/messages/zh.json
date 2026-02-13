@@ -1,0 +1,155 @@
+{
+  "common": {
+    "appName": "虚拟实验室",
+    "loading": "加载中...",
+    "save": "保存",
+    "cancel": "取消",
+    "delete": "删除",
+    "edit": "编辑",
+    "create": "创建",
+    "confirm": "确认",
+    "back": "返回",
+    "search": "搜索",
+    "noData": "暂无数据",
+    "error": "错误",
+    "success": "成功",
+    "submit": "提交",
+    "close": "关闭",
+    "add": "添加",
+    "send": "发送",
+    "run": "运行"
+  },
+  "nav": {
+    "dashboard": "仪表盘",
+    "teams": "团队",
+    "settings": "设置",
+    "profile": "个人资料"
+  },
+  "header": {
+    "language": "语言",
+    "theme": "主题",
+    "light": "浅色",
+    "dark": "深色",
+    "system": "跟随系统"
+  },
+  "home": {
+    "title": "虚拟实验室",
+    "subtitle": "AI 驱动的多智能体协作虚拟研究实验室",
+    "teamsCard": {
+      "title": "团队",
+      "description": "创建和管理包含 AI 智能体的虚拟实验室团队"
+    },
+    "settingsCard": {
+      "title": "设置",
+      "description": "配置 API 密钥和模型偏好"
+    },
+    "editorCard": {
+      "title": "可视化编辑器",
+      "description": "拖拽式智能体图编辑器"
+    }
+  },
+  "teams": {
+    "title": "团队",
+    "create": "新建团队",
+    "name": "团队名称",
+    "description": "描述（可选）",
+    "noTeams": "暂无团队，创建一个开始吧。",
+    "deleteConfirm": "确定删除此团队及其所有智能体吗？",
+    "createTeam": "创建团队"
+  },
+  "teamDetail": {
+    "backToTeams": "返回团队列表",
+    "visualEditor": "可视化编辑器",
+    "agents": "智能体",
+    "meetings": "会议",
+    "addAgent": "添加智能体",
+    "addMeeting": "新建会议",
+    "noAgents": "暂无智能体。",
+    "noMeetings": "暂无会议。",
+    "createAgent": "创建智能体",
+    "deleteAgent": "确定删除此智能体吗？",
+    "agentName": "智能体名称",
+    "agentTitle": "头衔（如：高级研究员）",
+    "expertise": "专业领域",
+    "goal": "目标",
+    "role": "角色",
+    "model": "模型",
+    "meetingTitle": "会议标题",
+    "round": "轮次",
+    "mirror": "镜像"
+  },
+  "meeting": {
+    "backToTeam": "返回团队",
+    "title": "会议",
+    "messages": "消息",
+    "run": "运行一轮",
+    "runLive": "运行一轮（实时）",
+    "running": "运行中...",
+    "topic": "讨论主题（可选）",
+    "sendMessage": "向智能体发送消息...",
+    "noMessages": "暂无消息。运行一轮或发送消息以开始讨论。",
+    "thinking": "{agent} 正在思考...",
+    "round": "第 {current}/{max} 轮",
+    "status": {
+      "pending": "待处理",
+      "running": "运行中",
+      "completed": "已完成",
+      "failed": "失败"
+    },
+    "wsConnected": "实时连接已建立",
+    "wsDisconnected": "已断开连接",
+    "you": "你"
+  },
+  "editor": {
+    "title": "可视化编辑器",
+    "back": "返回",
+    "hint": "双击智能体以编辑其提示词",
+    "savePrompt": "保存提示词",
+    "selectAgent": "选择一个智能体进行编辑"
+  },
+  "settings": {
+    "title": "设置",
+    "apiKeys": "API 密钥",
+    "provider": "提供商",
+    "addKey": "添加",
+    "deleteKey": "删除",
+    "apiKeyPlaceholder": "API 密钥",
+    "noKeys": "暂未配置 API 密钥。",
+    "inactive": "已停用"
+  },
+  "auth": {
+    "login": "登录",
+    "register": "创建账户",
+    "email": "邮箱",
+    "username": "用户名或邮箱",
+    "usernameOnly": "用户名",
+    "password": "密码",
+    "confirmPassword": "确认密码",
+    "logout": "退出登录",
+    "signingIn": "登录中...",
+    "creatingAccount": "创建账户中...",
+    "noAccount": "还没有账户？",
+    "hasAccount": "已有账户？",
+    "createOne": "注册一个",
+    "signIn": "去登录",
+    "usernameHint": "仅允许字母、数字、连字符和下划线",
+    "passwordMin": "至少 8 个字符",
+    "repeatPassword": "再次输入密码",
+    "emailPlaceholder": "you@example.com",
+    "usernamePlaceholder": "用户名"
+  },
+  "profile": {
+    "title": "个人资料",
+    "email": "邮箱",
+    "username": "用户名",
+    "role": "角色",
+    "memberSince": "注册时间",
+    "admin": "管理员",
+    "user": "用户",
+    "editProfile": "编辑资料",
+    "changePassword": "新密码（留空则保持不变）",
+    "update": "保存更改",
+    "saving": "保存中...",
+    "updated": "资料已更新。刷新页面查看更改。"
+  }
+}

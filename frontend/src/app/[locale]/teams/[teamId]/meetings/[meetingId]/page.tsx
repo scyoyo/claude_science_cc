@@ -2,15 +2,23 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
-import Link from "next/link";
+import { useTranslations } from "next-intl";
+import { Link } from "@/i18n/navigation";
 import { meetingsAPI } from "@/lib/api";
 import { useMeetingWebSocket, type WSMessage } from "@/hooks/useMeetingWebSocket";
 import type { MeetingWithMessages, MeetingMessage } from "@/types";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { ArrowLeft, Send, Play, Wifi, WifiOff } from "lucide-react";
 
 export default function MeetingDetailPage() {
   const params = useParams();
   const teamId = params.teamId as string;
   const meetingId = params.meetingId as string;
+  const t = useTranslations("meeting");
+  const tc = useTranslations("common");
 
   const [meeting, setMeeting] = useState<MeetingWithMessages | null>(null);
   const [loading, setLoading] = useState(true);
@@ -21,7 +29,6 @@ export default function MeetingDetailPage() {
   const [liveMessages, setLiveMessages] = useState<MeetingMessage[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Scroll to bottom when new messages arrive
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, []);
@@ -69,7 +76,6 @@ export default function MeetingDetailPage() {
       onMeetingComplete,
     });
 
-  // Load initial data via HTTP
   useEffect(() => {
     (async () => {
       try {
@@ -85,7 +91,6 @@ export default function MeetingDetailPage() {
     })();
   }, [meetingId]);
 
-  // Connect WebSocket when meeting loaded and not completed
   useEffect(() => {
     if (meeting && meeting.status !== "completed") {
       connect();
@@ -130,133 +135,127 @@ export default function MeetingDetailPage() {
     setUserMessage("");
   };
 
-  if (loading) return <p className="text-gray-500">Loading...</p>;
-  if (!meeting) return <p className="text-red-500">Meeting not found</p>;
+  if (loading) return <p className="text-muted-foreground">{tc("loading")}</p>;
+  if (!meeting) return <p className="text-destructive">Meeting not found</p>;
 
   const isCompleted = meeting.status === "completed";
   const allMessages = [...(meeting.messages || []), ...liveMessages];
 
+  const statusVariant = (status: string) => {
+    switch (status) {
+      case "completed": return "secondary" as const;
+      case "running": return "default" as const;
+      case "failed": return "destructive" as const;
+      default: return "outline" as const;
+    }
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col h-[calc(100vh-120px)]">
       {/* Header */}
-      <div>
+      <div className="shrink-0 space-y-1 mb-4">
         <Link
           href={`/teams/${teamId}`}
-          className="text-sm text-blue-600 hover:text-blue-800"
+          className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
         >
-          &larr; Back to Team
+          <ArrowLeft className="h-3.5 w-3.5" />
+          {t("backToTeam")}
         </Link>
-        <div className="mt-2 flex items-center gap-3">
-          <h1 className="text-2xl font-bold text-gray-900">{meeting.title}</h1>
-          <span
-            className={`text-xs px-2 py-1 rounded ${
-              meeting.status === "completed"
-                ? "bg-green-100 text-green-700"
-                : meeting.status === "running"
-                ? "bg-yellow-100 text-yellow-700"
-                : meeting.status === "failed"
-                ? "bg-red-100 text-red-700"
-                : "bg-gray-100 text-gray-600"
-            }`}
-          >
-            {meeting.status}
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold">{meeting.title}</h1>
+          <Badge variant={statusVariant(meeting.status)}>
+            {t(`status.${meeting.status}`)}
+          </Badge>
+          <span title={connected ? t("wsConnected") : t("wsDisconnected")}>
+            {connected ? (
+              <Wifi className="h-4 w-4 text-green-500" />
+            ) : (
+              <WifiOff className="h-4 w-4 text-muted-foreground" />
+            )}
           </span>
-          {/* WebSocket indicator */}
-          <span
-            className={`w-2 h-2 rounded-full ${connected ? "bg-green-500" : "bg-gray-300"}`}
-            title={connected ? "Real-time connected" : "Disconnected"}
-          />
         </div>
-        <p className="text-sm text-gray-500 mt-1">
-          Round {meeting.current_round}/{meeting.max_rounds}
+        <p className="text-sm text-muted-foreground">
+          {t("round", { current: meeting.current_round, max: meeting.max_rounds })}
         </p>
       </div>
 
       {error && (
-        <div className="p-3 bg-red-50 text-red-700 rounded-lg text-sm">{error}</div>
+        <div className="shrink-0 p-3 mb-4 bg-destructive/10 text-destructive rounded-lg text-sm">{error}</div>
       )}
 
       {/* Messages */}
-      <div className="space-y-3 max-h-[60vh] overflow-y-auto">
-        {allMessages.length === 0 ? (
-          <p className="text-gray-500 text-sm">
-            No messages yet. Run a round or send a message to start the discussion.
-          </p>
-        ) : (
-          allMessages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`p-4 rounded-lg ${
-                msg.role === "user"
-                  ? "bg-blue-50 border border-blue-200"
-                  : "bg-white border border-gray-200"
-              }`}
-            >
-              <div className="flex items-center gap-2 mb-1">
-                <span className="font-medium text-sm text-gray-900">
-                  {msg.role === "user" ? "You" : msg.agent_name || "Assistant"}
-                </span>
-                {msg.round_number > 0 && (
-                  <span className="text-xs text-gray-400">
-                    Round {msg.round_number}
+      <ScrollArea className="flex-1 mb-4">
+        <div className="space-y-3 pr-4">
+          {allMessages.length === 0 ? (
+            <p className="text-muted-foreground text-sm">{t("noMessages")}</p>
+          ) : (
+            allMessages.map((msg) => (
+              <div
+                key={msg.id}
+                className={`p-4 rounded-lg border ${
+                  msg.role === "user"
+                    ? "bg-primary/5 border-primary/20"
+                    : "bg-card"
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="font-medium text-sm">
+                    {msg.role === "user" ? t("you") : msg.agent_name || "Assistant"}
                   </span>
-                )}
+                  {msg.round_number > 0 && (
+                    <Badge variant="outline" className="text-xs">
+                      R{msg.round_number}
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                  {msg.content}
+                </p>
               </div>
-              <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                {msg.content}
-              </p>
+            ))
+          )}
+
+          {speaking && (
+            <div className="p-4 rounded-lg bg-muted border animate-pulse">
+              <span className="text-sm text-muted-foreground">
+                {t("thinking", { agent: speaking })}
+              </span>
             </div>
-          ))
-        )}
+          )}
 
-        {/* Typing indicator */}
-        {speaking && (
-          <div className="p-4 rounded-lg bg-gray-50 border border-gray-200 animate-pulse">
-            <span className="text-sm text-gray-500">
-              {speaking} is thinking...
-            </span>
-          </div>
-        )}
-
-        <div ref={messagesEndRef} />
-      </div>
+          <div ref={messagesEndRef} />
+        </div>
+      </ScrollArea>
 
       {/* Controls */}
       {!isCompleted && (
-        <div className="space-y-3 border-t border-gray-200 pt-4">
-          {/* User message input */}
+        <div className="shrink-0 space-y-3 border-t pt-4">
           <form onSubmit={handleSendMessage} className="flex gap-2">
-            <input
-              type="text"
+            <Input
               value={userMessage}
               onChange={(e) => setUserMessage(e.target.value)}
-              placeholder="Send a message to the agents..."
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder={t("sendMessage")}
+              className="flex-1"
             />
-            <button
-              type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              Send
-            </button>
+            <Button type="submit" size="icon">
+              <Send className="h-4 w-4" />
+            </Button>
           </form>
 
-          {/* Run controls */}
           <div className="flex items-center gap-2">
-            <input
-              type="text"
+            <Input
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
-              placeholder="Discussion topic (optional)"
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+              placeholder={t("topic")}
+              className="flex-1"
             />
-            <button
+            <Button
               onClick={connected ? handleRunWS : handleRunHTTP}
               disabled={running}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {running ? "Running..." : connected ? "Run Round (Live)" : "Run Round"}
-            </button>
+              <Play className="h-4 w-4 mr-1" />
+              {running ? t("running") : connected ? t("runLive") : t("run")}
+            </Button>
           </div>
         </div>
       )}
