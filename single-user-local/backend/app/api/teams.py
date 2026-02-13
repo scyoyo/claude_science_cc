@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
@@ -7,34 +7,37 @@ from app.models import Team
 from app.models.user import User, UserTeamRole
 from app.schemas.team import TeamCreate, TeamUpdate, TeamResponse, TeamWithAgents
 from app.schemas.user import TeamRoleAssign, TeamRoleResponse
+from app.schemas.pagination import PaginatedResponse
 from app.core.auth import get_current_user
 from app.core.permissions import check_team_access
 
 router = APIRouter(prefix="/teams", tags=["teams"])
 
 
-@router.get("/", response_model=List[TeamResponse])
+@router.get("/", response_model=PaginatedResponse[TeamResponse])
 def list_teams(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user),
 ):
-    """List all teams. When auth enabled, shows user's teams + public teams."""
+    """List teams with pagination. When auth enabled, shows user's teams + public teams."""
     if current_user is None:
-        # V1 mode or no auth — return all
-        return db.query(Team).all()
+        query = db.query(Team)
+    else:
+        user_team_ids = [
+            r.team_id
+            for r in db.query(UserTeamRole).filter(UserTeamRole.user_id == current_user.id).all()
+        ]
+        query = db.query(Team).filter(
+            (Team.owner_id == current_user.id)
+            | (Team.id.in_(user_team_ids) if user_team_ids else False)
+            | (Team.is_public == True)
+        )
 
-    from app.models.user import UserTeamRole
-    # User's own teams + teams with explicit roles + public teams
-    user_team_ids = [
-        r.team_id
-        for r in db.query(UserTeamRole).filter(UserTeamRole.user_id == current_user.id).all()
-    ]
-    teams = db.query(Team).filter(
-        (Team.owner_id == current_user.id)
-        | (Team.id.in_(user_team_ids) if user_team_ids else False)
-        | (Team.is_public == True)
-    ).all()
-    return teams
+    total = query.count()
+    items = query.offset(skip).limit(limit).all()
+    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
 
 
 @router.post("/", response_model=TeamResponse, status_code=status.HTTP_201_CREATED)

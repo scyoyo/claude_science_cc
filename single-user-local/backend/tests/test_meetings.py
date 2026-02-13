@@ -167,7 +167,9 @@ class TestMeetingCRUDAPI:
 
         resp = client.get(f"/api/meetings/team/{team['id']}")
         assert resp.status_code == 200
-        assert len(resp.json()) == 2
+        data = resp.json()
+        assert data["total"] == 2
+        assert len(data["items"]) == 2
 
     def test_update_meeting(self, client, team):
         """Update a meeting."""

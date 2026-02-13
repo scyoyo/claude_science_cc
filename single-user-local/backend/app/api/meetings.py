@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from typing import List
 
@@ -18,6 +18,7 @@ from app.core.meeting_engine import MeetingEngine
 from app.core.llm_client import create_provider, detect_provider
 from app.core.encryption import decrypt_api_key
 from app.schemas.onboarding import ChatMessage
+from app.schemas.pagination import PaginatedResponse
 
 router = APIRouter(prefix="/meetings", tags=["meetings"])
 
@@ -50,10 +51,18 @@ def get_meeting(meeting_id: str, db: Session = Depends(get_db)):
     return meeting
 
 
-@router.get("/team/{team_id}", response_model=List[MeetingResponse])
-def list_team_meetings(team_id: str, db: Session = Depends(get_db)):
-    """List all meetings for a team."""
-    return db.query(Meeting).filter(Meeting.team_id == team_id).all()
+@router.get("/team/{team_id}", response_model=PaginatedResponse[MeetingResponse])
+def list_team_meetings(
+    team_id: str,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+    db: Session = Depends(get_db),
+):
+    """List all meetings for a team with pagination."""
+    query = db.query(Meeting).filter(Meeting.team_id == team_id)
+    total = query.count()
+    items = query.offset(skip).limit(limit).all()
+    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
 
 
 @router.put("/{meeting_id}", response_model=MeetingResponse)

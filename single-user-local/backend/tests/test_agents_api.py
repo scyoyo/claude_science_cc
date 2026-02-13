@@ -70,7 +70,8 @@ def test_list_team_agents(client, sample_team):
     response = client.get(f"/api/agents/team/{sample_team['id']}")
     assert response.status_code == 200
     data = response.json()
-    assert len(data) == 2
+    assert data["total"] == 2
+    assert len(data["items"]) == 2
 
 
 def test_get_agent(client, sample_team):
@@ -162,4 +163,4 @@ def test_cascade_delete_agents_with_team(client, sample_team):
     # Verify agents are gone
     response = client.get(f"/api/agents/team/{sample_team['id']}")
     assert response.status_code == 200
-    assert len(response.json()) == 0
+    assert response.json()["total"] == 0

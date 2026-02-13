@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from typing import List
 
 from app.database import get_db
 from app.models import Agent, Team
 from app.schemas.agent import AgentCreate, AgentUpdate, AgentResponse
+from app.schemas.pagination import PaginatedResponse
 
 router = APIRouter(prefix="/agents", tags=["agents"])
 
@@ -95,8 +96,15 @@ def delete_agent(agent_id: str, db: Session = Depends(get_db)):
     return None
 
 
-@router.get("/team/{team_id}", response_model=List[AgentResponse])
-def list_team_agents(team_id: str, db: Session = Depends(get_db)):
-    """List all agents in a team"""
-    agents = db.query(Agent).filter(Agent.team_id == team_id).all()
-    return agents
+@router.get("/team/{team_id}", response_model=PaginatedResponse[AgentResponse])
+def list_team_agents(
+    team_id: str,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+    db: Session = Depends(get_db),
+):
+    """List all agents in a team with pagination"""
+    query = db.query(Agent).filter(Agent.team_id == team_id)
+    total = query.count()
+    items = query.offset(skip).limit(limit).all()
+    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)

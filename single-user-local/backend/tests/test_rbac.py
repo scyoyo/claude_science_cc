@@ -243,7 +243,7 @@ class TestTeamCRUDWithAuth:
 
         resp = client.get("/api/teams/", headers=_auth_header(user.id))
         assert resp.status_code == 200
-        names = [t["name"] for t in resp.json()]
+        names = [t["name"] for t in resp.json()["items"]]
         assert "My Team" in names
         assert "Public Team" in names
         assert "Private Team" not in names

@@ -169,7 +169,9 @@ class TestArtifactAPI:
         })
         resp = client.get(f"/api/artifacts/meeting/{meeting['id']}")
         assert resp.status_code == 200
-        assert len(resp.json()) == 2
+        data = resp.json()
+        assert data["total"] == 2
+        assert len(data["items"]) == 2
 
     def test_update_artifact(self, client, meeting):
         """Update artifact content bumps version."""

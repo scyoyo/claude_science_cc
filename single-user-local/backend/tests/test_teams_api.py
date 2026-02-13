@@ -25,7 +25,10 @@ def test_list_teams(client):
     response = client.get("/api/teams/")
     assert response.status_code == 200
     data = response.json()
-    assert len(data) == 2
+    assert data["total"] == 2
+    assert len(data["items"]) == 2
+    assert data["skip"] == 0
+    assert data["limit"] == 100
 
 
 def test_get_team(client):

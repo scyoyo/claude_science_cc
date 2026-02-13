@@ -97,9 +97,9 @@ class TestFullWorkflow:
         assert len(meeting_detail["messages"]) == 1
 
         # Step 4: List team meetings (Team detail -> meetings list)
-        meetings = client.get(f"/api/meetings/team/{team['id']}").json()
-        assert len(meetings) == 1
-        assert meetings[0]["title"] == "Experiment Design"
+        meetings_resp = client.get(f"/api/meetings/team/{team['id']}").json()
+        assert meetings_resp["total"] == 1
+        assert meetings_resp["items"][0]["title"] == "Experiment Design"
 
     def test_full_artifact_and_export_workflow(self, client):
         """Frontend flow: Create artifacts -> Export in all formats."""
@@ -131,8 +131,8 @@ class TestFullWorkflow:
         assert resp.status_code == 201
 
         # Step 2: List artifacts
-        artifacts = client.get(f"/api/artifacts/meeting/{meeting['id']}").json()
-        assert len(artifacts) == 2
+        artifacts_resp = client.get(f"/api/artifacts/meeting/{meeting['id']}").json()
+        assert artifacts_resp["total"] == 2
 
         # Step 3: Export as ZIP
         resp = client.get(f"/api/export/meeting/{meeting['id']}/zip")

@@ -1,19 +1,28 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from typing import List
 
 from app.database import get_db
 from app.models import Meeting, MeetingMessage, CodeArtifact
 from app.schemas.artifact import CodeArtifactCreate, CodeArtifactUpdate, CodeArtifactResponse
+from app.schemas.pagination import PaginatedResponse
 from app.core.code_extractor import extract_from_meeting_messages
 
 router = APIRouter(prefix="/artifacts", tags=["artifacts"])
 
 
-@router.get("/meeting/{meeting_id}", response_model=List[CodeArtifactResponse])
-def list_meeting_artifacts(meeting_id: str, db: Session = Depends(get_db)):
-    """List all code artifacts for a meeting."""
-    return db.query(CodeArtifact).filter(CodeArtifact.meeting_id == meeting_id).all()
+@router.get("/meeting/{meeting_id}", response_model=PaginatedResponse[CodeArtifactResponse])
+def list_meeting_artifacts(
+    meeting_id: str,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+    db: Session = Depends(get_db),
+):
+    """List all code artifacts for a meeting with pagination."""
+    query = db.query(CodeArtifact).filter(CodeArtifact.meeting_id == meeting_id)
+    total = query.count()
+    items = query.offset(skip).limit(limit).all()
+    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
 
 
 @router.get("/{artifact_id}", response_model=CodeArtifactResponse)
