@@ -43,6 +43,25 @@ def create_meeting(data: MeetingCreate, db: Session = Depends(get_db)):
     return meeting
 
 
+@router.post("/{meeting_id}/clone", response_model=MeetingResponse, status_code=status.HTTP_201_CREATED)
+def clone_meeting(meeting_id: str, db: Session = Depends(get_db)):
+    """Clone a meeting's configuration into a new meeting."""
+    original = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    if not original:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+
+    clone = Meeting(
+        team_id=original.team_id,
+        title=f"{original.title} (copy)",
+        description=original.description,
+        max_rounds=original.max_rounds,
+    )
+    db.add(clone)
+    db.commit()
+    db.refresh(clone)
+    return clone
+
+
 @router.get("/{meeting_id}", response_model=MeetingWithMessages)
 def get_meeting(meeting_id: str, db: Session = Depends(get_db)):
     """Get meeting details with messages."""

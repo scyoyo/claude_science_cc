@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 
 from app.database import get_db
 from app.models import Agent, Team
@@ -123,6 +123,42 @@ def get_agent(agent_id: str, db: Session = Depends(get_db)):
             detail="Agent not found"
         )
     return agent
+
+
+@router.post("/{agent_id}/clone", response_model=AgentResponse, status_code=status.HTTP_201_CREATED)
+def clone_agent(
+    agent_id: str,
+    team_id: Optional[str] = Query(None, description="Target team ID (defaults to same team)"),
+    db: Session = Depends(get_db),
+):
+    """Clone an agent's configuration. Optionally move to a different team."""
+    original = db.query(Agent).filter(Agent.id == agent_id).first()
+    if not original:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent not found")
+
+    target_team_id = team_id or original.team_id
+    if team_id:
+        team = db.query(Team).filter(Team.id == team_id).first()
+        if not team:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target team not found")
+
+    clone = Agent(
+        team_id=target_team_id,
+        name=f"{original.name} (copy)",
+        title=original.title,
+        expertise=original.expertise,
+        goal=original.goal,
+        role=original.role,
+        model=original.model,
+        model_params=original.model_params or {},
+        position_x=original.position_x + 50,
+        position_y=original.position_y + 50,
+    )
+    clone.system_prompt = generate_system_prompt(clone)
+    db.add(clone)
+    db.commit()
+    db.refresh(clone)
+    return clone
 
 
 @router.put("/{agent_id}", response_model=AgentResponse)

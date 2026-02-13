@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 
 from app.database import get_db
-from app.models import Team
+from app.models import Team, Agent, Meeting, MeetingMessage, CodeArtifact
 from app.models.user import User, UserTeamRole
 from app.schemas.team import TeamCreate, TeamUpdate, TeamResponse, TeamWithAgents
 from app.schemas.user import TeamRoleAssign, TeamRoleResponse
@@ -72,6 +72,46 @@ def get_team(
         )
     check_team_access(db, current_user, team, min_role="viewer")
     return team
+
+
+@router.get("/{team_id}/stats")
+def get_team_stats(
+    team_id: str,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user),
+):
+    """Get team statistics: counts of agents, meetings, messages, artifacts."""
+    team = db.query(Team).filter(Team.id == team_id).first()
+    if not team:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
+    check_team_access(db, current_user, team, min_role="viewer")
+
+    agent_count = db.query(Agent).filter(Agent.team_id == team_id).count()
+    meeting_count = db.query(Meeting).filter(Meeting.team_id == team_id).count()
+    completed_meetings = db.query(Meeting).filter(
+        Meeting.team_id == team_id, Meeting.status == "completed"
+    ).count()
+
+    # Get message count across all team meetings
+    meeting_ids = [m.id for m in db.query(Meeting.id).filter(Meeting.team_id == team_id).all()]
+    message_count = 0
+    artifact_count = 0
+    if meeting_ids:
+        message_count = db.query(MeetingMessage).filter(
+            MeetingMessage.meeting_id.in_(meeting_ids)
+        ).count()
+        artifact_count = db.query(CodeArtifact).filter(
+            CodeArtifact.meeting_id.in_(meeting_ids)
+        ).count()
+
+    return {
+        "team_id": team_id,
+        "agent_count": agent_count,
+        "meeting_count": meeting_count,
+        "completed_meetings": completed_meetings,
+        "message_count": message_count,
+        "artifact_count": artifact_count,
+    }
 
 
 @router.put("/{team_id}", response_model=TeamResponse)
