@@ -28,7 +28,7 @@ Building a web app based on https://github.com/zou-group/virtual-lab that allows
 │   │   │   ├── models/          # DB models (Team, Agent)
 │   │   │   ├── schemas/         # Pydantic schemas
 │   │   │   ├── api/             # API routers (teams, agents)
-│   │   │   └── core/            # Business logic (to be implemented)
+│   │   │   └── core/            # Business logic (team_builder, mirror_validator)
 │   │   ├── tests/               # pytest tests (conftest + 4 test files)
 │   │   ├── venv/                # Python 3.13 virtual environment
 │   │   ├── requirements.txt     # Updated for Python 3.13 compatibility
@@ -76,18 +76,20 @@ httpx==0.28.1
 ## API Endpoints (Currently Implemented)
 
 ```
-GET    /                          # Root info
-GET    /health                    # Health check
-GET    /api/teams/                # List all teams
-POST   /api/teams/                # Create team
-GET    /api/teams/{team_id}       # Get team with agents
-PUT    /api/teams/{team_id}       # Update team
-DELETE /api/teams/{team_id}       # Delete team (cascades to agents)
-POST   /api/agents/               # Create agent (auto-generates system_prompt)
-GET    /api/agents/{agent_id}     # Get agent
-PUT    /api/agents/{agent_id}     # Update agent (regenerates system_prompt if needed)
-DELETE /api/agents/{agent_id}     # Delete agent
-GET    /api/agents/team/{team_id} # List agents in team
+GET    /                                   # Root info
+GET    /health                             # Health check
+GET    /api/teams/                         # List all teams
+POST   /api/teams/                         # Create team
+GET    /api/teams/{team_id}                # Get team with agents
+PUT    /api/teams/{team_id}                # Update team
+DELETE /api/teams/{team_id}                # Delete team (cascades to agents)
+POST   /api/agents/                        # Create agent (auto-generates system_prompt)
+GET    /api/agents/{agent_id}              # Get agent
+PUT    /api/agents/{agent_id}              # Update agent (regenerates system_prompt if needed)
+DELETE /api/agents/{agent_id}              # Delete agent
+GET    /api/agents/team/{team_id}          # List agents in team
+POST   /api/onboarding/chat               # Multi-stage onboarding conversation
+POST   /api/onboarding/generate-team      # Generate team from onboarding config
 ```
 
 ## Database Models
@@ -97,14 +99,16 @@ GET    /api/agents/team/{team_id} # List agents in team
 
 ## Test Results (Last Run)
 
-- **19/19 tests passed**, 96% coverage
+- **46/46 tests passed**
 - test_main.py (2 tests): root endpoint, health check
 - test_models.py (4 tests): create team, create agent, cascade delete, mirror agent
 - test_teams_api.py (6 tests): CRUD + 404 handling
 - test_agents_api.py (7 tests): CRUD + invalid team + cascade delete
+- test_onboarding.py (27 tests): TeamBuilder (10), MirrorValidator (6), Onboarding API (11)
 
 ## Git Commits
 
+- `4d37bfe` - feat: Add Intelligent Onboarding System (Step 1.0)
 - `3fb5516` - feat: Initial implementation - Steps 1.1, 1.2, 1.3 complete
 
 ## Development Rules
@@ -116,24 +120,16 @@ GET    /api/agents/team/{team_id} # List agents in team
 
 ## Implementation Plan - Remaining Steps
 
-### Step 1.0: Intelligent Onboarding System (NEXT)
-- `backend/app/core/__init__.py`
-- `backend/app/core/team_builder.py` - AI-powered team composition (TeamBuilder class)
-  - `analyze_problem(problem_description)` → domain analysis JSON
-  - `suggest_team_composition(analysis, preferences)` → agent list
-  - `create_mirror_agents(primary_agents, mirror_model)` → mirror agents
-  - `auto_generate_team(conversation_history, team_name)` → complete team config
-- `backend/app/core/mirror_validator.py` - Compare primary/mirror agent outputs
-  - `compare_responses(primary, mirror)` → consistency analysis
-  - `should_flag_for_review(comparison)` → bool
-- `backend/app/schemas/onboarding.py` - Request/response schemas for onboarding chat
-- `backend/app/api/onboarding.py` - Onboarding chat API
-  - POST `/api/onboarding/chat` - Multi-stage conversation (problem → clarification → team_suggestion → mirror_config → complete)
-  - POST `/api/onboarding/generate-team` - Auto-generate team from config
-- `backend/tests/test_onboarding.py` - Tests for onboarding flow
-- **Note**: LLM calls should be mockable for testing (don't require real API keys in tests)
+### Step 1.0: Intelligent Onboarding System (DONE)
+- `backend/app/core/__init__.py` ✅
+- `backend/app/core/team_builder.py` ✅ - TeamBuilder with domain detection, team suggestion, mirror creation
+- `backend/app/core/mirror_validator.py` ✅ - Jaccard similarity comparison, review threshold
+- `backend/app/schemas/onboarding.py` ✅ - OnboardingStage enum, ChatMessage, DomainAnalysis, TeamSuggestion, etc.
+- `backend/app/api/onboarding.py` ✅ - POST `/api/onboarding/chat` + POST `/api/onboarding/generate-team`
+- `backend/tests/test_onboarding.py` ✅ - 27 tests covering all components
+- LLM calls mockable via injectable `llm_func` callable
 
-### Step 1.4: LLM API Client
+### Step 1.4: LLM API Client (NEXT)
 - Unified interface for OpenAI/Claude/DeepSeek
 - API key storage (encrypted)
 - Provider factory pattern
