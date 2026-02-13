@@ -11,39 +11,48 @@ from app.api.agents import generate_system_prompt
 from app.core.team_builder import TeamBuilder
 from app.core.llm_client import create_provider
 from app.schemas.onboarding import (
+    AgentSuggestion,
     ChatMessage,
+    DomainAnalysis,
     GenerateTeamRequest,
     OnboardingChatRequest,
     OnboardingChatResponse,
     OnboardingStage,
+    TeamSuggestion,
 )
 from app.schemas.team import TeamWithAgents
 
 router = APIRouter(prefix="/onboarding", tags=["onboarding"])
 
+# Signal words for accept/reject detection
+ACCEPT_SIGNALS = ["accept", "looks good", "proceed", "yes", "approve", "confirm", "go ahead", "ok", "sure", "great"]
+REJECT_SIGNALS = ["reject", "no", "change", "modify", "different", "revise", "redo", "not good", "disagree"]
+
 
 def _create_onboarding_llm_func():
-    """Create LLM callable from env var. Returns None if no key configured."""
-    if not settings.ONBOARDING_API_KEY:
+    """Create LLM callable from env var. Falls back to ANTHROPIC_API_KEY if no ONBOARDING_API_KEY."""
+    api_key = settings.ONBOARDING_API_KEY or settings.ANTHROPIC_API_KEY
+    if not api_key:
         return None
-    provider = create_provider(settings.ONBOARDING_LLM_PROVIDER, settings.ONBOARDING_API_KEY)
+    llm_provider = settings.ONBOARDING_LLM_PROVIDER if settings.ONBOARDING_API_KEY else "anthropic"
+    provider = create_provider(llm_provider, api_key)
     model = settings.ONBOARDING_LLM_MODEL
 
     def llm_func(prompt: str, history: List[ChatMessage]) -> str:
-        all_messages = [ChatMessage(role="system", content=prompt)] + history
+        if history:
+            all_messages = [ChatMessage(role="system", content=prompt)] + history
+        else:
+            # No history: send prompt as user message (Anthropic requires >= 1 non-system message)
+            all_messages = [ChatMessage(role="user", content=prompt)]
         response = provider.chat(all_messages, model)
         return response.content
 
     return llm_func
 
 
-# Module-level TeamBuilder instance (uses LLM if ONBOARDING_API_KEY is set)
-_team_builder = TeamBuilder(llm_func=_create_onboarding_llm_func())
-
-
 def get_team_builder() -> TeamBuilder:
-    """Dependency for getting TeamBuilder (allows override in tests)."""
-    return _team_builder
+    """Dependency: create TeamBuilder per request (picks up latest API key config)."""
+    return TeamBuilder(llm_func=_create_onboarding_llm_func())
 
 
 def _parse_preferences_from_message(message: str) -> dict:
@@ -77,6 +86,21 @@ def _parse_preferences_from_message(message: str) -> dict:
     return preferences
 
 
+def _detect_accept_reject(message: str) -> str:
+    """Detect whether the user accepts or rejects the team proposal.
+
+    Returns 'accept', 'reject', or 'unclear'.
+    """
+    msg_lower = message.lower()
+    accept_score = sum(1 for s in ACCEPT_SIGNALS if s in msg_lower)
+    reject_score = sum(1 for s in REJECT_SIGNALS if s in msg_lower)
+    if reject_score > accept_score:
+        return "reject"
+    if accept_score > 0:
+        return "accept"
+    return "unclear"
+
+
 @router.post("/chat", response_model=OnboardingChatResponse)
 def onboarding_chat(
     request: OnboardingChatRequest,
@@ -85,10 +109,10 @@ def onboarding_chat(
     """Multi-stage onboarding conversation.
 
     Stages:
-    - problem: User describes research problem → domain analysis
-    - clarification: User provides preferences → team suggestion
-    - team_suggestion: User reviews team → mirror config prompt
-    - mirror_config: User configures mirrors → complete config
+    - problem: User describes research problem → LLM asks clarifying questions
+    - clarification: User answers questions → LLM proposes team as JSON
+    - team_suggestion: User accepts/rejects → accept goes to mirrors, reject re-proposes
+    - mirror_config: LLM explains mirrors → final config
     - complete: Final summary
     """
     if request.stage == OnboardingStage.problem:
@@ -112,7 +136,24 @@ def _handle_problem_stage(
     request: OnboardingChatRequest,
     team_builder: TeamBuilder,
 ) -> OnboardingChatResponse:
-    """Analyze the user's research problem."""
+    """Analyze the user's research problem.
+
+    LLM mode: Ask 2-3 clarifying questions as natural text.
+    Template mode: Return domain analysis with structured prompts.
+    """
+    if team_builder.llm_func:
+        # LLM mode: generate clarifying response
+        response_text = team_builder.generate_clarifying_response(
+            request.message, request.conversation_history
+        )
+        return OnboardingChatResponse(
+            stage=OnboardingStage.problem,
+            next_stage=OnboardingStage.clarification,
+            message=response_text,
+            data={},
+        )
+
+    # Template mode: keyword-based analysis
     analysis = team_builder.analyze_problem(request.message)
     return OnboardingChatResponse(
         stage=OnboardingStage.problem,
@@ -134,8 +175,40 @@ def _handle_clarification_stage(
     request: OnboardingChatRequest,
     team_builder: TeamBuilder,
 ) -> OnboardingChatResponse:
-    """Generate team suggestion based on analysis + user preferences."""
-    # Reconstruct analysis from context
+    """Generate team suggestion based on conversation.
+
+    LLM mode: LLM proposes full team as JSON based on conversation history.
+    Template mode: Parse preferences + use template team composition.
+    """
+    if team_builder.llm_func:
+        # LLM mode: propose team from full conversation history
+        history = list(request.conversation_history)
+        if request.message:
+            history.append(ChatMessage(role="user", content=request.message))
+
+        suggestion, raw_text = team_builder.propose_team_with_text(history)
+        if suggestion:
+            agent_summary = "\n".join(
+                f"- **{a.name}** ({a.title}): {a.expertise}"
+                for a in suggestion.agents
+            )
+            # Use LLM's text if available, otherwise build our own
+            display_text = raw_text if raw_text else (
+                f"Here's your suggested team: **{suggestion.team_name}**\n\n{agent_summary}"
+            )
+            return OnboardingChatResponse(
+                stage=OnboardingStage.clarification,
+                next_stage=OnboardingStage.team_suggestion,
+                message=display_text,
+                data={
+                    "team_suggestion": suggestion.model_dump(),
+                    "proposed_team": [a.model_dump() for a in suggestion.agents],
+                },
+            )
+        # LLM failed to produce valid JSON, fall through to template
+        pass
+
+    # Template mode: reconstruct analysis from context
     analysis_data = request.context.get("analysis")
     if not analysis_data:
         raise HTTPException(
@@ -143,9 +216,7 @@ def _handle_clarification_stage(
             detail="Missing 'analysis' in context. Complete the 'problem' stage first.",
         )
 
-    from app.schemas.onboarding import DomainAnalysis
     analysis = DomainAnalysis(**analysis_data)
-
     parsed = _parse_preferences_from_message(request.message)
     preferences = {**parsed, **request.context.get("preferences", {})}
     suggestion = team_builder.suggest_team_composition(analysis, preferences)
@@ -174,7 +245,53 @@ def _handle_team_suggestion_stage(
     request: OnboardingChatRequest,
     team_builder: TeamBuilder,
 ) -> OnboardingChatResponse:
-    """Handle user's response to team suggestion."""
+    """Handle user's response to team suggestion.
+
+    Detect accept/reject:
+    - Accept → move to mirror_config (LLM explains mirrors or static message)
+    - Reject → re-propose team with feedback (loop back to clarification stage)
+    """
+    decision = _detect_accept_reject(request.message)
+
+    if decision == "reject":
+        # Re-propose team with user feedback
+        if team_builder.llm_func:
+            history = list(request.conversation_history)
+            if request.message:
+                history.append(ChatMessage(role="user", content=request.message))
+            suggestion, raw_text = team_builder.propose_team_with_text(history)
+            if suggestion:
+                return OnboardingChatResponse(
+                    stage=OnboardingStage.team_suggestion,
+                    next_stage=OnboardingStage.team_suggestion,
+                    message=raw_text or f"Here's a revised team: **{suggestion.team_name}**",
+                    data={
+                        "team_suggestion": suggestion.model_dump(),
+                        "proposed_team": [a.model_dump() for a in suggestion.agents],
+                    },
+                )
+        # Template fallback: re-ask
+        return OnboardingChatResponse(
+            stage=OnboardingStage.team_suggestion,
+            next_stage=OnboardingStage.team_suggestion,
+            message=(
+                "I understand you'd like changes. Please describe what you'd like to modify "
+                "(e.g., different agents, different size, different models)."
+            ),
+            data={"team_suggestion": request.context.get("team_suggestion", {})},
+        )
+
+    # Accept (or unclear → default to accept and proceed)
+    if team_builder.llm_func:
+        history = list(request.conversation_history)
+        mirror_explanation = team_builder.explain_mirrors(history)
+        return OnboardingChatResponse(
+            stage=OnboardingStage.team_suggestion,
+            next_stage=OnboardingStage.mirror_config,
+            message=mirror_explanation,
+            data={"team_suggestion": request.context.get("team_suggestion", {})},
+        )
+
     return OnboardingChatResponse(
         stage=OnboardingStage.team_suggestion,
         next_stage=OnboardingStage.mirror_config,

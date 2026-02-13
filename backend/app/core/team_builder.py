@@ -6,6 +6,8 @@ LLM calls are abstracted via a callable `llm_func` for easy mocking in tests.
 When no llm_func is provided, uses template-based heuristics.
 """
 
+import json
+import re
 from typing import Callable, Dict, List, Optional
 
 from app.schemas.onboarding import (
@@ -15,6 +17,58 @@ from app.schemas.onboarding import (
     MirrorConfig,
     TeamSuggestion,
 )
+
+# ==================== System Prompts ====================
+
+ANALYZER_PROMPT = """You are a scientific research advisor helping to assemble a virtual lab team.
+
+The user will describe a research problem. Your job is to:
+1. Understand the scientific domain and specific problem
+2. Ask 2-3 targeted clarifying questions to better understand requirements
+
+Keep your response conversational and concise. Do NOT propose a team yet - just analyze
+the problem and ask clarifying questions to understand scope, constraints, and goals.
+
+Respond in natural text (not JSON)."""
+
+TEAM_PROPOSER_PROMPT = """You are a scientific research advisor helping to assemble a virtual lab team.
+
+Based on the conversation so far, propose a team of 3-5 specialists. Return your response
+in the following format:
+
+1. A brief summary paragraph explaining your team composition rationale.
+2. Then a JSON block with the team details:
+
+```json
+{
+  "team_name": "descriptive team name",
+  "team_description": "brief description of the team's focus",
+  "agents": [
+    {
+      "name": "Agent Name",
+      "title": "Professional Title",
+      "expertise": "area of expertise",
+      "goal": "what this agent aims to accomplish",
+      "role": "specific role in the team",
+      "model": "gpt-4"
+    }
+  ]
+}
+```
+
+Use "gpt-4" as the default model for all agents unless the user specified a preference."""
+
+MIRROR_ADVISOR_PROMPT = """You are a scientific research advisor explaining the concept of mirror agents.
+
+Mirror agents are duplicate team members that use a different AI model to independently
+verify the primary agents' outputs. This helps catch errors, biases, and hallucinations
+through cross-validation.
+
+Briefly explain how mirror agents would benefit this team and ask the user:
+1. Whether they want to enable mirror agents
+2. If yes, which model should the mirrors use (suggest an alternative to the primary model)
+
+Keep your explanation concise (2-3 sentences about the benefit, then the questions)."""
 
 # Domain keyword → (sub_domains, challenges, approaches, agent templates)
 DOMAIN_TEMPLATES: Dict[str, dict] = {
@@ -131,12 +185,46 @@ class TeamBuilder:
     """Builds virtual lab teams based on problem analysis.
 
     Args:
-        llm_func: Optional async callable (prompt, history) -> response string.
+        llm_func: Optional callable (prompt, history) -> response string.
                   When None, uses template-based heuristics.
     """
 
     def __init__(self, llm_func: Optional[LLMFunc] = None):
         self.llm_func = llm_func
+
+    # ==================== Helpers ====================
+
+    @staticmethod
+    def _build_messages(
+        system_prompt: str,
+        history: List[ChatMessage],
+        user_message: Optional[str] = None,
+    ) -> List[ChatMessage]:
+        """Build message list with system prompt, conversation history, and optional new user message."""
+        messages = [ChatMessage(role="system", content=system_prompt)]
+        messages.extend(history)
+        if user_message:
+            messages.append(ChatMessage(role="user", content=user_message))
+        return messages
+
+    @staticmethod
+    def _parse_team_json(content: str) -> Optional[dict]:
+        """Extract team JSON from LLM response (handles markdown fences)."""
+        # Try to find JSON block in markdown fences first
+        fence_match = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', content, re.DOTALL)
+        if fence_match:
+            try:
+                return json.loads(fence_match.group(1).strip())
+            except json.JSONDecodeError:
+                pass
+        # Try to find raw JSON object
+        brace_match = re.search(r'\{.*\}', content, re.DOTALL)
+        if brace_match:
+            try:
+                return json.loads(brace_match.group(0))
+            except json.JSONDecodeError:
+                pass
+        return None
 
     def _detect_domain(self, text: str) -> str:
         """Detect the research domain from problem description."""
@@ -146,6 +234,112 @@ class TeamBuilder:
             scores[domain] = sum(1 for kw in keywords if kw in text_lower)
         best = max(scores, key=scores.get)
         return best if scores[best] > 0 else "general"
+
+    # ==================== LLM-Powered Methods ====================
+
+    def generate_clarifying_response(
+        self,
+        message: str,
+        history: List[ChatMessage],
+    ) -> str:
+        """Use LLM to analyze the problem and ask clarifying questions.
+
+        Returns natural language response (not JSON).
+        Falls back to template analysis message if no llm_func.
+        """
+        if not self.llm_func:
+            analysis = self.analyze_problem(message)
+            return (
+                f"I've identified your research domain as **{analysis.domain}**, "
+                f"covering {', '.join(analysis.sub_domains)}.\n\n"
+                f"Key challenges: {', '.join(analysis.key_challenges)}.\n\n"
+                "Please share any preferences for your team:\n"
+                "- Preferred team size (2-5 agents)?\n"
+                "- Any specific model preference (e.g., gpt-4, claude-3-opus)?\n"
+                "- Any particular focus area?"
+            )
+        messages = self._build_messages(ANALYZER_PROMPT, history, message)
+        return self.llm_func(ANALYZER_PROMPT, messages[1:])  # pass history+user, system as prompt
+
+    def propose_team(
+        self,
+        history: List[ChatMessage],
+        feedback: Optional[str] = None,
+    ) -> Optional[TeamSuggestion]:
+        """Use LLM to propose a team based on conversation history.
+
+        Returns TeamSuggestion if JSON can be parsed, None otherwise.
+        If feedback is provided, it's appended as a user message requesting revision.
+        """
+        if not self.llm_func:
+            return None
+
+        messages = list(history)
+        if feedback:
+            messages.append(ChatMessage(role="user", content=feedback))
+
+        response = self.llm_func(TEAM_PROPOSER_PROMPT, messages)
+        data = self._parse_team_json(response)
+        if not data:
+            return None
+
+        try:
+            agents = [AgentSuggestion(**a) for a in data.get("agents", [])]
+            return TeamSuggestion(
+                team_name=data.get("team_name", "Research Team"),
+                team_description=data.get("team_description", ""),
+                agents=agents,
+            )
+        except Exception:
+            return None
+
+    def propose_team_with_text(
+        self,
+        history: List[ChatMessage],
+        feedback: Optional[str] = None,
+    ) -> tuple[Optional[TeamSuggestion], str]:
+        """Like propose_team but also returns the raw LLM response text.
+
+        Returns (TeamSuggestion or None, raw_response_text).
+        """
+        if not self.llm_func:
+            return None, ""
+
+        messages = list(history)
+        if feedback:
+            messages.append(ChatMessage(role="user", content=feedback))
+
+        response = self.llm_func(TEAM_PROPOSER_PROMPT, messages)
+        data = self._parse_team_json(response)
+        if not data:
+            return None, response
+
+        try:
+            agents = [AgentSuggestion(**a) for a in data.get("agents", [])]
+            suggestion = TeamSuggestion(
+                team_name=data.get("team_name", "Research Team"),
+                team_description=data.get("team_description", ""),
+                agents=agents,
+            )
+            return suggestion, response
+        except Exception:
+            return None, response
+
+    def explain_mirrors(self, history: List[ChatMessage]) -> str:
+        """Use LLM to explain mirror agents and ask if user wants them.
+
+        Falls back to static message if no llm_func.
+        """
+        if not self.llm_func:
+            return (
+                "Would you like to enable mirror agents?\n\n"
+                "Mirror agents use a different AI model to independently verify "
+                "the primary agents' outputs, helping catch errors and biases.\n\n"
+                "If yes, which model should mirrors use? (e.g., claude-3-opus, gpt-4)"
+            )
+        return self.llm_func(MIRROR_ADVISOR_PROMPT, history)
+
+    # ==================== Template-Based Methods (Fallback) ====================
 
     def analyze_problem(self, problem_description: str) -> DomainAnalysis:
         """Analyze a research problem and return domain analysis.
@@ -168,16 +362,16 @@ class TeamBuilder:
     def _llm_analyze_problem(self, problem_description: str) -> DomainAnalysis:
         """Use LLM to analyze the problem (called when llm_func is available)."""
         prompt = (
-            "Analyze this research problem and return a JSON with fields: "
-            "domain, sub_domains (list), key_challenges (list), suggested_approaches (list).\n\n"
+            "Analyze this research problem and return ONLY a JSON object (no markdown, no code fences) with fields: "
+            "domain (string), sub_domains (list of strings), key_challenges (list of strings), "
+            "suggested_approaches (list of strings).\n\n"
             f"Problem: {problem_description}"
         )
         response = self.llm_func(prompt, [])
-        # In real implementation, parse JSON from LLM response
-        # For now, fall back to template if parsing fails
-        import json
         try:
-            data = json.loads(response)
+            cleaned = re.sub(r'^```(?:json)?\s*\n?', '', response.strip())
+            cleaned = re.sub(r'\n?```\s*$', '', cleaned)
+            data = json.loads(cleaned)
             return DomainAnalysis(**data)
         except (json.JSONDecodeError, Exception):
             domain = self._detect_domain(problem_description)
