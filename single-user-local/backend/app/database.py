@@ -3,15 +3,21 @@ from sqlalchemy.orm import sessionmaker, DeclarativeBase
 from pathlib import Path
 from app.config import settings
 
-# Ensure data directory exists
-Path("./data").mkdir(exist_ok=True)
 
-# SQLite engine
-engine = create_engine(
-    settings.DATABASE_URL,
-    connect_args={"check_same_thread": False}  # SQLite specific configuration
-)
+def _create_engine():
+    """Create SQLAlchemy engine based on DATABASE_URL."""
+    url = settings.DATABASE_URL
+    kwargs = {}
 
+    if url.startswith("sqlite"):
+        # SQLite-specific: ensure data dir exists, allow multi-thread access
+        Path("./data").mkdir(exist_ok=True)
+        kwargs["connect_args"] = {"check_same_thread": False}
+
+    return create_engine(url, **kwargs)
+
+
+engine = _create_engine()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
@@ -29,5 +35,8 @@ def get_db():
 
 
 def init_db():
-    """Initialize database - create all tables"""
+    """Initialize database - create all tables (dev/single-user mode).
+
+    In production with Alembic, use `alembic upgrade head` instead.
+    """
     Base.metadata.create_all(bind=engine)
