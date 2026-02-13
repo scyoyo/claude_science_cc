@@ -1,0 +1,40 @@
+from pydantic import BaseModel, Field
+from datetime import datetime
+from typing import List, Optional
+
+
+class TeamBase(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    description: Optional[str] = None
+    is_public: bool = False
+
+
+class TeamCreate(TeamBase):
+    pass
+
+
+class TeamUpdate(TeamBase):
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    description: Optional[str] = None
+    is_public: Optional[bool] = None
+
+
+class TeamResponse(TeamBase):
+    id: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class TeamWithAgents(TeamResponse):
+    agents: List["AgentResponse"] = []
+
+    class Config:
+        from_attributes = True
+
+
+# Forward reference resolution
+from app.schemas.agent import AgentResponse
+TeamWithAgents.model_rebuild()
