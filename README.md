@@ -25,11 +25,11 @@ Based on [virtual-lab](https://github.com/zou-group/virtual-lab) by Zou Group @ 
 ### One Command Start
 
 ```bash
-cd single-user-local
+cd local
 
 # First time only: set up backend + frontend
-cd backend && python3 -m venv venv && ./venv/bin/pip install -r requirements.txt && cd ..
-cd frontend && npm install && cd ..
+cd ../backend && python3 -m venv venv && ./venv/bin/pip install -r requirements.txt && cd ../local
+cd ../frontend && npm install && cd ../local
 npm install
 
 # Start both backend and frontend
@@ -61,7 +61,7 @@ Open **http://localhost:3000/settings** and add your API key for one of:
 ### Development (SQLite, no auth)
 
 ```bash
-cd single-user-local
+cd local
 docker compose up -d
 ```
 
@@ -71,19 +71,19 @@ docker compose up -d
 ### Production (PostgreSQL + Redis + Nginx)
 
 ```bash
-cd single-user-local
+cd cloud
 cp .env.example .env
 
 # Edit .env - generate real secrets with: openssl rand -hex 32
 vim .env
 
-docker compose -f docker-compose.prod.yml up -d
+docker compose up -d
 ```
 
 ## Running Tests
 
 ```bash
-cd single-user-local/backend
+cd backend
 source venv/bin/activate
 pytest tests/ -v              # 329 tests
 pytest tests/ -v --cov=app    # with coverage
@@ -92,8 +92,7 @@ pytest tests/ -v --cov=app    # with coverage
 ## Project Structure
 
 ```
-single-user-local/
-├── backend/
+├── backend/                    # FastAPI backend (shared)
 │   ├── app/
 │   │   ├── main.py              # FastAPI entry point
 │   │   ├── config.py            # Settings (env vars)
@@ -106,7 +105,7 @@ single-user-local/
 │   ├── tests/                   # 27 test files
 │   ├── alembic/                 # DB migrations (PostgreSQL)
 │   └── requirements.txt
-├── frontend/
+├── frontend/                    # Next.js frontend (shared)
 │   ├── src/
 │   │   ├── app/                 # Next.js pages
 │   │   ├── components/          # React components
@@ -115,10 +114,13 @@ single-user-local/
 │   │   ├── lib/                 # API client, auth helpers
 │   │   └── types/               # TypeScript types
 │   └── package.json
-├── k8s/                         # Kubernetes manifests
-├── nginx/                       # Nginx reverse proxy config
-├── docker-compose.yml           # Dev (SQLite)
-└── docker-compose.prod.yml      # Prod (PG + Redis + Nginx)
+├── local/                       # Single-user local deployment
+│   ├── package.json             # npm run dev (concurrently)
+│   └── docker-compose.yml       # SQLite, no auth
+├── cloud/                       # Multi-user cloud deployment
+│   ├── docker-compose.yml       # PostgreSQL + Redis + Nginx
+│   ├── nginx/                   # Nginx reverse proxy config
+│   └── k8s/                     # Kubernetes manifests
 ```
 
 ## API Overview

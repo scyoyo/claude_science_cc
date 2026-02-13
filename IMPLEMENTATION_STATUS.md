@@ -205,29 +205,32 @@ WS    /ws/meetings/{id}
 ## Quick Start
 
 ```bash
-# Development (SQLite, no auth)
-cd single-user-local && docker-compose up -d
+# Local development (starts backend + frontend concurrently)
+cd local && npm run dev
+
+# Docker dev (SQLite, no auth)
+cd local && docker compose up -d
 
 # Production (PostgreSQL + Redis + Nginx)
-cd single-user-local
+cd cloud
 cp .env.example .env   # Edit with real secrets
-docker compose -f docker-compose.prod.yml up -d
+docker compose up -d
 
-# Local development
-cd single-user-local/backend
+# Backend only
+cd backend
 source venv/bin/activate
-uvicorn app.main:app --reload          # Backend: http://localhost:8000
+uvicorn app.main:app --reload          # http://localhost:8000
 
-cd single-user-local/frontend
-npm run dev                             # Frontend: http://localhost:3000
+# Frontend only
+cd frontend && npm run dev              # http://localhost:3000
 
 # Tests
-cd single-user-local/backend
+cd backend
 source venv/bin/activate
 pytest tests/ -v                        # 329 tests
 
 # Kubernetes
-cd single-user-local/k8s
+cd cloud/k8s
 # Edit secrets.yaml with real base64 values first
 ./deploy.sh
 ```

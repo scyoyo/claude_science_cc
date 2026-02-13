@@ -19,23 +19,33 @@ Building a web app based on https://github.com/zou-group/virtual-lab that allows
 
 ```
 /Users/chengyao/Code/claude_science/
-├── single-user-local/           # Version 1: Single-user local version
-│   ├── backend/
-│   │   ├── app/
-│   │   │   ├── main.py          # FastAPI app entry point
-│   │   │   ├── config.py        # Settings (pydantic-settings)
-│   │   │   ├── database.py      # SQLite + SQLAlchemy setup
-│   │   │   ├── models/          # DB models (Team, Agent, Meeting, APIKey, CodeArtifact)
-│   │   │   ├── schemas/         # Pydantic schemas
-│   │   │   ├── api/             # API routers (7 modules, 28 endpoints)
-│   │   │   └── core/            # Business logic (team_builder, llm_client, meeting_engine, etc.)
-│   │   ├── tests/               # pytest tests (9 test files, 139 tests)
-│   │   ├── venv/                # Python 3.13 virtual environment
-│   │   ├── requirements.txt     # Python 3.13 compatible
-│   │   └── Dockerfile
-│   ├── frontend/                # Next.js 16 + React Flow + Monaco Editor
-│   └── docker-compose.yml
-├── shared/                      # Shared components (V2)
+├── backend/                     # FastAPI backend (shared)
+│   ├── app/
+│   │   ├── main.py              # FastAPI app entry point
+│   │   ├── config.py            # Settings (pydantic-settings)
+│   │   ├── database.py          # SQLAlchemy setup (SQLite/PostgreSQL)
+│   │   ├── models/              # DB models (Team, Agent, Meeting, APIKey, etc.)
+│   │   ├── schemas/             # Pydantic schemas
+│   │   ├── api/                 # API routers (13 modules)
+│   │   ├── core/                # Business logic (team_builder, llm_client, etc.)
+│   │   └── middleware/          # Logging, rate limiting
+│   ├── tests/                   # pytest tests (27 test files, 329 tests)
+│   ├── alembic/                 # DB migrations (PostgreSQL)
+│   ├── venv/                    # Python 3.13 virtual environment
+│   ├── requirements.txt         # Python 3.13 compatible
+│   └── Dockerfile
+├── frontend/                    # Next.js 16 + React Flow + Monaco Editor
+│   ├── src/
+│   └── package.json
+├── local/                       # Single-user local deployment
+│   ├── package.json             # npm run dev (concurrently)
+│   ├── docker-compose.yml       # SQLite, no auth
+│   └── .env.example
+├── cloud/                       # Multi-user cloud deployment
+│   ├── docker-compose.yml       # PostgreSQL + Redis + Nginx
+│   ├── nginx/                   # Nginx reverse proxy config
+│   ├── k8s/                     # Kubernetes manifests
+│   └── .env.example
 ├── docs/                        # V2 architecture plan
 ├── IMPLEMENTATION_STATUS.md     # Detailed progress tracking
 └── CLAUDE.md                    # This file
@@ -44,11 +54,12 @@ Building a web app based on https://github.com/zou-group/virtual-lab that allows
 ## Development Environment
 
 - **Python**: 3.13.2
-- **Virtual env**: `single-user-local/backend/venv/`
-- **Activate**: `source single-user-local/backend/venv/bin/activate`
-- **Run tests**: `cd single-user-local/backend && source venv/bin/activate && pytest tests/ -v`
+- **Virtual env**: `backend/venv/`
+- **Activate**: `source backend/venv/bin/activate`
+- **Run tests**: `cd backend && source venv/bin/activate && pytest tests/ -v`
 - **Run with coverage**: `pytest tests/ -v --cov=app --cov-report=term-missing`
-- **Working directory for backend**: `/Users/chengyao/Code/claude_science/single-user-local/backend`
+- **Working directory for backend**: `/Users/chengyao/Code/claude_science/backend`
+- **Local dev start**: `cd local && npm run dev` (starts backend + frontend concurrently)
 
 ## Key Technical Decisions
 
@@ -232,8 +243,8 @@ See `docs/V2_ARCHITECTURE.md` for architecture. All 6 phases implemented:
 | 2.2 | PostgreSQL + Alembic | `alembic/`, `database.py` (auto-detect SQLite/PG) |
 | 2.3 | Redis Cache | `core/cache.py`, `core/rate_limiter.py`, `core/token_blocklist.py` |
 | 2.4 | WebSocket | `api/ws.py` (real-time meeting streaming) |
-| 2.5 | Prod Docker | `docker-compose.prod.yml`, `nginx/nginx.conf` |
-| 2.6 | Kubernetes | `k8s/` (Deployments, StatefulSet, HPA, Ingress) |
+| 2.5 | Prod Docker | `cloud/docker-compose.yml`, `cloud/nginx/nginx.conf` |
+| 2.6 | Kubernetes | `cloud/k8s/` (Deployments, StatefulSet, HPA, Ingress) |
 
 ### V2 New Endpoints
 ```
@@ -247,12 +258,15 @@ WS     /ws/meetings/{meeting_id}   # Real-time meeting execution
 
 ### Deployment Options
 ```bash
-# Dev (SQLite, no auth)
-docker-compose up -d
+# Local dev (SQLite, no auth)
+cd local && npm run dev
+
+# Local Docker (SQLite, no auth)
+cd local && docker compose up -d
 
 # Production (Nginx + PostgreSQL + Redis + JWT auth)
-cp .env.example .env && docker compose -f docker-compose.prod.yml up -d
+cd cloud && cp .env.example .env && docker compose up -d
 
 # Kubernetes
-cd k8s && ./deploy.sh
+cd cloud/k8s && ./deploy.sh
 ```

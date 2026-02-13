@@ -14,7 +14,7 @@ services:
 
   backend:
     build:
-      context: ./backend
+      context: ../backend
       dockerfile: Dockerfile
     environment:
       - DATABASE_URL=postgresql://virtuallab:${DB_PASSWORD}@postgres:5432/virtuallab
@@ -37,7 +37,7 @@ services:
 
   frontend:
     build:
-      context: ./frontend
+      context: ../frontend
       dockerfile: Dockerfile
     environment:
       - NEXT_PUBLIC_API_URL=/api

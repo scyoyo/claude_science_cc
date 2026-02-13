@@ -1,0 +1,12 @@
+{
+  "name": "virtual-lab-cloud",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "docker compose up -d && echo 'Services started. Frontend: http://localhost:80'",
+    "down": "docker compose down",
+    "logs": "docker compose logs -f",
+    "build": "docker compose build",
+    "config": "docker compose config"
+  }
+}

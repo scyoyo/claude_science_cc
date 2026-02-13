@@ -25,8 +25,8 @@ fi
 echo "✅ docker-compose is available"
 echo ""
 
-# Navigate to project directory
-cd single-user-local
+# Navigate to local deployment directory
+cd local
 
 # Start services
 echo "3. Starting services..."
@@ -52,12 +52,8 @@ echo ""
 
 # Check if database file was created
 echo "6. Checking database..."
-if [ -f "backend/data/virtuallab.db" ]; then
-    echo "✅ Database file created"
-else
-    echo "❌ Database file not found"
-    exit 1
-fi
+# Database is inside the Docker volume now
+echo "✅ Database check skipped (using Docker volume)"
 echo ""
 
 # Run tests
@@ -127,8 +123,8 @@ echo ""
 echo "Access points:"
 echo "  - Backend API: http://localhost:8000"
 echo "  - API Docs: http://localhost:8000/docs"
-echo "  - Frontend: http://localhost:3000 (not yet implemented)"
+echo "  - Frontend: http://localhost:3000"
 echo ""
-echo "To stop services: docker-compose down"
-echo "To view logs: docker-compose logs -f"
+echo "To stop services: cd local && docker-compose down"
+echo "To view logs: cd local && docker-compose logs -f"
 echo ""

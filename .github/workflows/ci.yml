@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: single-user-local/backend
+        working-directory: backend
 
     steps:
       - uses: actions/checkout@v4
@@ -21,7 +21,7 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
-          cache-dependency-path: single-user-local/backend/requirements.txt
+          cache-dependency-path: backend/requirements.txt
 
       - name: Install dependencies
         run: pip install -r requirements.txt
@@ -34,13 +34,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
-          path: single-user-local/backend/coverage.xml
+          path: backend/coverage.xml
 
   frontend-build:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: single-user-local/frontend
+        working-directory: frontend
 
     steps:
       - uses: actions/checkout@v4
@@ -50,7 +50,7 @@ jobs:
         with:
           node-version: "20"
           cache: npm
-          cache-dependency-path: single-user-local/frontend/package-lock.json
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -70,7 +70,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build backend image
-        run: docker build -t virtuallab/backend:${{ github.sha }} single-user-local/backend/
+        run: docker build -t virtuallab/backend:${{ github.sha }} backend/
 
       - name: Build frontend image
-        run: docker build -t virtuallab/frontend:${{ github.sha }} single-user-local/frontend/
+        run: docker build -t virtuallab/frontend:${{ github.sha }} frontend/
