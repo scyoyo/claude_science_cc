@@ -1,6 +1,6 @@
 from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Integer, Enum
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, UTC
 import uuid
 import enum
 
@@ -24,8 +24,8 @@ class Meeting(Base):
     status = Column(String(20), default=MeetingStatus.pending.value)
     max_rounds = Column(Integer, default=5)
     current_round = Column(Integer, default=0)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
+    updated_at = Column(DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
 
     # Relationships
     team = relationship("Team", backref="meetings")
@@ -46,7 +46,7 @@ class MeetingMessage(Base):
     agent_name = Column(String(255), nullable=True)
     content = Column(Text, nullable=False)
     round_number = Column(Integer, default=0)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
 
     # Relationships
     meeting = relationship("Meeting", back_populates="messages")

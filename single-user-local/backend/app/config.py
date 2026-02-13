@@ -1,8 +1,10 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env")
+
     PROJECT_NAME: str = "Virtual Lab - Single User"
     VERSION: str = "1.0.0"
     API_PREFIX: str = "/api"
@@ -15,9 +17,6 @@ class Settings(BaseSettings):
 
     # CORS
     CORS_ORIGINS: list[str] = ["http://localhost:3000"]
-
-    class Config:
-        env_file = ".env"
 
 
 settings = Settings()

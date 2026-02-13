@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
 from typing import List, Optional
 
@@ -20,19 +20,15 @@ class TeamUpdate(TeamBase):
 
 
 class TeamResponse(TeamBase):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
-
 
 class TeamWithAgents(TeamResponse):
     agents: List["AgentResponse"] = []
-
-    class Config:
-        from_attributes = True
 
 
 # Forward reference resolution

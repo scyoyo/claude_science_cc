@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
 from typing import Dict, Optional
 
@@ -32,6 +32,8 @@ class AgentUpdate(BaseModel):
 
 
 class AgentResponse(AgentBase):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     team_id: str
     system_prompt: str
@@ -39,6 +41,3 @@ class AgentResponse(AgentBase):
     primary_agent_id: Optional[str]
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True

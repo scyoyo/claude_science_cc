@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
 from typing import Optional
 
@@ -14,12 +14,11 @@ class APIKeyUpdate(BaseModel):
 
 
 class APIKeyResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     provider: str
     is_active: bool
     key_preview: str  # Last 4 chars, e.g., "...abcd"
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True

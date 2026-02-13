@@ -1,5 +1,5 @@
 from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Integer
-from datetime import datetime
+from datetime import datetime, UTC
 import uuid
 
 from app.database import Base
@@ -15,8 +15,8 @@ class CodeArtifact(Base):
     content = Column(Text, nullable=False)
     description = Column(Text, default="")
     version = Column(Integer, default=1)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
+    updated_at = Column(DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
 
     def __repr__(self):
         return f"<CodeArtifact(id={self.id}, filename={self.filename})>"

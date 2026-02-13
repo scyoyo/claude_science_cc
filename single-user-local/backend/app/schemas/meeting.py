@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
 from typing import List, Optional
 
@@ -17,6 +17,8 @@ class MeetingUpdate(BaseModel):
 
 
 class MeetingMessageResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     meeting_id: str
     agent_id: Optional[str]
@@ -26,11 +28,10 @@ class MeetingMessageResponse(BaseModel):
     round_number: int
     created_at: datetime
 
-    class Config:
-        from_attributes = True
-
 
 class MeetingResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     team_id: str
     title: str
@@ -40,9 +41,6 @@ class MeetingResponse(BaseModel):
     current_round: int
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 class MeetingWithMessages(MeetingResponse):

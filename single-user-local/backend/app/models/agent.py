@@ -1,6 +1,6 @@
 from sqlalchemy import Column, String, Text, Float, ForeignKey, DateTime, Boolean, JSON
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, UTC
 import uuid
 
 from app.database import Base
@@ -34,8 +34,8 @@ class Agent(Base):
     is_mirror = Column(Boolean, default=False)
     primary_agent_id = Column(String(36), ForeignKey("agents.id"), nullable=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
+    updated_at = Column(DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
 
     # Relationships
     team = relationship("Team", back_populates="agents")

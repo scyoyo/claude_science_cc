@@ -1,10 +1,19 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import init_db
 from app.api import teams, agents, onboarding, llm, meetings, artifacts, export
 
-app = FastAPI(title=settings.PROJECT_NAME, version=settings.VERSION)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Initialize database on startup"""
+    init_db()
+    yield
+
+
+app = FastAPI(title=settings.PROJECT_NAME, version=settings.VERSION, lifespan=lifespan)
 
 # CORS
 app.add_middleware(
@@ -23,12 +32,6 @@ app.include_router(llm.router, prefix="/api")
 app.include_router(meetings.router, prefix="/api")
 app.include_router(artifacts.router, prefix="/api")
 app.include_router(export.router, prefix="/api")
-
-
-@app.on_event("startup")
-def startup_event():
-    """Initialize database on startup"""
-    init_db()
 
 
 @app.get("/")
