@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import init_db
-from app.api import teams, agents, onboarding, llm
+from app.api import teams, agents, onboarding, llm, meetings
 
 app = FastAPI(title=settings.PROJECT_NAME, version=settings.VERSION)
 
@@ -20,6 +20,7 @@ app.include_router(teams.router, prefix="/api")
 app.include_router(agents.router, prefix="/api")
 app.include_router(onboarding.router, prefix="/api")
 app.include_router(llm.router, prefix="/api")
+app.include_router(meetings.router, prefix="/api")
 
 
 @app.on_event("startup")

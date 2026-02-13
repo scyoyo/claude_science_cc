@@ -1,0 +1,250 @@
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+from typing import List
+
+from app.config import settings
+from app.database import get_db
+from app.models import Team, Agent, Meeting, MeetingMessage, MeetingStatus, APIKey
+from app.schemas.meeting import (
+    MeetingCreate,
+    MeetingUpdate,
+    MeetingResponse,
+    MeetingWithMessages,
+    MeetingRunRequest,
+    UserMessageRequest,
+    MeetingMessageResponse,
+)
+from app.core.meeting_engine import MeetingEngine
+from app.core.llm_client import create_provider, detect_provider
+from app.core.encryption import decrypt_api_key
+from app.schemas.onboarding import ChatMessage
+
+router = APIRouter(prefix="/meetings", tags=["meetings"])
+
+
+@router.post("/", response_model=MeetingResponse, status_code=status.HTTP_201_CREATED)
+def create_meeting(data: MeetingCreate, db: Session = Depends(get_db)):
+    """Create a new meeting for a team."""
+    team = db.query(Team).filter(Team.id == data.team_id).first()
+    if not team:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
+
+    meeting = Meeting(
+        team_id=data.team_id,
+        title=data.title,
+        description=data.description,
+        max_rounds=data.max_rounds,
+    )
+    db.add(meeting)
+    db.commit()
+    db.refresh(meeting)
+    return meeting
+
+
+@router.get("/{meeting_id}", response_model=MeetingWithMessages)
+def get_meeting(meeting_id: str, db: Session = Depends(get_db)):
+    """Get meeting details with messages."""
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    if not meeting:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+    return meeting
+
+
+@router.get("/team/{team_id}", response_model=List[MeetingResponse])
+def list_team_meetings(team_id: str, db: Session = Depends(get_db)):
+    """List all meetings for a team."""
+    return db.query(Meeting).filter(Meeting.team_id == team_id).all()
+
+
+@router.put("/{meeting_id}", response_model=MeetingResponse)
+def update_meeting(meeting_id: str, data: MeetingUpdate, db: Session = Depends(get_db)):
+    """Update a meeting."""
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    if not meeting:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+
+    update_data = data.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(meeting, field, value)
+
+    db.commit()
+    db.refresh(meeting)
+    return meeting
+
+
+@router.delete("/{meeting_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_meeting(meeting_id: str, db: Session = Depends(get_db)):
+    """Delete a meeting."""
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    if not meeting:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+
+    db.delete(meeting)
+    db.commit()
+    return None
+
+
+@router.post("/{meeting_id}/message", response_model=MeetingMessageResponse, status_code=status.HTTP_201_CREATED)
+def add_user_message(meeting_id: str, data: UserMessageRequest, db: Session = Depends(get_db)):
+    """Add a user message to a meeting."""
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    if not meeting:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+
+    message = MeetingMessage(
+        meeting_id=meeting_id,
+        role="user",
+        content=data.content,
+        round_number=meeting.current_round,
+    )
+    db.add(message)
+    db.commit()
+    db.refresh(message)
+    return message
+
+
+def _make_llm_call(db: Session):
+    """Create an LLM callable that uses stored API keys."""
+    def llm_call(system_prompt: str, messages: List[ChatMessage]) -> str:
+        # For now, get the first agent's model from messages context
+        # In a real implementation, the model would be passed per-agent
+        # Try to find an active API key for any provider
+        for provider_name in ["openai", "anthropic", "deepseek"]:
+            api_key_record = db.query(APIKey).filter(
+                APIKey.provider == provider_name,
+                APIKey.is_active == True,
+            ).first()
+            if api_key_record:
+                decrypted_key = decrypt_api_key(api_key_record.encrypted_key, settings.ENCRYPTION_SECRET)
+                provider = create_provider(provider_name, decrypted_key)
+                # Prepend system message
+                all_messages = [ChatMessage(role="system", content=system_prompt)] + messages
+                # Use a default model for the provider
+                model_map = {"openai": "gpt-4", "anthropic": "claude-3-opus-20240229", "deepseek": "deepseek-chat"}
+                response = provider.chat(all_messages, model_map[provider_name])
+                return response.content
+        raise RuntimeError("No active API key found for any LLM provider")
+    return llm_call
+
+
+@router.post("/{meeting_id}/run", response_model=MeetingWithMessages)
+def run_meeting(
+    meeting_id: str,
+    request: MeetingRunRequest,
+    db: Session = Depends(get_db),
+):
+    """Run meeting rounds with all agents discussing.
+
+    Each round: every agent speaks once in order.
+    Messages are stored and the meeting state is updated.
+    """
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    if not meeting:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+
+    if meeting.status == MeetingStatus.completed.value:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Meeting is already completed",
+        )
+
+    # Get team agents
+    agents = db.query(Agent).filter(
+        Agent.team_id == meeting.team_id,
+        Agent.is_mirror == False,
+    ).all()
+
+    if not agents:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No agents found in this team",
+        )
+
+    # Prepare agent data
+    agent_dicts = [
+        {
+            "id": str(a.id),
+            "name": a.name,
+            "system_prompt": a.system_prompt,
+            "model": a.model,
+        }
+        for a in agents
+    ]
+
+    # Build conversation history from existing messages
+    existing_messages = db.query(MeetingMessage).filter(
+        MeetingMessage.meeting_id == meeting_id,
+    ).order_by(MeetingMessage.created_at).all()
+
+    conversation_history = []
+    for msg in existing_messages:
+        if msg.role == "user":
+            conversation_history.append(ChatMessage(role="user", content=msg.content))
+        else:
+            label = msg.agent_name or "Assistant"
+            conversation_history.append(
+                ChatMessage(role="user", content=f"[{label}]: {msg.content}")
+            )
+
+    # Create engine and run
+    try:
+        llm_call = _make_llm_call(db)
+        engine = MeetingEngine(llm_call=llm_call)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to initialize LLM. Ensure an API key is configured.",
+        )
+
+    # Cap rounds
+    remaining = meeting.max_rounds - meeting.current_round
+    rounds_to_run = min(request.rounds, remaining)
+    if rounds_to_run <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Meeting has reached maximum rounds",
+        )
+
+    meeting.status = MeetingStatus.running.value
+    db.commit()
+
+    try:
+        all_rounds = engine.run_meeting(
+            agents=agent_dicts,
+            conversation_history=conversation_history,
+            rounds=rounds_to_run,
+            topic=request.topic,
+        )
+
+        # Store messages
+        for round_idx, round_messages in enumerate(all_rounds):
+            round_number = meeting.current_round + round_idx + 1
+            for msg_data in round_messages:
+                message = MeetingMessage(
+                    meeting_id=meeting_id,
+                    agent_id=msg_data["agent_id"],
+                    role=msg_data["role"],
+                    agent_name=msg_data["agent_name"],
+                    content=msg_data["content"],
+                    round_number=round_number,
+                )
+                db.add(message)
+
+        meeting.current_round += rounds_to_run
+        if meeting.current_round >= meeting.max_rounds:
+            meeting.status = MeetingStatus.completed.value
+        else:
+            meeting.status = MeetingStatus.pending.value
+
+        db.commit()
+        db.refresh(meeting)
+
+    except Exception as e:
+        meeting.status = MeetingStatus.failed.value
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Meeting execution failed: {str(e)}",
+        )
+
+    return meeting
