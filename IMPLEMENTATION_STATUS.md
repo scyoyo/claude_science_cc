@@ -148,29 +148,44 @@ See [docs/V2_ARCHITECTURE.md](docs/V2_ARCHITECTURE.md) for full architecture pla
 | 8.2 | Meeting transcript export (markdown) | 5 | Done |
 | 8.3 | API versioning (/api/v1/ prefix) | 7 | Done |
 
-**Total: 307 tests passing across 25 test files.**
+## V9 Analytics & Integration
 
-### All Endpoints (V1-V8)
+| Phase | Feature | Tests | Status |
+|-------|---------|-------|--------|
+| 9.1 | Webhook notification system | 11 | Done |
+| 9.2 | Meeting comparison endpoint | 3 | Done |
+| 9.3 | Agent performance metrics | 3 | Done |
+| 9.4 | Team import/export as JSON | 5 | Done |
+
+**Total: 329 tests passing across 27 test files.**
+
+### All Endpoints (V1-V9)
 All endpoints available under both `/api/` and `/api/v1/`.
 ```
 # Auth
 POST  /api/auth/register     POST  /api/auth/login
 POST  /api/auth/refresh      GET/PUT  /api/auth/me
 
-# Team sharing & stats
+# Team sharing, stats & import/export
 GET    /api/teams/{id}/members          POST  /api/teams/{id}/members
 DELETE /api/teams/{id}/members/{uid}    GET   /api/teams/{id}/stats
+GET    /api/teams/{id}/export           POST  /api/teams/import
 
-# Agent batch & clone
+# Agent batch, clone & metrics
 POST    /api/agents/batch     DELETE  /api/agents/batch
-POST    /api/agents/{id}/clone
+POST    /api/agents/{id}/clone          GET   /api/agents/{id}/metrics
 
 # Search
 GET  /api/search/teams?q=keyword     GET  /api/search/agents?q=keyword
 
 # Meeting extras
 GET   /api/meetings/{id}/summary      GET  /api/meetings/{id}/transcript
-POST  /api/meetings/{id}/clone
+POST  /api/meetings/{id}/clone        GET  /api/meetings/compare?ids=a,b
+
+# Webhooks
+GET    /api/webhooks/events     GET   /api/webhooks/
+POST   /api/webhooks/           GET   /api/webhooks/{id}
+PUT    /api/webhooks/{id}       DELETE /api/webhooks/{id}
 
 # Agent templates
 GET    /api/templates/          GET  /api/templates/{id}
@@ -209,7 +224,7 @@ npm run dev                             # Frontend: http://localhost:3000
 # Tests
 cd single-user-local/backend
 source venv/bin/activate
-pytest tests/ -v                        # 307 tests
+pytest tests/ -v                        # 329 tests
 
 # Kubernetes
 cd single-user-local/k8s
