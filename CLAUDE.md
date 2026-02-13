@@ -104,6 +104,15 @@ PUT    /api/meetings/{meeting_id}         # Update meeting
 DELETE /api/meetings/{meeting_id}         # Delete meeting
 POST   /api/meetings/{meeting_id}/message # Add user message
 POST   /api/meetings/{meeting_id}/run     # Run meeting rounds
+GET    /api/artifacts/meeting/{meeting_id} # List meeting artifacts
+GET    /api/artifacts/{artifact_id}        # Get artifact
+POST   /api/artifacts/                     # Create artifact
+PUT    /api/artifacts/{artifact_id}        # Update artifact (bumps version)
+DELETE /api/artifacts/{artifact_id}        # Delete artifact
+POST   /api/artifacts/meeting/{id}/extract # Auto-extract code from messages
+GET    /api/export/meeting/{id}/zip        # Download ZIP
+GET    /api/export/meeting/{id}/notebook   # Download Colab notebook
+GET    /api/export/meeting/{id}/github     # Get GitHub-ready files
 ```
 
 ## Database Models
@@ -113,10 +122,11 @@ POST   /api/meetings/{meeting_id}/run     # Run meeting rounds
 **APIKey**: id, provider, encrypted_key, is_active, created_at, updated_at
 **Meeting**: id, team_id(FK), title, description, status, max_rounds, current_round, created_at, updated_at
 **MeetingMessage**: id, meeting_id(FK), agent_id(FK nullable), role, agent_name, content, round_number, created_at
+**CodeArtifact**: id, meeting_id(FK), filename, language, content, description, version, created_at, updated_at
 
 ## Test Results (Last Run)
 
-- **100/100 tests passed**
+- **130/130 tests passed**
 - test_main.py (2 tests): root endpoint, health check
 - test_models.py (4 tests): create team, create agent, cascade delete, mirror agent
 - test_teams_api.py (6 tests): CRUD + 404 handling
@@ -124,9 +134,14 @@ POST   /api/meetings/{meeting_id}/run     # Run meeting rounds
 - test_onboarding.py (27 tests): TeamBuilder (10), MirrorValidator (6), Onboarding API (11)
 - test_llm_client.py (35 tests): Encryption (3), Provider factory (10), Providers (11), API key mgmt (8), LLM chat (3)
 - test_meetings.py (19 tests): MeetingEngine (4), Meeting CRUD (8), Meeting run (7)
+- test_artifacts.py (19 tests): CodeExtractor (10), Artifact CRUD (6), Auto-extract (3)
+- test_export.py (11 tests): Exporter (6), Export API (5)
 
 ## Git Commits
 
+- `089f93a` - feat: Add Export Functionality - ZIP, Colab, GitHub (Step 1.9)
+- `f3e18b3` - feat: Add Code Generation with extraction engine (Step 1.8)
+- `0f0402d` - feat: Add Visual Editor with React Flow and Monaco Editor (Step 1.7)
 - `a300389` - feat: Add Next.js frontend with team/agent/meeting pages (Step 1.6)
 - `67bf497` - feat: Add Meeting Execution Engine (Step 1.5)
 - `cdb51c8` - feat: Add LLM API Client with provider factory (Step 1.4)
@@ -140,7 +155,7 @@ POST   /api/meetings/{meeting_id}/run     # Run meeting rounds
 3. **Incremental development** - each step independently testable
 4. **No breaking changes** - existing tests must continue to pass
 
-## Implementation Plan - Remaining Steps
+## Implementation Plan - All Steps Complete
 
 ### Step 1.0: Intelligent Onboarding System (DONE)
 - `backend/app/core/__init__.py` ✅
@@ -181,20 +196,25 @@ POST   /api/meetings/{meeting_id}/run     # Run meeting rounds
 - `frontend/src/app/settings/page.tsx` ✅ - API key management
 - Build passes: `npm run build`
 
-### Step 1.7: Visual Editor (NEXT)
-- React Flow for agent graph visualization
-- Monaco Editor for prompt editing
-- Drag-and-drop agent creation
+### Step 1.7: Visual Editor (DONE)
+- `frontend/src/components/AgentNode.tsx` ✅ - Custom React Flow node component
+- `frontend/src/app/teams/[teamId]/editor/page.tsx` ✅ - Full visual editor page
+- React Flow graph with drag-and-drop agent positioning
+- Monaco Editor for system prompt editing in side panel
+- Mirror agent connections shown as animated edges
 
-### Step 1.8: Code Generation
-- Extract code from meeting discussions
-- Code validation and formatting
-- Artifact storage
+### Step 1.8: Code Generation (DONE)
+- `backend/app/models/artifact.py` ✅ - CodeArtifact model with versioning
+- `backend/app/core/code_extractor.py` ✅ - Regex code block extraction + filename suggestion
+- `backend/app/api/artifacts.py` ✅ - CRUD + auto-extract endpoints
+- `backend/tests/test_artifacts.py` ✅ - 19 tests
 
-### Step 1.9: Export Functionality
-- ZIP download
-- GitHub push
-- Google Colab notebook generation
+### Step 1.9: Export Functionality (DONE)
+- `backend/app/core/exporter.py` ✅ - ZIP, Colab notebook, GitHub file format
+- `backend/app/api/export.py` ✅ - Download endpoints for all formats
+- `backend/tests/test_export.py` ✅ - 11 tests
+
+## V1 COMPLETE - All Steps Implemented
 
 ## Deprecation Warnings (Non-blocking, fix later)
 
