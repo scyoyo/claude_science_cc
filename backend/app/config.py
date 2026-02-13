@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
+    # Onboarding LLM (empty API key = template mode, no LLM calls)
+    ONBOARDING_API_KEY: str = ""
+    ONBOARDING_LLM_PROVIDER: str = "anthropic"
+    ONBOARDING_LLM_MODEL: str = "claude-sonnet-4-5-20250929"
+
     # Redis (empty string = use in-memory backend)
     REDIS_URL: str = ""
 

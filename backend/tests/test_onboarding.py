@@ -224,8 +224,9 @@ class TestOnboardingChatAPI:
         data = response.json()
         assert data["stage"] == "problem"
         assert data["next_stage"] == "clarification"
-        assert "domain" in data["data"]
-        assert data["data"]["domain"] == "biology"
+        assert "analysis" in data["data"]
+        assert "domain" in data["data"]["analysis"]
+        assert data["data"]["analysis"]["domain"] == "biology"
 
     def test_clarification_stage(self, client):
         """POST /api/onboarding/chat with clarification stage."""
@@ -246,8 +247,9 @@ class TestOnboardingChatAPI:
         data = response.json()
         assert data["stage"] == "clarification"
         assert data["next_stage"] == "team_suggestion"
-        assert "agents" in data["data"]
-        assert len(data["data"]["agents"]) > 0
+        assert "team_suggestion" in data["data"]
+        assert "agents" in data["data"]["team_suggestion"]
+        assert len(data["data"]["team_suggestion"]["agents"]) > 0
 
     def test_clarification_stage_missing_analysis(self, client):
         """Clarification stage fails without analysis context."""
@@ -305,7 +307,7 @@ class TestOnboardingChatAPI:
             "message": "Build a deep learning model for image classification",
         })
         assert r1.status_code == 200
-        analysis = r1.json()["data"]
+        analysis = r1.json()["data"]["analysis"]
         assert analysis["domain"] == "machine_learning"
 
         # Stage 2: Clarification
@@ -318,7 +320,7 @@ class TestOnboardingChatAPI:
             },
         })
         assert r2.status_code == 200
-        team_suggestion = r2.json()["data"]
+        team_suggestion = r2.json()["data"]["team_suggestion"]
         assert len(team_suggestion["agents"]) == 2
 
         # Stage 3: Team suggestion
@@ -337,6 +339,102 @@ class TestOnboardingChatAPI:
         })
         assert r4.status_code == 200
         assert r4.json()["next_stage"] == "complete"
+
+
+class TestParsePreferences:
+    """Tests for _parse_preferences_from_message."""
+
+    def test_extract_team_size_agents(self):
+        from app.api.onboarding import _parse_preferences_from_message
+        prefs = _parse_preferences_from_message("I want 5 agents")
+        assert prefs["team_size"] == 5
+
+    def test_extract_team_size_members(self):
+        from app.api.onboarding import _parse_preferences_from_message
+        prefs = _parse_preferences_from_message("Give me 3 members please")
+        assert prefs["team_size"] == 3
+
+    def test_extract_team_size_chinese(self):
+        from app.api.onboarding import _parse_preferences_from_message
+        prefs = _parse_preferences_from_message("我想要4个agent")
+        assert prefs["team_size"] == 4
+
+    def test_extract_team_size_team_of(self):
+        from app.api.onboarding import _parse_preferences_from_message
+        prefs = _parse_preferences_from_message("team of 3")
+        assert prefs["team_size"] == 3
+
+    def test_extract_model_gpt4(self):
+        from app.api.onboarding import _parse_preferences_from_message
+        prefs = _parse_preferences_from_message("I want to use gpt-4o for everything")
+        assert prefs["model"] == "gpt-4o"
+
+    def test_extract_model_claude(self):
+        from app.api.onboarding import _parse_preferences_from_message
+        prefs = _parse_preferences_from_message("use claude-3-opus please")
+        assert prefs["model"] == "claude-3-opus"
+
+    def test_extract_both(self):
+        from app.api.onboarding import _parse_preferences_from_message
+        prefs = _parse_preferences_from_message("3 agents with gpt-4")
+        assert prefs["team_size"] == 3
+        assert prefs["model"] == "gpt-4"
+
+    def test_no_preferences(self):
+        from app.api.onboarding import _parse_preferences_from_message
+        prefs = _parse_preferences_from_message("Looks good, proceed")
+        assert prefs == {}
+
+    def test_invalid_size_ignored(self):
+        from app.api.onboarding import _parse_preferences_from_message
+        prefs = _parse_preferences_from_message("99 agents")
+        assert "team_size" not in prefs
+
+
+class TestOnboardingLLMFactory:
+    """Tests for _create_onboarding_llm_func."""
+
+    def test_no_api_key_returns_none(self):
+        from unittest.mock import patch
+        from app.api.onboarding import _create_onboarding_llm_func
+        with patch("app.api.onboarding.settings") as mock_settings:
+            mock_settings.ONBOARDING_API_KEY = ""
+            result = _create_onboarding_llm_func()
+            assert result is None
+
+    def test_with_api_key_returns_callable(self):
+        from unittest.mock import patch, MagicMock
+        from app.api.onboarding import _create_onboarding_llm_func
+        with patch("app.api.onboarding.settings") as mock_settings, \
+             patch("app.api.onboarding.create_provider") as mock_create:
+            mock_settings.ONBOARDING_API_KEY = "sk-test-key"
+            mock_settings.ONBOARDING_LLM_PROVIDER = "anthropic"
+            mock_settings.ONBOARDING_LLM_MODEL = "claude-sonnet-4-5-20250929"
+            mock_provider = MagicMock()
+            mock_create.return_value = mock_provider
+            result = _create_onboarding_llm_func()
+            assert callable(result)
+            mock_create.assert_called_once_with("anthropic", "sk-test-key")
+
+    def test_llm_func_calls_provider(self):
+        from unittest.mock import patch, MagicMock
+        from app.api.onboarding import _create_onboarding_llm_func
+        from app.schemas.onboarding import ChatMessage
+        with patch("app.api.onboarding.settings") as mock_settings, \
+             patch("app.api.onboarding.create_provider") as mock_create:
+            mock_settings.ONBOARDING_API_KEY = "sk-test-key"
+            mock_settings.ONBOARDING_LLM_PROVIDER = "anthropic"
+            mock_settings.ONBOARDING_LLM_MODEL = "test-model"
+            mock_provider = MagicMock()
+            mock_response = MagicMock()
+            mock_response.content = "LLM response"
+            mock_provider.chat.return_value = mock_response
+            mock_create.return_value = mock_provider
+
+            llm_func = _create_onboarding_llm_func()
+            result = llm_func("system prompt", [ChatMessage(role="user", content="hello")])
+            assert result == "LLM response"
+            mock_provider.chat.assert_called_once()
 
 
 class TestGenerateTeamAPI:

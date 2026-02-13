@@ -1,11 +1,17 @@
+import re
+from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
 from app.models import Team, Agent
 from app.api.agents import generate_system_prompt
 from app.core.team_builder import TeamBuilder
+from app.core.llm_client import create_provider
 from app.schemas.onboarding import (
+    ChatMessage,
     GenerateTeamRequest,
     OnboardingChatRequest,
     OnboardingChatResponse,
@@ -15,13 +21,60 @@ from app.schemas.team import TeamWithAgents
 
 router = APIRouter(prefix="/onboarding", tags=["onboarding"])
 
-# Module-level TeamBuilder instance (no LLM by default)
-_team_builder = TeamBuilder()
+
+def _create_onboarding_llm_func():
+    """Create LLM callable from env var. Returns None if no key configured."""
+    if not settings.ONBOARDING_API_KEY:
+        return None
+    provider = create_provider(settings.ONBOARDING_LLM_PROVIDER, settings.ONBOARDING_API_KEY)
+    model = settings.ONBOARDING_LLM_MODEL
+
+    def llm_func(prompt: str, history: List[ChatMessage]) -> str:
+        all_messages = [ChatMessage(role="system", content=prompt)] + history
+        response = provider.chat(all_messages, model)
+        return response.content
+
+    return llm_func
+
+
+# Module-level TeamBuilder instance (uses LLM if ONBOARDING_API_KEY is set)
+_team_builder = TeamBuilder(llm_func=_create_onboarding_llm_func())
 
 
 def get_team_builder() -> TeamBuilder:
     """Dependency for getting TeamBuilder (allows override in tests)."""
     return _team_builder
+
+
+def _parse_preferences_from_message(message: str) -> dict:
+    """Extract team preferences from free-text user message."""
+    preferences = {}
+
+    # Extract team size: "3 agents", "team of 5", "5人团队", etc.
+    size_match = re.search(r'(\d+)\s*(?:agents?|members?|人|个)', message, re.IGNORECASE)
+    if not size_match:
+        size_match = re.search(r'team\s+(?:of\s+)?(\d+)', message, re.IGNORECASE)
+    if size_match:
+        size = int(size_match.group(1))
+        if 1 <= size <= 10:
+            preferences["team_size"] = size
+
+    # Extract model preference
+    model_patterns = [
+        r'(gpt-4[o\-a-z]*)',
+        r'(gpt-3\.5[a-z\-]*)',
+        r'(claude-3[a-z\-]*)',
+        r'(claude-sonnet[a-z\-]*)',
+        r'(claude-opus[a-z\-]*)',
+        r'(deepseek[a-z\-]*)',
+    ]
+    for pattern in model_patterns:
+        model_match = re.search(pattern, message, re.IGNORECASE)
+        if model_match:
+            preferences["model"] = model_match.group(1).lower()
+            break
+
+    return preferences
 
 
 @router.post("/chat", response_model=OnboardingChatResponse)
@@ -73,7 +126,7 @@ def _handle_problem_stage(
             "- Any specific model preference (e.g., gpt-4, claude-3-opus)?\n"
             "- Any particular focus area?"
         ),
-        data=analysis.model_dump(),
+        data={"analysis": analysis.model_dump()},
     )
 
 
@@ -93,7 +146,8 @@ def _handle_clarification_stage(
     from app.schemas.onboarding import DomainAnalysis
     analysis = DomainAnalysis(**analysis_data)
 
-    preferences = request.context.get("preferences", {})
+    parsed = _parse_preferences_from_message(request.message)
+    preferences = {**parsed, **request.context.get("preferences", {})}
     suggestion = team_builder.suggest_team_composition(analysis, preferences)
 
     agent_summary = "\n".join(
@@ -112,7 +166,7 @@ def _handle_clarification_stage(
             "2. Modify the team (add/remove/edit agents)\n"
             "3. Enable mirror agents for cross-validation"
         ),
-        data=suggestion.model_dump(),
+        data={"team_suggestion": suggestion.model_dump()},
     )
 
 
@@ -130,7 +184,7 @@ def _handle_team_suggestion_stage(
             "the primary agents' outputs, helping catch errors and biases.\n\n"
             "If yes, which model should mirrors use? (e.g., claude-3-opus, gpt-4)"
         ),
-        data=request.context.get("team_suggestion", {}),
+        data={"team_suggestion": request.context.get("team_suggestion", {})},
     )
 
 
