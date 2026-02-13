@@ -97,6 +97,13 @@ POST   /api/llm/api-keys                  # Store new API key (encrypted)
 PUT    /api/llm/api-keys/{key_id}         # Update API key
 DELETE /api/llm/api-keys/{key_id}         # Delete API key
 POST   /api/llm/chat                      # Send chat to LLM (auto-detects provider)
+POST   /api/meetings/                     # Create meeting
+GET    /api/meetings/{meeting_id}         # Get meeting with messages
+GET    /api/meetings/team/{team_id}       # List team meetings
+PUT    /api/meetings/{meeting_id}         # Update meeting
+DELETE /api/meetings/{meeting_id}         # Delete meeting
+POST   /api/meetings/{meeting_id}/message # Add user message
+POST   /api/meetings/{meeting_id}/run     # Run meeting rounds
 ```
 
 ## Database Models
@@ -104,19 +111,23 @@ POST   /api/llm/chat                      # Send chat to LLM (auto-detects provi
 **Team**: id, name, description, is_public, created_at, updated_at
 **Agent**: id, team_id(FK), name, title, expertise, goal, role, system_prompt, model, model_params(JSON), position_x, position_y, is_mirror, primary_agent_id(FK self), created_at, updated_at
 **APIKey**: id, provider, encrypted_key, is_active, created_at, updated_at
+**Meeting**: id, team_id(FK), title, description, status, max_rounds, current_round, created_at, updated_at
+**MeetingMessage**: id, meeting_id(FK), agent_id(FK nullable), role, agent_name, content, round_number, created_at
 
 ## Test Results (Last Run)
 
-- **81/81 tests passed**
+- **100/100 tests passed**
 - test_main.py (2 tests): root endpoint, health check
 - test_models.py (4 tests): create team, create agent, cascade delete, mirror agent
 - test_teams_api.py (6 tests): CRUD + 404 handling
 - test_agents_api.py (7 tests): CRUD + invalid team + cascade delete
 - test_onboarding.py (27 tests): TeamBuilder (10), MirrorValidator (6), Onboarding API (11)
 - test_llm_client.py (35 tests): Encryption (3), Provider factory (10), Providers (11), API key mgmt (8), LLM chat (3)
+- test_meetings.py (19 tests): MeetingEngine (4), Meeting CRUD (8), Meeting run (7)
 
 ## Git Commits
 
+- `67bf497` - feat: Add Meeting Execution Engine (Step 1.5)
 - `cdb51c8` - feat: Add LLM API Client with provider factory (Step 1.4)
 - `4d37bfe` - feat: Add Intelligent Onboarding System (Step 1.0)
 - `3fb5516` - feat: Initial implementation - Steps 1.1, 1.2, 1.3 complete
@@ -149,13 +160,16 @@ POST   /api/llm/chat                      # Send chat to LLM (auto-detects provi
 - Provider factory with auto-detection from model name
 - Retry logic with exponential backoff
 
-### Step 1.5: Meeting Execution Engine (NEXT)
-- LangGraph orchestration
-- Agent conversation management
-- WebSocket real-time updates
-- Meeting history storage
+### Step 1.5: Meeting Execution Engine (DONE)
+- `backend/app/models/meeting.py` ✅ - Meeting + MeetingMessage models with status tracking
+- `backend/app/schemas/meeting.py` ✅ - Meeting CRUD + run + user message schemas
+- `backend/app/core/meeting_engine.py` ✅ - Round-robin agent conversation orchestration
+- `backend/app/api/meetings.py` ✅ - Full CRUD + run + user message endpoints
+- `backend/tests/test_meetings.py` ✅ - 19 tests with mocked LLM
+- Agents see cumulative context; meetings track rounds and status
+- Note: WebSocket real-time updates deferred to frontend phase
 
-### Step 1.6: Frontend Basic UI (Next.js)
+### Step 1.6: Frontend Basic UI (NEXT)
 - Project setup with Next.js + TypeScript
 - Team list/detail pages
 - Agent list/detail pages
