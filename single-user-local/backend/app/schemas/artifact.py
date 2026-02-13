@@ -1,0 +1,33 @@
+from pydantic import BaseModel, Field
+from datetime import datetime
+from typing import Optional
+
+
+class CodeArtifactCreate(BaseModel):
+    meeting_id: str
+    filename: str = Field(..., min_length=1, max_length=255)
+    language: str = "python"
+    content: str
+    description: str = ""
+
+
+class CodeArtifactUpdate(BaseModel):
+    filename: Optional[str] = Field(None, min_length=1, max_length=255)
+    language: Optional[str] = None
+    content: Optional[str] = None
+    description: Optional[str] = None
+
+
+class CodeArtifactResponse(BaseModel):
+    id: str
+    meeting_id: str
+    filename: str
+    language: str
+    content: str
+    description: str
+    version: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True

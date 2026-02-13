@@ -4,7 +4,7 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, Session
 from app.main import app
 from app.database import Base, get_db
-from app.models import Team, Agent, APIKey, Meeting, MeetingMessage  # Import models to register them with Base
+from app.models import Team, Agent, APIKey, Meeting, MeetingMessage, CodeArtifact  # Import models to register them with Base
 
 # Use a file-based SQLite database for testing to avoid threading issues
 TEST_DATABASE_URL = "sqlite:///./test.db"
