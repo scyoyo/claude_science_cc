@@ -6,6 +6,7 @@ from app.config import settings
 from app.database import init_db
 from app.api import teams, agents, onboarding, llm, meetings, artifacts, export, auth, ws, search
 from app.middleware.rate_limit import RateLimitMiddleware
+from app.middleware.logging import LoggingMiddleware
 
 
 @asynccontextmanager
@@ -19,6 +20,7 @@ app = FastAPI(title=settings.PROJECT_NAME, version=settings.VERSION, lifespan=li
 
 # Middleware (order matters: last added = first executed)
 app.add_middleware(RateLimitMiddleware)
+app.add_middleware(LoggingMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
