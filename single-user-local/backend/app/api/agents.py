@@ -41,6 +41,78 @@ def create_agent(agent_data: AgentCreate, db: Session = Depends(get_db)):
     return agent
 
 
+@router.post("/batch", response_model=List[AgentResponse], status_code=status.HTTP_201_CREATED)
+def batch_create_agents(
+    agents_data: List[AgentCreate],
+    db: Session = Depends(get_db),
+):
+    """Create multiple agents at once. All must belong to valid teams."""
+    if not agents_data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Empty agent list",
+        )
+    if len(agents_data) > 50:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Maximum 50 agents per batch",
+        )
+
+    # Validate all team IDs upfront
+    team_ids = {a.team_id for a in agents_data}
+    existing_teams = {
+        t.id for t in db.query(Team).filter(Team.id.in_(team_ids)).all()
+    }
+    missing = team_ids - existing_teams
+    if missing:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Teams not found: {', '.join(missing)}",
+        )
+
+    created = []
+    for agent_data in agents_data:
+        agent = Agent(**agent_data.model_dump())
+        agent.system_prompt = generate_system_prompt(agent)
+        db.add(agent)
+        created.append(agent)
+
+    db.commit()
+    for a in created:
+        db.refresh(a)
+    return created
+
+
+@router.delete("/batch", status_code=status.HTTP_200_OK)
+def batch_delete_agents(
+    agent_ids: List[str],
+    db: Session = Depends(get_db),
+):
+    """Delete multiple agents by IDs. Returns count of deleted agents."""
+    if not agent_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Empty ID list",
+        )
+    deleted = db.query(Agent).filter(Agent.id.in_(agent_ids)).delete(synchronize_session="fetch")
+    db.commit()
+    return {"deleted": deleted}
+
+
+@router.get("/team/{team_id}", response_model=PaginatedResponse[AgentResponse])
+def list_team_agents(
+    team_id: str,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+    db: Session = Depends(get_db),
+):
+    """List all agents in a team with pagination"""
+    query = db.query(Agent).filter(Agent.team_id == team_id)
+    total = query.count()
+    items = query.offset(skip).limit(limit).all()
+    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
+
+
 @router.get("/{agent_id}", response_model=AgentResponse)
 def get_agent(agent_id: str, db: Session = Depends(get_db)):
     """Get agent details"""
@@ -94,17 +166,3 @@ def delete_agent(agent_id: str, db: Session = Depends(get_db)):
     db.delete(agent)
     db.commit()
     return None
-
-
-@router.get("/team/{team_id}", response_model=PaginatedResponse[AgentResponse])
-def list_team_agents(
-    team_id: str,
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500),
-    db: Session = Depends(get_db),
-):
-    """List all agents in a team with pagination"""
-    query = db.query(Agent).filter(Agent.team_id == team_id)
-    total = query.count()
-    items = query.offset(skip).limit(limit).all()
-    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
