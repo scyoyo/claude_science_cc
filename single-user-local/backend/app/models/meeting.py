@@ -1,5 +1,5 @@
 from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Integer, Enum
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 from datetime import datetime, UTC
 import uuid
 import enum
@@ -28,7 +28,7 @@ class Meeting(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
 
     # Relationships
-    team = relationship("Team", backref="meetings")
+    team = relationship("Team", backref=backref("meetings", cascade="all, delete-orphan"))
     messages = relationship("MeetingMessage", back_populates="meeting", cascade="all, delete-orphan",
                           order_by="MeetingMessage.created_at")
 
