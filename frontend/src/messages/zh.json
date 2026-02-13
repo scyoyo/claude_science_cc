@@ -23,6 +23,7 @@
     "dashboard": "仪表盘",
     "onboarding": "新建项目",
     "teams": "团队",
+    "meetings": "会议",
     "settings": "设置",
     "profile": "个人资料"
   },
@@ -104,6 +105,18 @@
     "wsConnected": "实时连接已建立",
     "wsDisconnected": "已断开连接",
     "you": "你"
+  },
+  "meetings": {
+    "title": "会议",
+    "noMeetings": "暂无会议。",
+    "noMeetingsHint": "从团队页面创建会议以开始使用。",
+    "round": "第 {current}/{max} 轮",
+    "status": {
+      "pending": "待处理",
+      "running": "运行中",
+      "completed": "已完成",
+      "failed": "失败"
+    }
   },
   "editor": {
     "title": "可视化编辑器",

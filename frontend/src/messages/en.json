@@ -23,6 +23,7 @@
     "dashboard": "Dashboard",
     "onboarding": "New Project",
     "teams": "Teams",
+    "meetings": "Meetings",
     "settings": "Settings",
     "profile": "Profile"
   },
@@ -104,6 +105,18 @@
     "wsConnected": "Real-time connected",
     "wsDisconnected": "Disconnected",
     "you": "You"
+  },
+  "meetings": {
+    "title": "Meetings",
+    "noMeetings": "No meetings yet.",
+    "noMeetingsHint": "Create a meeting from a team page to get started.",
+    "round": "Round {current}/{max}",
+    "status": {
+      "pending": "Pending",
+      "running": "Running",
+      "completed": "Completed",
+      "failed": "Failed"
+    }
   },
   "editor": {
     "title": "Visual Editor",

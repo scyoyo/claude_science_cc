@@ -71,6 +71,19 @@ def compare_meetings(
     }
 
 
+@router.get("/", response_model=PaginatedResponse[MeetingResponse])
+def list_meetings(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+    db: Session = Depends(get_db),
+):
+    """List all meetings across all teams with pagination."""
+    query = db.query(Meeting).order_by(Meeting.updated_at.desc())
+    total = query.count()
+    items = query.offset(skip).limit(limit).all()
+    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
+
+
 @router.post("/", response_model=MeetingResponse, status_code=status.HTTP_201_CREATED)
 def create_meeting(data: MeetingCreate, db: Session = Depends(get_db)):
     """Create a new meeting for a team."""

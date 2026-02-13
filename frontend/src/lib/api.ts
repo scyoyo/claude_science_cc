@@ -75,6 +75,10 @@ export const agentsAPI = {
 
 // Meetings
 export const meetingsAPI = {
+  list: async (): Promise<Meeting[]> => {
+    const res = await fetchAPI<PaginatedResponse<Meeting>>("/meetings/");
+    return res.items;
+  },
   get: (id: string) => fetchAPI<MeetingWithMessages>(`/meetings/${id}`),
   listByTeam: async (teamId: string): Promise<Meeting[]> => {
     const res = await fetchAPI<PaginatedResponse<Meeting>>(`/meetings/team/${teamId}`);
