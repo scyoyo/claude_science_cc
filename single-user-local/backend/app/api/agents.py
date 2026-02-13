@@ -2,8 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
+from sqlalchemy import func
 from app.database import get_db
-from app.models import Agent, Team
+from app.models import Agent, Team, MeetingMessage
 from app.schemas.agent import AgentCreate, AgentUpdate, AgentResponse
 from app.schemas.pagination import PaginatedResponse
 
@@ -123,6 +124,39 @@ def get_agent(agent_id: str, db: Session = Depends(get_db)):
             detail="Agent not found"
         )
     return agent
+
+
+@router.get("/{agent_id}/metrics")
+def get_agent_metrics(agent_id: str, db: Session = Depends(get_db)):
+    """Get agent performance metrics from meeting participation."""
+    agent = db.query(Agent).filter(Agent.id == agent_id).first()
+    if not agent:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent not found")
+
+    messages = db.query(MeetingMessage).filter(MeetingMessage.agent_id == agent_id).all()
+
+    total_messages = len(messages)
+    meeting_ids = list({m.meeting_id for m in messages})
+    total_meetings = len(meeting_ids)
+
+    avg_length = 0
+    if total_messages > 0:
+        avg_length = round(sum(len(m.content) for m in messages) / total_messages)
+
+    # Most active round
+    round_counts = {}
+    for m in messages:
+        round_counts[m.round_number] = round_counts.get(m.round_number, 0) + 1
+    most_active_round = max(round_counts, key=round_counts.get) if round_counts else None
+
+    return {
+        "agent_id": agent_id,
+        "agent_name": agent.name,
+        "total_meetings": total_meetings,
+        "total_messages": total_messages,
+        "avg_message_length": avg_length,
+        "most_active_round": most_active_round,
+    }
 
 
 @router.post("/{agent_id}/clone", response_model=AgentResponse, status_code=status.HTTP_201_CREATED)

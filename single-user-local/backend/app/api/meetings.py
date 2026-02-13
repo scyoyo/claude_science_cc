@@ -25,6 +25,52 @@ from app.schemas.pagination import PaginatedResponse
 router = APIRouter(prefix="/meetings", tags=["meetings"])
 
 
+@router.get("/compare")
+def compare_meetings(
+    ids: str = Query(..., description="Comma-separated meeting IDs (2 required)"),
+    db: Session = Depends(get_db),
+):
+    """Compare two meetings side by side."""
+    id_list = [i.strip() for i in ids.split(",") if i.strip()]
+    if len(id_list) != 2:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Exactly 2 meeting IDs required (comma-separated)",
+        )
+
+    meetings = []
+    for mid in id_list:
+        m = db.query(Meeting).filter(Meeting.id == mid).first()
+        if not m:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Meeting {mid} not found")
+        meetings.append(m)
+
+    comparisons = []
+    for m in meetings:
+        msgs = db.query(MeetingMessage).filter(MeetingMessage.meeting_id == m.id).all()
+        participants = list({msg.agent_name for msg in msgs if msg.agent_name and msg.role == "assistant"})
+        comparisons.append({
+            "id": m.id,
+            "title": m.title,
+            "status": m.status,
+            "rounds": m.current_round,
+            "max_rounds": m.max_rounds,
+            "message_count": len(msgs),
+            "participants": participants,
+        })
+
+    # Find shared participants
+    p1 = set(comparisons[0]["participants"])
+    p2 = set(comparisons[1]["participants"])
+
+    return {
+        "meetings": comparisons,
+        "shared_participants": list(p1 & p2),
+        "unique_to_first": list(p1 - p2),
+        "unique_to_second": list(p2 - p1),
+    }
+
+
 @router.post("/", response_model=MeetingResponse, status_code=status.HTTP_201_CREATED)
 def create_meeting(data: MeetingCreate, db: Session = Depends(get_db)):
     """Create a new meeting for a team."""

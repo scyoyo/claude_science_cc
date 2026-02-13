@@ -4,6 +4,7 @@ from typing import List, Optional
 
 from app.database import get_db
 from app.models import Team, Agent, Meeting, MeetingMessage, CodeArtifact
+from app.api.agents import generate_system_prompt
 from app.models.user import User, UserTeamRole
 from app.schemas.team import TeamCreate, TeamUpdate, TeamResponse, TeamWithAgents
 from app.schemas.user import TeamRoleAssign, TeamRoleResponse
@@ -112,6 +113,75 @@ def get_team_stats(
         "message_count": message_count,
         "artifact_count": artifact_count,
     }
+
+
+@router.get("/{team_id}/export")
+def export_team(
+    team_id: str,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user),
+):
+    """Export team configuration (name, description, agents) as JSON."""
+    team = db.query(Team).filter(Team.id == team_id).first()
+    if not team:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
+    check_team_access(db, current_user, team, min_role="viewer")
+
+    agents = db.query(Agent).filter(Agent.team_id == team_id).all()
+    return {
+        "name": team.name,
+        "description": team.description,
+        "is_public": team.is_public,
+        "agents": [
+            {
+                "name": a.name,
+                "title": a.title,
+                "expertise": a.expertise,
+                "goal": a.goal,
+                "role": a.role,
+                "model": a.model,
+                "model_params": a.model_params or {},
+            }
+            for a in agents
+        ],
+    }
+
+
+@router.post("/import", response_model=TeamWithAgents, status_code=status.HTTP_201_CREATED)
+def import_team(
+    data: dict,
+    db: Session = Depends(get_db),
+):
+    """Import a team from a JSON config (as produced by /export)."""
+    if "name" not in data:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing 'name' field")
+
+    team = Team(
+        name=data["name"],
+        description=data.get("description", ""),
+        is_public=data.get("is_public", False),
+    )
+    db.add(team)
+    db.commit()
+    db.refresh(team)
+
+    for agent_data in data.get("agents", []):
+        agent = Agent(
+            team_id=team.id,
+            name=agent_data.get("name", "Agent"),
+            title=agent_data.get("title", ""),
+            expertise=agent_data.get("expertise", ""),
+            goal=agent_data.get("goal", ""),
+            role=agent_data.get("role", ""),
+            model=agent_data.get("model", "gpt-4"),
+            model_params=agent_data.get("model_params", {}),
+        )
+        agent.system_prompt = generate_system_prompt(agent)
+        db.add(agent)
+
+    db.commit()
+    db.refresh(team)
+    return team
 
 
 @router.put("/{team_id}", response_model=TeamResponse)
