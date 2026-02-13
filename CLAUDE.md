@@ -126,7 +126,7 @@ GET    /api/export/meeting/{id}/github     # Get GitHub-ready files
 
 ## Test Results (Last Run)
 
-- **139/139 tests passed**, 0 deprecation warnings
+- **199/199 tests passed**
 - test_main.py (2): root endpoint, health check
 - test_models.py (4): create team, create agent, cascade delete, mirror agent
 - test_teams_api.py (6): CRUD + 404 handling
@@ -137,6 +137,9 @@ GET    /api/export/meeting/{id}/github     # Get GitHub-ready files
 - test_artifacts.py (19): CodeExtractor, Artifact CRUD, Auto-extract
 - test_export.py (11): Exporter, Export API
 - test_integration.py (9): Full end-to-end workflows
+- test_auth.py (28): Password hashing, JWT tokens, Auth API, Protected endpoints
+- test_cache.py (19): InMemoryBackend, RateLimiter, TokenBlocklist, Singleton
+- test_ws.py (13): WebSocket connection, user messages, round execution
 
 ## Git Commits
 
@@ -219,12 +222,37 @@ GET    /api/export/meeting/{id}/github     # Get GitHub-ready files
 
 All deprecation warnings fixed (SQLAlchemy DeclarativeBase, FastAPI lifespan, datetime.now(UTC), Pydantic ConfigDict).
 
-## V2 Plan
+## V2 Complete (Multi-User Cloud)
 
-See `docs/V2_ARCHITECTURE.md` for detailed multi-user cloud architecture plan:
-- Phase 2.1: JWT + OAuth authentication
-- Phase 2.2: PostgreSQL + Alembic migrations
-- Phase 2.3: Redis (sessions, rate limiting, cache)
-- Phase 2.4: WebSocket real-time meetings
-- Phase 2.5: Production Docker Compose with Nginx
-- Phase 2.6: Kubernetes deployment
+See `docs/V2_ARCHITECTURE.md` for architecture. All 6 phases implemented:
+
+| Phase | Feature | Key Files |
+|-------|---------|-----------|
+| 2.1 | JWT Auth | `core/auth.py`, `api/auth.py`, `models/user.py` |
+| 2.2 | PostgreSQL + Alembic | `alembic/`, `database.py` (auto-detect SQLite/PG) |
+| 2.3 | Redis Cache | `core/cache.py`, `core/rate_limiter.py`, `core/token_blocklist.py` |
+| 2.4 | WebSocket | `api/ws.py` (real-time meeting streaming) |
+| 2.5 | Prod Docker | `docker-compose.prod.yml`, `nginx/nginx.conf` |
+| 2.6 | Kubernetes | `k8s/` (Deployments, StatefulSet, HPA, Ingress) |
+
+### V2 New Endpoints
+```
+POST   /api/auth/register          # Create account
+POST   /api/auth/login             # Get JWT token pair
+POST   /api/auth/refresh           # Refresh access token
+GET    /api/auth/me                # Current user info
+PUT    /api/auth/me                # Update profile
+WS     /ws/meetings/{meeting_id}   # Real-time meeting execution
+```
+
+### Deployment Options
+```bash
+# Dev (SQLite, no auth)
+docker-compose up -d
+
+# Production (Nginx + PostgreSQL + Redis + JWT auth)
+cp .env.example .env && docker compose -f docker-compose.prod.yml up -d
+
+# Kubernetes
+cd k8s && ./deploy.sh
+```
