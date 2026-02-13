@@ -71,6 +71,7 @@ python-dotenv==1.0.1
 pytest==8.3.4
 pytest-cov==6.0.0
 httpx==0.28.1
+cryptography==44.0.0
 ```
 
 ## API Endpoints (Currently Implemented)
@@ -90,24 +91,33 @@ DELETE /api/agents/{agent_id}              # Delete agent
 GET    /api/agents/team/{team_id}          # List agents in team
 POST   /api/onboarding/chat               # Multi-stage onboarding conversation
 POST   /api/onboarding/generate-team      # Generate team from onboarding config
+GET    /api/llm/providers                 # List available LLM providers
+GET    /api/llm/api-keys                  # List stored API keys (masked)
+POST   /api/llm/api-keys                  # Store new API key (encrypted)
+PUT    /api/llm/api-keys/{key_id}         # Update API key
+DELETE /api/llm/api-keys/{key_id}         # Delete API key
+POST   /api/llm/chat                      # Send chat to LLM (auto-detects provider)
 ```
 
 ## Database Models
 
 **Team**: id, name, description, is_public, created_at, updated_at
 **Agent**: id, team_id(FK), name, title, expertise, goal, role, system_prompt, model, model_params(JSON), position_x, position_y, is_mirror, primary_agent_id(FK self), created_at, updated_at
+**APIKey**: id, provider, encrypted_key, is_active, created_at, updated_at
 
 ## Test Results (Last Run)
 
-- **46/46 tests passed**
+- **81/81 tests passed**
 - test_main.py (2 tests): root endpoint, health check
 - test_models.py (4 tests): create team, create agent, cascade delete, mirror agent
 - test_teams_api.py (6 tests): CRUD + 404 handling
 - test_agents_api.py (7 tests): CRUD + invalid team + cascade delete
 - test_onboarding.py (27 tests): TeamBuilder (10), MirrorValidator (6), Onboarding API (11)
+- test_llm_client.py (35 tests): Encryption (3), Provider factory (10), Providers (11), API key mgmt (8), LLM chat (3)
 
 ## Git Commits
 
+- `cdb51c8` - feat: Add LLM API Client with provider factory (Step 1.4)
 - `4d37bfe` - feat: Add Intelligent Onboarding System (Step 1.0)
 - `3fb5516` - feat: Initial implementation - Steps 1.1, 1.2, 1.3 complete
 
@@ -129,13 +139,17 @@ POST   /api/onboarding/generate-team      # Generate team from onboarding config
 - `backend/tests/test_onboarding.py` ✅ - 27 tests covering all components
 - LLM calls mockable via injectable `llm_func` callable
 
-### Step 1.4: LLM API Client (NEXT)
-- Unified interface for OpenAI/Claude/DeepSeek
-- API key storage (encrypted)
-- Provider factory pattern
-- Rate limiting, error handling, retry logic
+### Step 1.4: LLM API Client (DONE)
+- `backend/app/core/llm_client.py` ✅ - Abstract LLMProvider + OpenAI/Anthropic/DeepSeek implementations
+- `backend/app/core/encryption.py` ✅ - Fernet-based API key encryption
+- `backend/app/models/api_key.py` ✅ - APIKey DB model
+- `backend/app/schemas/api_key.py` ✅ - API key CRUD schemas
+- `backend/app/api/llm.py` ✅ - API key management + LLM chat endpoints
+- `backend/tests/test_llm_client.py` ✅ - 35 tests, all mocked (no real API calls)
+- Provider factory with auto-detection from model name
+- Retry logic with exponential backoff
 
-### Step 1.5: Meeting Execution Engine
+### Step 1.5: Meeting Execution Engine (NEXT)
 - LangGraph orchestration
 - Agent conversation management
 - WebSocket real-time updates
