@@ -56,3 +56,13 @@ class MeetingRunRequest(BaseModel):
 class UserMessageRequest(BaseModel):
     """User intervention message during a meeting."""
     content: str = Field(..., min_length=1)
+
+
+class MeetingSummary(BaseModel):
+    meeting_id: str
+    title: str
+    total_rounds: int
+    total_messages: int
+    participants: List[str]
+    key_points: List[str]
+    status: str

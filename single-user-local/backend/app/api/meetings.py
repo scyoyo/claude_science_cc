@@ -13,6 +13,7 @@ from app.schemas.meeting import (
     MeetingRunRequest,
     UserMessageRequest,
     MeetingMessageResponse,
+    MeetingSummary,
 )
 from app.core.meeting_engine import MeetingEngine
 from app.core.llm_client import create_provider, detect_provider
@@ -49,6 +50,45 @@ def get_meeting(meeting_id: str, db: Session = Depends(get_db)):
     if not meeting:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
     return meeting
+
+
+@router.get("/{meeting_id}/summary", response_model=MeetingSummary)
+def get_meeting_summary(meeting_id: str, db: Session = Depends(get_db)):
+    """Generate a summary of the meeting from its messages."""
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    if not meeting:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+
+    messages = db.query(MeetingMessage).filter(
+        MeetingMessage.meeting_id == meeting_id,
+    ).order_by(MeetingMessage.created_at).all()
+
+    # Extract unique participants
+    participants = list({
+        m.agent_name for m in messages
+        if m.agent_name and m.role == "assistant"
+    })
+
+    # Extract key points: first sentence of each agent message (deduped)
+    key_points = []
+    seen = set()
+    for m in messages:
+        if m.role == "assistant" and m.content:
+            # Take the first sentence as a key point
+            first_sentence = m.content.split(".")[0].strip()
+            if first_sentence and len(first_sentence) > 10 and first_sentence not in seen:
+                key_points.append(f"[{m.agent_name or 'Agent'}] {first_sentence}")
+                seen.add(first_sentence)
+
+    return MeetingSummary(
+        meeting_id=meeting_id,
+        title=meeting.title,
+        total_rounds=meeting.current_round,
+        total_messages=len(messages),
+        participants=participants,
+        key_points=key_points,
+        status=meeting.status,
+    )
 
 
 @router.get("/team/{team_id}", response_model=PaginatedResponse[MeetingResponse])
