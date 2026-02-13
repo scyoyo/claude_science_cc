@@ -5,6 +5,7 @@ from sqlalchemy.orm import sessionmaker, Session
 from app.main import app
 from app.database import Base, get_db
 from app.models import Team, Agent, APIKey, Meeting, MeetingMessage, CodeArtifact, User, UserTeamRole  # Import models to register them with Base
+from app.core.cache import InMemoryBackend, set_cache, reset_cache
 
 # Use a file-based SQLite database for testing to avoid threading issues
 TEST_DATABASE_URL = "sqlite:///./test.db"
@@ -35,9 +36,13 @@ def setup_test_database():
     # Override dependency
     app.dependency_overrides[get_db] = override_get_db
 
+    # Fresh cache per test (prevents rate limit carry-over)
+    set_cache(InMemoryBackend())
+
     yield
 
     # Cleanup
+    reset_cache()
     app.dependency_overrides.clear()
     Base.metadata.drop_all(bind=engine)
     engine.dispose()
