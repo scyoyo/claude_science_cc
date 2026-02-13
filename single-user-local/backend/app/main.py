@@ -16,7 +16,29 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title=settings.PROJECT_NAME, version=settings.VERSION, lifespan=lifespan)
+tags_metadata = [
+    {"name": "teams", "description": "Team management and sharing"},
+    {"name": "agents", "description": "AI agent CRUD and batch operations"},
+    {"name": "meetings", "description": "Meeting lifecycle and execution"},
+    {"name": "artifacts", "description": "Code artifact management"},
+    {"name": "onboarding", "description": "AI-powered team composition assistant"},
+    {"name": "llm", "description": "LLM provider and API key management"},
+    {"name": "auth", "description": "Authentication and user management"},
+    {"name": "search", "description": "Full-text search across teams and agents"},
+    {"name": "templates", "description": "Predefined agent templates and presets"},
+    {"name": "export", "description": "Export meetings as ZIP, notebook, or GitHub"},
+    {"name": "websocket", "description": "Real-time meeting execution via WebSocket"},
+]
+
+app = FastAPI(
+    title=settings.PROJECT_NAME,
+    version=settings.VERSION,
+    description="Virtual Lab: AI-powered research team collaboration platform. "
+    "Create virtual research teams, configure AI agents, run collaborative meetings, "
+    "and export generated code.",
+    lifespan=lifespan,
+    openapi_tags=tags_metadata,
+)
 
 # Middleware (order matters: last added = first executed)
 app.add_middleware(RateLimitMiddleware)
