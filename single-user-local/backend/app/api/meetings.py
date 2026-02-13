@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 from typing import List
 
@@ -107,6 +108,48 @@ def get_meeting_summary(meeting_id: str, db: Session = Depends(get_db)):
         participants=participants,
         key_points=key_points,
         status=meeting.status,
+    )
+
+
+@router.get("/{meeting_id}/transcript", response_class=PlainTextResponse)
+def get_meeting_transcript(meeting_id: str, db: Session = Depends(get_db)):
+    """Export meeting messages as a formatted markdown transcript."""
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    if not meeting:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+
+    messages = db.query(MeetingMessage).filter(
+        MeetingMessage.meeting_id == meeting_id,
+    ).order_by(MeetingMessage.created_at).all()
+
+    lines = [
+        f"# {meeting.title}",
+        "",
+        f"**Status:** {meeting.status} | **Rounds:** {meeting.current_round}/{meeting.max_rounds}",
+        f"**Created:** {meeting.created_at.strftime('%Y-%m-%d %H:%M')}",
+        "",
+        "---",
+        "",
+    ]
+
+    current_round = None
+    for msg in messages:
+        if msg.round_number != current_round:
+            current_round = msg.round_number
+            lines.append(f"## Round {current_round}")
+            lines.append("")
+
+        if msg.role == "user":
+            lines.append(f"**User:** {msg.content}")
+        else:
+            speaker = msg.agent_name or "Agent"
+            lines.append(f"**{speaker}:** {msg.content}")
+        lines.append("")
+
+    return PlainTextResponse(
+        content="\n".join(lines),
+        media_type="text/markdown",
+        headers={"Content-Disposition": f'attachment; filename="{meeting.title}.md"'},
     )
 
 
