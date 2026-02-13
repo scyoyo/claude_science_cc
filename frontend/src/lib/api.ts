@@ -6,6 +6,9 @@ import type {
   AgentCreate,
   Meeting,
   MeetingWithMessages,
+  MeetingUpdate,
+  MeetingSummary,
+  CodeArtifact,
   OnboardingChatRequest,
   OnboardingChatResponse,
   GenerateTeamRequest,
@@ -73,6 +76,21 @@ export const agentsAPI = {
     fetchAPI<void>(`/agents/${id}`, { method: "DELETE" }),
 };
 
+async function fetchRaw(path: string, options?: RequestInit): Promise<Response> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: {
+      ...getAuthHeaders(),
+      ...options?.headers,
+    },
+    ...options,
+  });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(error.detail || `API error: ${res.status}`);
+  }
+  return res;
+}
+
 // Meetings
 export const meetingsAPI = {
   list: async (): Promise<Meeting[]> => {
@@ -86,8 +104,18 @@ export const meetingsAPI = {
   },
   create: (data: { team_id: string; title: string; description?: string; max_rounds?: number }) =>
     fetchAPI<Meeting>("/meetings/", { method: "POST", body: JSON.stringify(data) }),
+  update: (id: string, data: MeetingUpdate) =>
+    fetchAPI<Meeting>(`/meetings/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   delete: (id: string) =>
     fetchAPI<void>(`/meetings/${id}`, { method: "DELETE" }),
+  clone: (id: string) =>
+    fetchAPI<Meeting>(`/meetings/${id}/clone`, { method: "POST" }),
+  summary: (id: string) =>
+    fetchAPI<MeetingSummary>(`/meetings/${id}/summary`),
+  transcript: async (id: string): Promise<Blob> => {
+    const res = await fetchRaw(`/meetings/${id}/transcript`);
+    return res.blob();
+  },
   addMessage: (meetingId: string, content: string) =>
     fetchAPI<MeetingWithMessages>(`/meetings/${meetingId}/message`, {
       method: "POST",
@@ -98,6 +126,35 @@ export const meetingsAPI = {
       method: "POST",
       body: JSON.stringify({ rounds, topic }),
     }),
+};
+
+// Artifacts
+export const artifactsAPI = {
+  listByMeeting: async (meetingId: string): Promise<CodeArtifact[]> => {
+    const res = await fetchAPI<PaginatedResponse<CodeArtifact>>(`/artifacts/meeting/${meetingId}`);
+    return res.items;
+  },
+  get: (id: string) => fetchAPI<CodeArtifact>(`/artifacts/${id}`),
+  create: (data: { meeting_id: string; filename: string; language: string; content: string; description?: string }) =>
+    fetchAPI<CodeArtifact>("/artifacts/", { method: "POST", body: JSON.stringify(data) }),
+  extract: (meetingId: string) =>
+    fetchAPI<CodeArtifact[]>(`/artifacts/meeting/${meetingId}/extract`, { method: "POST" }),
+  delete: (id: string) =>
+    fetchAPI<void>(`/artifacts/${id}`, { method: "DELETE" }),
+};
+
+// Export
+export const exportAPI = {
+  zip: async (meetingId: string): Promise<Blob> => {
+    const res = await fetchRaw(`/export/meeting/${meetingId}/zip`);
+    return res.blob();
+  },
+  notebook: async (meetingId: string): Promise<Blob> => {
+    const res = await fetchRaw(`/export/meeting/${meetingId}/notebook`);
+    return res.blob();
+  },
+  github: (meetingId: string) =>
+    fetchAPI<{ project_name: string; files: Array<{ path: string; content: string }> }>(`/export/meeting/${meetingId}/github`),
 };
 
 // Onboarding

@@ -25,6 +25,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { ArrowLeft, Plus, Trash2, Workflow, MessageSquare, Bot } from "lucide-react";
 
 export default function TeamDetailPage() {
@@ -48,7 +50,7 @@ export default function TeamDetailPage() {
     role: "",
     model: "gpt-4",
   });
-  const [meetingTitle, setMeetingTitle] = useState("");
+  const [meetingForm, setMeetingForm] = useState({ title: "", description: "", max_rounds: 5 });
 
   const loadData = async () => {
     try {
@@ -95,10 +97,15 @@ export default function TeamDetailPage() {
 
   const handleCreateMeeting = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!meetingTitle.trim()) return;
+    if (!meetingForm.title.trim()) return;
     try {
-      await meetingsAPI.create({ team_id: teamId, title: meetingTitle });
-      setMeetingTitle("");
+      await meetingsAPI.create({
+        team_id: teamId,
+        title: meetingForm.title,
+        description: meetingForm.description || undefined,
+        max_rounds: meetingForm.max_rounds,
+      });
+      setMeetingForm({ title: "", description: "", max_rounds: 5 });
       setShowNewMeeting(false);
       loadData();
     } catch (err) {
@@ -282,12 +289,35 @@ export default function TeamDetailPage() {
                 <DialogTitle>{t("addMeeting")}</DialogTitle>
               </DialogHeader>
               <form onSubmit={handleCreateMeeting} className="space-y-4">
-                <Input
-                  value={meetingTitle}
-                  onChange={(e) => setMeetingTitle(e.target.value)}
-                  placeholder={t("meetingTitle")}
-                  autoFocus
-                />
+                <div className="space-y-2">
+                  <Label>{t("meetingTitle")}</Label>
+                  <Input
+                    value={meetingForm.title}
+                    onChange={(e) => setMeetingForm({ ...meetingForm, title: e.target.value })}
+                    placeholder={t("meetingTitle")}
+                    autoFocus
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t("meetingDescription")}</Label>
+                  <Textarea
+                    value={meetingForm.description}
+                    onChange={(e) => setMeetingForm({ ...meetingForm, description: e.target.value })}
+                    placeholder={t("meetingDescription")}
+                    rows={3}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t("meetingMaxRounds")}</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={meetingForm.max_rounds}
+                    onChange={(e) => setMeetingForm({ ...meetingForm, max_rounds: parseInt(e.target.value) || 5 })}
+                  />
+                </div>
                 <DialogFooter>
                   <Button type="button" variant="outline" onClick={() => setShowNewMeeting(false)}>
                     {tc("cancel")}

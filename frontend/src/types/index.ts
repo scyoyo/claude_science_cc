@@ -103,6 +103,34 @@ export interface MeetingWithMessages extends Meeting {
   messages: MeetingMessage[];
 }
 
+export interface MeetingUpdate {
+  title?: string;
+  description?: string;
+  max_rounds?: number;
+}
+
+export interface MeetingSummary {
+  meeting_id: string;
+  title: string;
+  total_rounds: number;
+  total_messages: number;
+  participants: string[];
+  key_points: string[];
+  status: string;
+}
+
+export interface CodeArtifact {
+  id: string;
+  meeting_id: string;
+  filename: string;
+  language: string;
+  content: string;
+  description: string;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
 // Onboarding
 export type OnboardingStage =
   | "problem"

@@ -1,20 +1,55 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { meetingsAPI } from "@/lib/api";
+import { downloadBlob } from "@/lib/utils";
 import { useMeetingWebSocket, type WSMessage } from "@/hooks/useMeetingWebSocket";
 import type { MeetingWithMessages, MeetingMessage } from "@/types";
+import MeetingSummaryPanel from "@/components/MeetingSummaryPanel";
+import ArtifactsPanel from "@/components/ArtifactsPanel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ArrowLeft, Send, Play, Wifi, WifiOff } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  ArrowLeft,
+  Send,
+  Play,
+  Wifi,
+  WifiOff,
+  Copy,
+  FileDown,
+  MoreVertical,
+  Pencil,
+  Trash2,
+  Loader2,
+  MessageSquare,
+  BarChart3,
+  Code,
+} from "lucide-react";
 
 export default function MeetingDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const teamId = params.teamId as string;
   const meetingId = params.meetingId as string;
   const t = useTranslations("meeting");
@@ -27,6 +62,9 @@ export default function MeetingDetailPage() {
   const [userMessage, setUserMessage] = useState("");
   const [topic, setTopic] = useState("");
   const [liveMessages, setLiveMessages] = useState<MeetingMessage[]>([]);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editForm, setEditForm] = useState({ title: "", description: "", max_rounds: 5 });
+  const [cloning, setCloning] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = useCallback(() => {
@@ -135,6 +173,63 @@ export default function MeetingDetailPage() {
     setUserMessage("");
   };
 
+  const handleClone = async () => {
+    try {
+      setCloning(true);
+      const cloned = await meetingsAPI.clone(meetingId);
+      router.push(`/teams/${teamId}/meetings/${cloned.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to clone");
+    } finally {
+      setCloning(false);
+    }
+  };
+
+  const handleDownloadTranscript = async () => {
+    try {
+      const blob = await meetingsAPI.transcript(meetingId);
+      downloadBlob(blob, `${meeting?.title || "meeting"}.md`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to download transcript");
+    }
+  };
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const updated = await meetingsAPI.update(meetingId, {
+        title: editForm.title,
+        description: editForm.description || undefined,
+        max_rounds: editForm.max_rounds,
+      });
+      setMeeting((prev) => prev ? { ...prev, ...updated } : prev);
+      setShowEditDialog(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update meeting");
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm(t("deleteConfirm"))) return;
+    try {
+      await meetingsAPI.delete(meetingId);
+      router.push(`/teams/${teamId}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete meeting");
+    }
+  };
+
+  const openEditDialog = () => {
+    if (meeting) {
+      setEditForm({
+        title: meeting.title,
+        description: meeting.description || "",
+        max_rounds: meeting.max_rounds,
+      });
+    }
+    setShowEditDialog(true);
+  };
+
   if (loading) return <p className="text-muted-foreground">{tc("loading")}</p>;
   if (!meeting) return <p className="text-destructive">Meeting not found</p>;
 
@@ -173,9 +268,49 @@ export default function MeetingDetailPage() {
               <WifiOff className="h-4 w-4 text-muted-foreground" />
             )}
           </span>
+
+          {/* Toolbar */}
+          <div className="ml-auto flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleClone}
+              disabled={cloning}
+            >
+              {cloning ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Copy className="h-4 w-4 mr-1" />}
+              {t("clone")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDownloadTranscript}
+            >
+              <FileDown className="h-4 w-4 mr-1" />
+              {t("downloadTranscript")}
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" className="h-8 w-8">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={openEditDialog}>
+                  <Pencil className="h-4 w-4 mr-2" />
+                  {t("edit")}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem variant="destructive" onClick={handleDelete}>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  {t("delete")}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
         <p className="text-sm text-muted-foreground">
           {t("round", { current: meeting.current_round, max: meeting.max_rounds })}
+          {meeting.description && <> &mdash; {meeting.description}</>}
         </p>
       </div>
 
@@ -183,82 +318,148 @@ export default function MeetingDetailPage() {
         <div className="shrink-0 p-3 mb-4 bg-destructive/10 text-destructive rounded-lg text-sm">{error}</div>
       )}
 
-      {/* Messages */}
-      <ScrollArea className="flex-1 mb-4">
-        <div className="space-y-3 pr-4">
-          {allMessages.length === 0 ? (
-            <p className="text-muted-foreground text-sm">{t("noMessages")}</p>
-          ) : (
-            allMessages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`p-4 rounded-lg border ${
-                  msg.role === "user"
-                    ? "bg-primary/5 border-primary/20"
-                    : "bg-card"
-                }`}
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-medium text-sm">
-                    {msg.role === "user" ? t("you") : msg.agent_name || "Assistant"}
-                  </span>
-                  {msg.round_number > 0 && (
-                    <Badge variant="outline" className="text-xs">
-                      R{msg.round_number}
-                    </Badge>
-                  )}
-                </div>
-                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                  {msg.content}
-                </p>
-              </div>
-            ))
-          )}
+      {/* Tabs */}
+      <Tabs defaultValue="chat" className="flex-1 flex flex-col min-h-0">
+        <TabsList className="shrink-0">
+          <TabsTrigger value="chat">
+            <MessageSquare className="h-4 w-4 mr-1" />
+            {t("tabChat")}
+          </TabsTrigger>
+          <TabsTrigger value="summary">
+            <BarChart3 className="h-4 w-4 mr-1" />
+            {t("tabSummary")}
+          </TabsTrigger>
+          <TabsTrigger value="artifacts">
+            <Code className="h-4 w-4 mr-1" />
+            {t("tabArtifacts")}
+          </TabsTrigger>
+        </TabsList>
 
-          {speaking && (
-            <div className="p-4 rounded-lg bg-muted border animate-pulse">
-              <span className="text-sm text-muted-foreground">
-                {t("thinking", { agent: speaking })}
-              </span>
+        {/* Chat Tab */}
+        <TabsContent value="chat" className="flex-1 flex flex-col min-h-0">
+          <ScrollArea className="flex-1 mb-4">
+            <div className="space-y-3 pr-4">
+              {allMessages.length === 0 ? (
+                <p className="text-muted-foreground text-sm">{t("noMessages")}</p>
+              ) : (
+                allMessages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={`p-4 rounded-lg border ${
+                      msg.role === "user"
+                        ? "bg-primary/5 border-primary/20"
+                        : "bg-card"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-medium text-sm">
+                        {msg.role === "user" ? t("you") : msg.agent_name || "Assistant"}
+                      </span>
+                      {msg.round_number > 0 && (
+                        <Badge variant="outline" className="text-xs">
+                          R{msg.round_number}
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                      {msg.content}
+                    </p>
+                  </div>
+                ))
+              )}
+
+              {speaking && (
+                <div className="p-4 rounded-lg bg-muted border animate-pulse">
+                  <span className="text-sm text-muted-foreground">
+                    {t("thinking", { agent: speaking })}
+                  </span>
+                </div>
+              )}
+
+              <div ref={messagesEndRef} />
+            </div>
+          </ScrollArea>
+
+          {/* Controls */}
+          {!isCompleted && (
+            <div className="shrink-0 space-y-3 border-t pt-4">
+              <form onSubmit={handleSendMessage} className="flex gap-2">
+                <Input
+                  value={userMessage}
+                  onChange={(e) => setUserMessage(e.target.value)}
+                  placeholder={t("sendMessage")}
+                  className="flex-1"
+                />
+                <Button type="submit" size="icon">
+                  <Send className="h-4 w-4" />
+                </Button>
+              </form>
+
+              <div className="flex items-center gap-2">
+                <Input
+                  value={topic}
+                  onChange={(e) => setTopic(e.target.value)}
+                  placeholder={t("topic")}
+                  className="flex-1"
+                />
+                <Button
+                  onClick={connected ? handleRunWS : handleRunHTTP}
+                  disabled={running}
+                >
+                  <Play className="h-4 w-4 mr-1" />
+                  {running ? t("running") : connected ? t("runLive") : t("run")}
+                </Button>
+              </div>
             </div>
           )}
+        </TabsContent>
 
-          <div ref={messagesEndRef} />
-        </div>
-      </ScrollArea>
+        {/* Summary Tab */}
+        <TabsContent value="summary" className="flex-1 overflow-auto">
+          <MeetingSummaryPanel meetingId={meetingId} />
+        </TabsContent>
 
-      {/* Controls */}
-      {!isCompleted && (
-        <div className="shrink-0 space-y-3 border-t pt-4">
-          <form onSubmit={handleSendMessage} className="flex gap-2">
+        {/* Artifacts Tab */}
+        <TabsContent value="artifacts" className="flex-1 overflow-auto">
+          <ArtifactsPanel meetingId={meetingId} meetingTitle={meeting.title} />
+        </TabsContent>
+      </Tabs>
+
+      {/* Edit Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("edit")}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEdit} className="space-y-4">
             <Input
-              value={userMessage}
-              onChange={(e) => setUserMessage(e.target.value)}
-              placeholder={t("sendMessage")}
-              className="flex-1"
+              value={editForm.title}
+              onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+              placeholder={t("title")}
+              required
             />
-            <Button type="submit" size="icon">
-              <Send className="h-4 w-4" />
-            </Button>
+            <Textarea
+              value={editForm.description}
+              onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+              placeholder={t("descriptionPlaceholder")}
+              rows={3}
+            />
+            <Input
+              type="number"
+              min={1}
+              max={20}
+              value={editForm.max_rounds}
+              onChange={(e) => setEditForm({ ...editForm, max_rounds: parseInt(e.target.value) || 5 })}
+            />
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setShowEditDialog(false)}>
+                {tc("cancel")}
+              </Button>
+              <Button type="submit">{tc("save")}</Button>
+            </DialogFooter>
           </form>
-
-          <div className="flex items-center gap-2">
-            <Input
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              placeholder={t("topic")}
-              className="flex-1"
-            />
-            <Button
-              onClick={connected ? handleRunWS : handleRunHTTP}
-              disabled={running}
-            >
-              <Play className="h-4 w-4 mr-1" />
-              {running ? t("running") : connected ? t("runLive") : t("run")}
-            </Button>
-          </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
