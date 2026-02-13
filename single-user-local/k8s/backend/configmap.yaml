@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: virtuallab
+data:
+  DATABASE_URL: "postgresql://virtuallab:$(DB_PASSWORD)@postgres:5432/virtuallab"
+  REDIS_URL: "redis://redis:6379/0"
+  AUTH_ENABLED: "true"

@@ -91,7 +91,7 @@ See [docs/V2_ARCHITECTURE.md](docs/V2_ARCHITECTURE.md) for full architecture pla
 | 2.3 | Redis (cache, rate limiting, token blocklist) | 19 | Done |
 | 2.4 | WebSocket (real-time meetings) | 13 | Done |
 | 2.5 | Production Docker Compose (Nginx + PG + Redis) | - | Done |
-| 2.6 | Kubernetes deployment | - | Planned |
+| 2.6 | Kubernetes deployment (manifests + HPA + Ingress) | - | Done |
 
 **Total: 199 tests passing.**
 
@@ -127,4 +127,9 @@ npm run dev                             # Frontend: http://localhost:3000
 cd single-user-local/backend
 source venv/bin/activate
 pytest tests/ -v                        # 199 tests
+
+# Kubernetes
+cd single-user-local/k8s
+# Edit secrets.yaml with real base64 values first
+./deploy.sh
 ```
