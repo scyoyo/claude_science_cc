@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import init_db
-from app.api import teams, agents, onboarding, llm, meetings, artifacts, export
+from app.api import teams, agents, onboarding, llm, meetings, artifacts, export, auth
 
 
 @asynccontextmanager
@@ -32,6 +32,7 @@ app.include_router(llm.router, prefix="/api")
 app.include_router(meetings.router, prefix="/api")
 app.include_router(artifacts.router, prefix="/api")
 app.include_router(export.router, prefix="/api")
+app.include_router(auth.router, prefix="/api")
 
 
 @app.get("/")

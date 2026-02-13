@@ -15,6 +15,13 @@ class Settings(BaseSettings):
     # Encryption secret for API key storage
     ENCRYPTION_SECRET: str = "change-me-in-production-use-a-real-secret"
 
+    # Authentication
+    AUTH_ENABLED: bool = False  # V1 backward compat: disabled by default
+    JWT_SECRET: str = "change-me-jwt-secret-in-production"
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+
     # CORS
     CORS_ORIGINS: list[str] = ["http://localhost:3000"]
 
