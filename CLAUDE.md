@@ -127,6 +127,7 @@ POST   /api/meetings/{meeting_id}/run     # Run meeting rounds
 
 ## Git Commits
 
+- `a300389` - feat: Add Next.js frontend with team/agent/meeting pages (Step 1.6)
 - `67bf497` - feat: Add Meeting Execution Engine (Step 1.5)
 - `cdb51c8` - feat: Add LLM API Client with provider factory (Step 1.4)
 - `4d37bfe` - feat: Add Intelligent Onboarding System (Step 1.0)
@@ -169,13 +170,18 @@ POST   /api/meetings/{meeting_id}/run     # Run meeting rounds
 - Agents see cumulative context; meetings track rounds and status
 - Note: WebSocket real-time updates deferred to frontend phase
 
-### Step 1.6: Frontend Basic UI (NEXT)
-- Project setup with Next.js + TypeScript
-- Team list/detail pages
-- Agent list/detail pages
-- Basic routing and navigation
+### Step 1.6: Frontend Basic UI (DONE)
+- Next.js 16 + TypeScript + Tailwind CSS + App Router ✅
+- `frontend/src/types/index.ts` ✅ - TypeScript types matching backend
+- `frontend/src/lib/api.ts` ✅ - Fetch-based API client
+- `frontend/src/app/page.tsx` ✅ - Home page with nav cards
+- `frontend/src/app/teams/page.tsx` ✅ - Team list with create/delete
+- `frontend/src/app/teams/[teamId]/page.tsx` ✅ - Team detail with agents + meetings
+- `frontend/src/app/teams/[teamId]/meetings/[meetingId]/page.tsx` ✅ - Meeting with messages + run
+- `frontend/src/app/settings/page.tsx` ✅ - API key management
+- Build passes: `npm run build`
 
-### Step 1.7: Visual Editor
+### Step 1.7: Visual Editor (NEXT)
 - React Flow for agent graph visualization
 - Monaco Editor for prompt editing
 - Drag-and-drop agent creation
