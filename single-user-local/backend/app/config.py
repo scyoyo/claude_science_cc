@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     # Database - SQLite local file
     DATABASE_URL: str = "sqlite:///./data/virtuallab.db"
 
+    # Encryption secret for API key storage
+    ENCRYPTION_SECRET: str = "change-me-in-production-use-a-real-secret"
+
     # CORS
     CORS_ORIGINS: list[str] = ["http://localhost:3000"]
 

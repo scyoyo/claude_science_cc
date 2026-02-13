@@ -15,7 +15,7 @@ class OnboardingStage(str, Enum):
 # --- Chat Request/Response ---
 
 class ChatMessage(BaseModel):
-    role: str = Field(..., pattern="^(user|assistant)$")
+    role: str = Field(..., pattern="^(user|assistant|system)$")
     content: str
 
 
