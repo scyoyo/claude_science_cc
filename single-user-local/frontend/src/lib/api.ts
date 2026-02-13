@@ -7,6 +7,7 @@ import type {
   Meeting,
   MeetingWithMessages,
 } from "@/types";
+import { getAuthHeaders } from "@/lib/auth";
 
 // In browser: use relative path (proxied by Next.js rewrites)
 // In SSR/server: use full URL to backend
@@ -16,7 +17,11 @@ const API_BASE = typeof window !== "undefined"
 
 async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json", ...options?.headers },
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeaders(),
+      ...options?.headers,
+    },
     ...options,
   });
   if (!res.ok) {
