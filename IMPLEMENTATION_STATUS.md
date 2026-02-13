@@ -93,7 +93,16 @@ See [docs/V2_ARCHITECTURE.md](docs/V2_ARCHITECTURE.md) for full architecture pla
 | 2.5 | Production Docker Compose (Nginx + PG + Redis) | - | Done |
 | 2.6 | Kubernetes deployment (manifests + HPA + Ingress) | - | Done |
 
-**Total: 199 tests passing.**
+**Total: 223 tests passing.**
+
+## V3 Polish
+
+| Phase | Feature | Tests | Status |
+|-------|---------|-------|--------|
+| 3.1 | Frontend auth (login/register/token mgmt) | - | Done |
+| 3.2 | RBAC permission enforcement | 18 | Done |
+| 3.3 | Rate limiting middleware | 6 | Done |
+| 3.4 | CI/CD (GitHub Actions) | - | Done |
 
 ### V2 New Endpoints
 ```
@@ -126,7 +135,7 @@ npm run dev                             # Frontend: http://localhost:3000
 # Tests
 cd single-user-local/backend
 source venv/bin/activate
-pytest tests/ -v                        # 199 tests
+pytest tests/ -v                        # 223 tests
 
 # Kubernetes
 cd single-user-local/k8s
