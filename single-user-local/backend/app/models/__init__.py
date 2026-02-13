@@ -4,8 +4,9 @@ from app.models.api_key import APIKey
 from app.models.meeting import Meeting, MeetingMessage, MeetingStatus
 from app.models.artifact import CodeArtifact
 from app.models.user import User, UserTeamRole
+from app.models.webhook import WebhookConfig
 
 __all__ = [
     "Team", "Agent", "APIKey", "Meeting", "MeetingMessage", "MeetingStatus",
-    "CodeArtifact", "User", "UserTeamRole",
+    "CodeArtifact", "User", "UserTeamRole", "WebhookConfig",
 ]
