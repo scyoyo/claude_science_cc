@@ -80,26 +80,40 @@ GET  /api/export/meeting/{id}/github
 
 ---
 
-## V2 Plan (Multi-User Cloud)
+## V2 Progress (Multi-User Cloud)
 
 See [docs/V2_ARCHITECTURE.md](docs/V2_ARCHITECTURE.md) for full architecture plan.
 
-| Phase | Feature | Status |
-|-------|---------|--------|
-| 2.1 | Authentication (JWT + OAuth) | Planned |
-| 2.2 | PostgreSQL + Alembic migrations | Planned |
-| 2.3 | Redis (sessions, rate limiting, cache) | Planned |
-| 2.4 | WebSocket (real-time meetings) | Planned |
-| 2.5 | Production Docker Compose | Planned |
-| 2.6 | Kubernetes deployment | Planned |
+| Phase | Feature | Tests | Status |
+|-------|---------|-------|--------|
+| 2.1 | Authentication (JWT) | 28 | Done |
+| 2.2 | PostgreSQL + Alembic migrations | - | Done |
+| 2.3 | Redis (cache, rate limiting, token blocklist) | 19 | Done |
+| 2.4 | WebSocket (real-time meetings) | 13 | Done |
+| 2.5 | Production Docker Compose (Nginx + PG + Redis) | - | Done |
+| 2.6 | Kubernetes deployment | - | Planned |
+
+**Total: 199 tests passing.**
+
+### V2 New Endpoints
+```
+POST  /api/auth/register     POST  /api/auth/login
+POST  /api/auth/refresh      GET/PUT  /api/auth/me
+WS    /ws/meetings/{id}      (real-time meeting execution)
+```
 
 ---
 
 ## Quick Start
 
 ```bash
-# Docker (production)
+# Development (SQLite, no auth)
 cd single-user-local && docker-compose up -d
+
+# Production (PostgreSQL + Redis + Nginx)
+cd single-user-local
+cp .env.example .env   # Edit with real secrets
+docker compose -f docker-compose.prod.yml up -d
 
 # Local development
 cd single-user-local/backend
@@ -112,6 +126,5 @@ npm run dev                             # Frontend: http://localhost:3000
 # Tests
 cd single-user-local/backend
 source venv/bin/activate
-pytest tests/ -v                        # 139 tests
-pytest tests/ -v -W error::DeprecationWarning  # 0 warnings
+pytest tests/ -v                        # 199 tests
 ```
