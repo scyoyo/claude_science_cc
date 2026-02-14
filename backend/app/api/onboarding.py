@@ -86,6 +86,15 @@ def _parse_preferences_from_message(message: str) -> dict:
     return preferences
 
 
+def _strip_json_block(text: str) -> str:
+    """Strip markdown JSON fenced blocks from text so only natural language remains."""
+    import re
+    stripped = re.sub(r'```(?:json)?\s*\n?.*?\n?```', '', text, flags=re.DOTALL)
+    # Collapse multiple blank lines into one
+    stripped = re.sub(r'\n{3,}', '\n\n', stripped)
+    return stripped.strip()
+
+
 def _detect_accept_reject(message: str) -> str:
     """Detect whether the user accepts or rejects the team proposal.
 
@@ -188,13 +197,9 @@ def _handle_clarification_stage(
 
         suggestion, raw_text = team_builder.propose_team_with_text(history)
         if suggestion:
-            agent_summary = "\n".join(
-                f"- **{a.name}** ({a.title}): {a.expertise}"
-                for a in suggestion.agents
-            )
-            # Use LLM's text if available, otherwise build our own
-            display_text = raw_text if raw_text else (
-                f"Here's your suggested team: **{suggestion.team_name}**\n\n{agent_summary}"
+            # Strip JSON block from LLM text - team cards are rendered by frontend
+            display_text = _strip_json_block(raw_text) if raw_text else (
+                f"Here's your suggested team: **{suggestion.team_name}**"
             )
             return OnboardingChatResponse(
                 stage=OnboardingStage.clarification,
@@ -261,10 +266,13 @@ def _handle_team_suggestion_stage(
                 history.append(ChatMessage(role="user", content=request.message))
             suggestion, raw_text = team_builder.propose_team_with_text(history)
             if suggestion:
+                display_text = _strip_json_block(raw_text) if raw_text else (
+                    f"Here's a revised team: **{suggestion.team_name}**"
+                )
                 return OnboardingChatResponse(
                     stage=OnboardingStage.team_suggestion,
                     next_stage=OnboardingStage.team_suggestion,
-                    message=raw_text or f"Here's a revised team: **{suggestion.team_name}**",
+                    message=display_text,
                     data={
                         "team_suggestion": suggestion.model_dump(),
                         "proposed_team": [a.model_dump() for a in suggestion.agents],

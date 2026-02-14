@@ -705,6 +705,11 @@ class TestOnboardingChatLLMMode:
                 assert "proposed_team" in data["data"]
                 assert len(data["data"]["proposed_team"]) == 2
                 assert data["data"]["team_suggestion"]["team_name"] == "Genomics Research Team"
+                # JSON block should be stripped from display message
+                assert "```json" not in data["message"]
+                assert "```" not in data["message"]
+                # Natural language text should remain
+                assert "research goals" in data["message"].lower()
         finally:
             app.dependency_overrides.pop(get_team_builder, None)
 
@@ -775,6 +780,9 @@ class TestOnboardingChatLLMMode:
                 assert data["next_stage"] == "team_suggestion"  # loops back
                 assert "team_suggestion" in data["data"]
                 assert data["data"]["team_suggestion"]["team_name"] == "Revised Genomics Team"
+                # JSON block should be stripped from display message
+                assert "```json" not in data["message"]
+                assert "revised team" in data["message"].lower()
         finally:
             app.dependency_overrides.pop(get_team_builder, None)
 
