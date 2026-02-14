@@ -141,28 +141,26 @@ export default function EditorPage() {
   return (
     <div className="h-[calc(100vh-120px)] flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <Button asChild variant="ghost" size="sm">
-            <Link href={`/teams/${teamId}`}>
-              <ArrowLeft className="h-4 w-4 mr-1" />
-              {t("back")}
-            </Link>
-          </Button>
-          <h1 className="text-xl font-bold">
-            {team.name} - {t("title")}
-          </h1>
-        </div>
-        <span className="text-sm text-muted-foreground">{t("hint")}</span>
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <Button asChild variant="ghost" size="sm">
+          <Link href={`/teams/${teamId}`}>
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            {t("back")}
+          </Link>
+        </Button>
+        <h1 className="text-lg sm:text-xl font-bold truncate">
+          {team.name} - {t("title")}
+        </h1>
+        <span className="ml-auto text-xs sm:text-sm text-muted-foreground hidden sm:block">{t("hint")}</span>
       </div>
 
       {error && (
         <div className="p-2 mb-2 bg-destructive/10 text-destructive rounded text-sm">{error}</div>
       )}
 
-      <div className="flex-1 flex gap-4">
+      <div className="flex-1 flex flex-col md:flex-row gap-4 min-h-0">
         {/* Graph */}
-        <div className="flex-1 border rounded-lg overflow-hidden bg-card">
+        <div className="flex-1 min-h-[300px] border rounded-lg overflow-hidden bg-card">
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -180,7 +178,7 @@ export default function EditorPage() {
 
         {/* Prompt Editor Panel */}
         {selectedAgent && (
-          <div className="w-[500px] border rounded-lg bg-card flex flex-col">
+          <div className="w-full md:w-[400px] lg:w-[500px] md:max-w-[50vw] shrink-0 border rounded-lg bg-card flex flex-col min-h-[300px] md:min-h-0">
             <div className="p-3 border-b">
               <div className="flex items-center justify-between">
                 <h2 className="font-semibold">{selectedAgent.name}</h2>

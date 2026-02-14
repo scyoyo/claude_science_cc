@@ -64,7 +64,7 @@ export default function MeetingDetailPage() {
   const [topic, setTopic] = useState("");
   const [liveMessages, setLiveMessages] = useState<MeetingMessage[]>([]);
   const [showEditDialog, setShowEditDialog] = useState(false);
-  const [editForm, setEditForm] = useState({ title: "", description: "", max_rounds: 5 });
+  const [editForm, setEditForm] = useState({ title: "", description: "", max_rounds: "5" });
   const [cloning, setCloning] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -197,11 +197,12 @@ export default function MeetingDetailPage() {
 
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const rounds = parseInt(editForm.max_rounds) || 5;
     try {
       const updated = await meetingsAPI.update(meetingId, {
         title: editForm.title,
         description: editForm.description || undefined,
-        max_rounds: editForm.max_rounds,
+        max_rounds: Math.max(1, Math.min(20, rounds)),
       });
       setMeeting((prev) => prev ? { ...prev, ...updated } : prev);
       setShowEditDialog(false);
@@ -225,7 +226,7 @@ export default function MeetingDetailPage() {
       setEditForm({
         title: meeting.title,
         description: meeting.description || "",
-        max_rounds: meeting.max_rounds,
+        max_rounds: String(meeting.max_rounds),
       });
     }
     setShowEditDialog(true);
@@ -249,7 +250,7 @@ export default function MeetingDetailPage() {
   return (
     <div className="flex flex-col h-[calc(100vh-120px)]">
       {/* Header */}
-      <div className="shrink-0 space-y-1 mb-4">
+      <div className="shrink-0 space-y-2 mb-4">
         <Link
           href={`/teams/${teamId}`}
           className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
@@ -257,8 +258,8 @@ export default function MeetingDetailPage() {
           <ArrowLeft className="h-3.5 w-3.5" />
           {t("backToTeam")}
         </Link>
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold">{meeting.title}</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-xl sm:text-2xl font-bold truncate">{meeting.title}</h1>
           <Badge variant={statusVariant(meeting.status)}>
             {t(`status.${meeting.status}`)}
           </Badge>
@@ -269,25 +270,20 @@ export default function MeetingDetailPage() {
               <WifiOff className="h-4 w-4 text-muted-foreground" />
             )}
           </span>
-
-          {/* Toolbar */}
-          <div className="ml-auto flex items-center gap-1">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleClone}
-              disabled={cloning}
-            >
-              {cloning ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Copy className="h-4 w-4 mr-1" />}
-              {t("clone")}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm text-muted-foreground mr-auto">
+            {t("round", { current: meeting.current_round, max: meeting.max_rounds })}
+            {meeting.description && <> &mdash; {meeting.description}</>}
+          </p>
+          <div className="flex items-center gap-1">
+            <Button variant="outline" size="sm" onClick={handleClone} disabled={cloning}>
+              {cloning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy className="h-4 w-4" />}
+              <span className="hidden sm:inline ml-1">{t("clone")}</span>
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleDownloadTranscript}
-            >
-              <FileDown className="h-4 w-4 mr-1" />
-              {t("downloadTranscript")}
+            <Button variant="outline" size="sm" onClick={handleDownloadTranscript}>
+              <FileDown className="h-4 w-4" />
+              <span className="hidden sm:inline ml-1">{t("downloadTranscript")}</span>
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -309,10 +305,6 @@ export default function MeetingDetailPage() {
             </DropdownMenu>
           </div>
         </div>
-        <p className="text-sm text-muted-foreground">
-          {t("round", { current: meeting.current_round, max: meeting.max_rounds })}
-          {meeting.description && <> &mdash; {meeting.description}</>}
-        </p>
       </div>
 
       {error && (
@@ -367,9 +359,7 @@ export default function MeetingDetailPage() {
                         {msg.content}
                       </p>
                     ) : (
-                      <div className="text-sm text-muted-foreground">
-                        <MarkdownContent content={msg.content} />
-                      </div>
+                      <MarkdownContent content={msg.content} className="text-sm text-muted-foreground" />
                     )}
                   </div>
                 ))
@@ -456,7 +446,7 @@ export default function MeetingDetailPage() {
               min={1}
               max={20}
               value={editForm.max_rounds}
-              onChange={(e) => setEditForm({ ...editForm, max_rounds: parseInt(e.target.value) || 5 })}
+              onChange={(e) => setEditForm({ ...editForm, max_rounds: e.target.value })}
             />
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setShowEditDialog(false)}>

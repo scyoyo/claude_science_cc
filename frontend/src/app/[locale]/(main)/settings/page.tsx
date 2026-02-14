@@ -14,16 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Trash2, Plus, Key } from "lucide-react";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "/api";
-
-interface APIKeyInfo {
-  id: string;
-  provider: string;
-  is_active: boolean;
-  key_preview: string;
-  created_at: string;
-}
+import { llmAPI, type APIKeyInfo } from "@/lib/api";
 
 export default function SettingsPage() {
   const t = useTranslations("settings");
@@ -37,9 +28,7 @@ export default function SettingsPage() {
   const loadKeys = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${API_BASE}/llm/api-keys`);
-      if (!res.ok) throw new Error("Failed to load API keys");
-      setKeys(await res.json());
+      setKeys(await llmAPI.listKeys());
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load");
@@ -56,15 +45,7 @@ export default function SettingsPage() {
     e.preventDefault();
     if (!apiKey.trim()) return;
     try {
-      const res = await fetch(`${API_BASE}/llm/api-keys`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider, api_key: apiKey }),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.detail || "Failed to add key");
-      }
+      await llmAPI.addKey(provider, apiKey);
       setApiKey("");
       loadKeys();
     } catch (err) {
@@ -74,8 +55,8 @@ export default function SettingsPage() {
 
   const handleDelete = async (id: string) => {
     try {
-      await fetch(`${API_BASE}/llm/api-keys/${id}`, { method: "DELETE" });
-      loadKeys();
+      await llmAPI.deleteKey(id);
+      setKeys((prev) => prev.filter((k) => k.id !== id));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete key");
     }
@@ -97,9 +78,9 @@ export default function SettingsPage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <form onSubmit={handleAdd} className="flex gap-3">
+          <form onSubmit={handleAdd} className="flex flex-col sm:flex-row gap-3">
             <Select value={provider} onValueChange={setProvider}>
-              <SelectTrigger className="w-[140px]">
+              <SelectTrigger className="sm:w-[140px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

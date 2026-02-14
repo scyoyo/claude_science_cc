@@ -263,9 +263,9 @@ export function WizardChat() {
       <div className="border-t border-border/50 px-4 py-3">
         <div className="mx-auto max-w-2xl">
           {isComplete ? (
-            <div className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/30 p-4">
+            <div className="rounded-lg border border-border/50 bg-muted/30 p-4 space-y-3">
               <div className="flex items-center gap-3">
-                <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-500" />
                 <div>
                   <p className="text-sm font-medium">{t("teamReady")}</p>
                   <p className="text-xs text-muted-foreground">
@@ -274,10 +274,10 @@ export function WizardChat() {
                 </div>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={handleReset}>
+                <Button variant="outline" size="sm" className="flex-1 sm:flex-none" onClick={handleReset}>
                   {t("startOver")}
                 </Button>
-                <Button size="sm" asChild>
+                <Button size="sm" className="flex-1 sm:flex-none" asChild>
                   <Link href={createdTeamId ? `/teams/${createdTeamId}` : "/teams"}>
                     <Users className="mr-1.5 h-3.5 w-3.5" />
                     {t("viewTeam")}
