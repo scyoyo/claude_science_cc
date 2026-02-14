@@ -27,9 +27,9 @@ Building a web app based on https://github.com/zou-group/virtual-lab that allows
 │   │   ├── models/              # DB models (Team, Agent, Meeting, APIKey, etc.)
 │   │   ├── schemas/             # Pydantic schemas
 │   │   ├── api/                 # API routers (13 modules)
-│   │   ├── core/                # Business logic (team_builder, llm_client, etc.)
+│   │   ├── core/                # Business logic (team_builder, llm_client, background_runner, etc.)
 │   │   └── middleware/          # Logging, rate limiting
-│   ├── tests/                   # pytest tests (27 test files, 329 tests)
+│   ├── tests/                   # pytest tests (28 test files, 382 tests)
 │   ├── alembic/                 # DB migrations (PostgreSQL)
 │   ├── venv/                    # Python 3.13 virtual environment
 │   ├── requirements.txt         # Python 3.13 compatible
@@ -114,7 +114,9 @@ GET    /api/meetings/team/{team_id}       # List team meetings
 PUT    /api/meetings/{meeting_id}         # Update meeting
 DELETE /api/meetings/{meeting_id}         # Delete meeting
 POST   /api/meetings/{meeting_id}/message # Add user message
-POST   /api/meetings/{meeting_id}/run     # Run meeting rounds
+POST   /api/meetings/{meeting_id}/run     # Run meeting rounds (synchronous)
+POST   /api/meetings/{meeting_id}/run-background # Run in background thread
+GET    /api/meetings/{meeting_id}/status  # Lightweight status for polling
 GET    /api/artifacts/meeting/{meeting_id} # List meeting artifacts
 GET    /api/artifacts/{artifact_id}        # Get artifact
 POST   /api/artifacts/                     # Create artifact
@@ -137,7 +139,7 @@ GET    /api/export/meeting/{id}/github     # Get GitHub-ready files
 
 ## Test Results (Last Run)
 
-- **199/199 tests passed**
+- **382/382 tests passed** across 28 test files
 - test_main.py (2): root endpoint, health check
 - test_models.py (4): create team, create agent, cascade delete, mirror agent
 - test_teams_api.py (6): CRUD + 404 handling
@@ -151,6 +153,7 @@ GET    /api/export/meeting/{id}/github     # Get GitHub-ready files
 - test_auth.py (28): Password hashing, JWT tokens, Auth API, Protected endpoints
 - test_cache.py (19): InMemoryBackend, RateLimiter, TokenBlocklist, Singleton
 - test_ws.py (13): WebSocket connection, user messages, round execution
+- test_background.py (13): Background runner, cleanup, API endpoints
 
 ## Git Commits
 

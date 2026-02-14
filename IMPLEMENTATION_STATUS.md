@@ -157,7 +157,59 @@ See [docs/V2_ARCHITECTURE.md](docs/V2_ARCHITECTURE.md) for full architecture pla
 | 9.3 | Agent performance metrics | 3 | Done |
 | 9.4 | Team import/export as JSON | 5 | Done |
 
-**Total: 329 tests passing across 27 test files.**
+## V10 Mobile UI & Background Execution
+
+| Phase | Feature | Tests | Status |
+|-------|---------|-------|--------|
+| 10.1 | Onboarding mobile layout fix | - | Done |
+| 10.2 | Agent card text overflow fix | - | Done |
+| 10.3 | Meeting creation improvements | - | Done |
+| 10.4 | Background meeting runner | 13 | Done |
+
+### V10.1: Onboarding Mobile Layout Fix
+- Reduced main layout padding on mobile (`p-3 sm:p-6`)
+- Responsive height calculation for onboarding page (`h-[calc(100vh-72px)] sm:h-[calc(100vh-96px)]`)
+- Added `min-h-0` to ScrollArea for proper flex shrinking in WizardChat
+- Mobile-friendly inner padding (`px-2 sm:px-0`)
+
+### V10.2: Agent Card Text Overflow Fix
+- Card `overflow-hidden` prevents content spillover
+- CardTitle uses `overflow-hidden` instead of `flex-wrap` to enable truncation
+- Mirror badge `shrink-0` prevents compression
+- Model badge `max-w-[80px] truncate` for long model names
+- Expertise/Goal paragraphs `line-clamp-2` for multiline overflow
+
+### V10.3: Meeting Creation Improvements
+- All `loadData()` calls properly `await`ed (handleCreateAgent, handleDeleteAgent, handleEditAgent, handleCreateMeeting)
+- Title/description trimmed before API call
+- Added `creatingMeeting` loading state with spinner on create button
+
+### V10.4: Background Meeting Runner
+**Backend:**
+- `backend/app/core/background_runner.py` — Thread-based runner with per-round DB commits
+  - `start_background_run()` — launches daemon thread, prevents duplicates
+  - `is_running()` — checks if a meeting is actively running
+  - `cleanup_stuck_meetings()` — resets orphaned "running" status on startup
+- New API endpoints in `backend/app/api/meetings.py`:
+  - `POST /api/meetings/{id}/run-background` — starts background execution, returns immediately
+  - `GET /api/meetings/{id}/status` — lightweight polling endpoint (status, round, message count)
+- Lifespan cleanup in `backend/app/main.py` — cleans stuck meetings on server start
+
+**Frontend:**
+- `frontend/src/hooks/useMeetingPolling.ts` — 3-second polling hook with auto-stop on completion
+- `frontend/src/lib/api.ts` — `runBackground()` and `status()` methods
+- Meeting detail page — "Background" run button, progress indicator (round X/Y), auto-detect running state on page load
+
+**Tests:**
+- `backend/tests/test_background.py` — 13 tests covering:
+  - Background start/complete, message storage, status updates
+  - Duplicate run prevention
+  - Failure handling (sets status to "failed")
+  - Max rounds enforcement
+  - Cleanup of stuck meetings
+  - API endpoints (run-background, status, 404/400/409 cases)
+
+**Total: 382 tests passing across 28 test files.**
 
 ### All Endpoints (V1-V9)
 All endpoints available under both `/api/` and `/api/v1/`.
@@ -181,6 +233,7 @@ GET  /api/search/teams?q=keyword     GET  /api/search/agents?q=keyword
 # Meeting extras
 GET   /api/meetings/{id}/summary      GET  /api/meetings/{id}/transcript
 POST  /api/meetings/{id}/clone        GET  /api/meetings/compare?ids=a,b
+POST  /api/meetings/{id}/run-background   GET  /api/meetings/{id}/status
 
 # Webhooks
 GET    /api/webhooks/events     GET   /api/webhooks/
@@ -227,7 +280,7 @@ cd frontend && npm run dev              # http://localhost:3000
 # Tests
 cd backend
 source venv/bin/activate
-pytest tests/ -v                        # 329 tests
+pytest tests/ -v                        # 382 tests
 
 # Kubernetes
 cd cloud/k8s
