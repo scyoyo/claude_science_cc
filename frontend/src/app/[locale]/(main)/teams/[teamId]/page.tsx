@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { teamsAPI, agentsAPI, meetingsAPI } from "@/lib/api";
+import { getErrorMessage } from "@/lib/utils";
 import type { TeamWithAgents, Meeting } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardAction } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -70,7 +71,7 @@ export default function TeamDetailPage() {
       setMeetings(meetingsData);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load team");
+      setError(getErrorMessage(err, "Failed to load team"));
     } finally {
       setLoading(false);
     }
@@ -88,7 +89,7 @@ export default function TeamDetailPage() {
       setShowAddAgent(false);
       await loadData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create agent");
+      setError(getErrorMessage(err, "Failed to create agent"));
     }
   };
 
@@ -98,7 +99,7 @@ export default function TeamDetailPage() {
       await agentsAPI.delete(agentId);
       await loadData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete agent");
+      setError(getErrorMessage(err, "Failed to delete agent"));
     }
   };
 
@@ -123,7 +124,7 @@ export default function TeamDetailPage() {
       setEditingAgent(null);
       await loadData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update agent");
+      setError(getErrorMessage(err, "Failed to update agent"));
     }
   };
 
@@ -145,7 +146,7 @@ export default function TeamDetailPage() {
       setShowNewMeeting(false);
       await loadData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create meeting");
+      setError(getErrorMessage(err, "Failed to create meeting"));
     } finally {
       setCreatingMeeting(false);
     }

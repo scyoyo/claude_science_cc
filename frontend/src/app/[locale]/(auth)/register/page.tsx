@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { getErrorMessage } from "@/lib/utils";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -34,7 +35,7 @@ export default function RegisterPage() {
       await register({ email, username, password });
       router.push("/");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Registration failed");
+      setError(getErrorMessage(err, "Registration failed"));
     } finally {
       setSubmitting(false);
     }

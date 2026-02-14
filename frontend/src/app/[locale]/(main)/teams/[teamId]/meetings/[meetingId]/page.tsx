@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { meetingsAPI } from "@/lib/api";
+import { getErrorMessage } from "@/lib/utils";
 import { useMeetingPolling } from "@/hooks/useMeetingPolling";
 import { downloadBlob } from "@/lib/utils";
 import { useMeetingWebSocket, type WSMessage } from "@/hooks/useMeetingWebSocket";
@@ -126,7 +127,7 @@ export default function MeetingDetailPage() {
         setMeeting(data);
         setError(null);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load meeting");
+        setError(getErrorMessage(err, "Failed to load meeting"));
       } finally {
         setLoading(false);
       }
@@ -157,7 +158,7 @@ export default function MeetingDetailPage() {
       setLiveMessages([]);
       setTopic("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to run meeting");
+      setError(getErrorMessage(err, "Failed to run meeting"));
     } finally {
       setRunning(false);
     }
@@ -171,7 +172,7 @@ export default function MeetingDetailPage() {
       setBackgroundRunning(true);
       setTopic("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to start background run");
+      setError(getErrorMessage(err, "Failed to start background run"));
     }
   };
 
@@ -216,7 +217,7 @@ export default function MeetingDetailPage() {
       sendUserMessage(userMessage);
     } else {
       meetingsAPI.addMessage(meetingId, userMessage).catch((err) =>
-        setError(err instanceof Error ? err.message : "Failed to send")
+        setError(getErrorMessage(err, "Failed to send"))
       );
     }
     setUserMessage("");
@@ -228,7 +229,7 @@ export default function MeetingDetailPage() {
       const cloned = await meetingsAPI.clone(meetingId);
       router.push(`/teams/${teamId}/meetings/${cloned.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to clone");
+      setError(getErrorMessage(err, "Failed to clone"));
     } finally {
       setCloning(false);
     }
@@ -239,7 +240,7 @@ export default function MeetingDetailPage() {
       const blob = await meetingsAPI.transcript(meetingId);
       downloadBlob(blob, `${meeting?.title || "meeting"}.md`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to download transcript");
+      setError(getErrorMessage(err, "Failed to download transcript"));
     }
   };
 
@@ -255,7 +256,7 @@ export default function MeetingDetailPage() {
       setMeeting((prev) => prev ? { ...prev, ...updated } : prev);
       setShowEditDialog(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update meeting");
+      setError(getErrorMessage(err, "Failed to update meeting"));
     }
   };
 
@@ -265,7 +266,7 @@ export default function MeetingDetailPage() {
       await meetingsAPI.delete(meetingId);
       router.push(`/teams/${teamId}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete meeting");
+      setError(getErrorMessage(err, "Failed to delete meeting"));
     }
   };
 

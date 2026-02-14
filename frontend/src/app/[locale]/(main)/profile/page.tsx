@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { getAuthHeaders, getApiBase } from "@/lib/auth";
+import { getErrorMessage } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -72,7 +73,7 @@ export default function ProfilePage() {
       setSuccess(t("updated"));
       setEditing(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Update failed");
+      setError(getErrorMessage(err, "Update failed"));
     } finally {
       setSubmitting(false);
     }

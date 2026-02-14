@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { meetingsAPI, teamsAPI } from "@/lib/api";
+import { getErrorMessage } from "@/lib/utils";
 import type { Meeting, Team } from "@/types";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -59,7 +60,7 @@ export default function MeetingsPage() {
       setTeams(teamsData);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load meetings");
+      setError(getErrorMessage(err, "Failed to load meetings"));
     } finally {
       setLoading(false);
     }
@@ -78,7 +79,7 @@ export default function MeetingsPage() {
       setMeetingForm({ team_id: "", title: "", description: "", max_rounds: 5 });
       await loadMeetings();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create meeting");
+      setError(getErrorMessage(err, "Failed to create meeting"));
     } finally {
       setCreatingMeeting(false);
     }
@@ -92,7 +93,7 @@ export default function MeetingsPage() {
       await meetingsAPI.delete(id);
       setMeetings((prev) => prev.filter((m) => m.id !== id));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete meeting");
+      setError(getErrorMessage(err, "Failed to delete meeting"));
     }
   };
 

@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { Trash2, Plus, Key } from "lucide-react";
 import { llmAPI, type APIKeyInfo } from "@/lib/api";
+import { getErrorMessage } from "@/lib/utils";
 
 export default function SettingsPage() {
   const t = useTranslations("settings");
@@ -31,7 +32,7 @@ export default function SettingsPage() {
       setKeys(await llmAPI.listKeys());
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load");
+      setError(getErrorMessage(err, "Failed to load"));
     } finally {
       setLoading(false);
     }
@@ -49,7 +50,7 @@ export default function SettingsPage() {
       setApiKey("");
       loadKeys();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to add key");
+      setError(getErrorMessage(err, "Failed to add key"));
     }
   };
 
@@ -58,7 +59,7 @@ export default function SettingsPage() {
       await llmAPI.deleteKey(id);
       setKeys((prev) => prev.filter((k) => k.id !== id));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete key");
+      setError(getErrorMessage(err, "Failed to delete key"));
     }
   };
 

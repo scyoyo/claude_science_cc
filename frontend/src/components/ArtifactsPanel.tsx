@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { artifactsAPI, exportAPI } from "@/lib/api";
+import { getErrorMessage } from "@/lib/utils";
 import { downloadBlob } from "@/lib/utils";
 import type { CodeArtifact } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -48,7 +49,7 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
       setArtifacts(data);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load artifacts");
+      setError(getErrorMessage(err, "Failed to load artifacts"));
     } finally {
       setLoading(false);
     }
@@ -65,7 +66,7 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
       await artifactsAPI.extract(meetingId);
       await loadArtifacts();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to extract");
+      setError(getErrorMessage(err, "Failed to extract"));
     } finally {
       setExtracting(false);
     }
@@ -76,7 +77,7 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
       await artifactsAPI.delete(id);
       setArtifacts((prev) => prev.filter((a) => a.id !== id));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete");
+      setError(getErrorMessage(err, "Failed to delete"));
     }
   };
 
@@ -87,7 +88,7 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
       const blob = await exportAPI.zip(meetingId);
       downloadBlob(blob, `${meetingTitle.replace(/\s+/g, "_")}.zip`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Export failed");
+      setError(getErrorMessage(err, "Export failed"));
     } finally {
       setExporting(false);
     }
@@ -100,7 +101,7 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
       const blob = await exportAPI.notebook(meetingId);
       downloadBlob(blob, `${meetingTitle.replace(/\s+/g, "_")}.ipynb`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Export failed");
+      setError(getErrorMessage(err, "Export failed"));
     } finally {
       setExporting(false);
     }
@@ -114,7 +115,7 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
       downloadBlob(blob, `${meetingTitle.replace(/\s+/g, "_")}_github.json`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Export failed");
+      setError(getErrorMessage(err, "Export failed"));
     } finally {
       setExporting(false);
     }

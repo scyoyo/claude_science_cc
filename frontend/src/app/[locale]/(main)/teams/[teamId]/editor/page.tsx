@@ -20,6 +20,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import Editor from "@monaco-editor/react";
 import { teamsAPI, agentsAPI } from "@/lib/api";
+import { getErrorMessage } from "@/lib/utils";
 import type { Agent, TeamWithAgents } from "@/types";
 import AgentNode from "@/components/AgentNode";
 import { Button } from "@/components/ui/button";
@@ -91,7 +92,7 @@ export default function EditorPage() {
       setEdges(newEdges);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load team");
+      setError(getErrorMessage(err, "Failed to load team"));
     } finally {
       setLoading(false);
     }
@@ -131,7 +132,7 @@ export default function EditorPage() {
       setSelectedAgent(null);
       loadTeam();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save");
+      setError(getErrorMessage(err, "Failed to save"));
     }
   };
 

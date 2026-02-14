@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { meetingsAPI } from "@/lib/api";
+import { getErrorMessage } from "@/lib/utils";
 import type { MeetingSummary } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -28,7 +29,7 @@ export default function MeetingSummaryPanel({ meetingId }: MeetingSummaryPanelPr
         setSummary(data);
         setError(null);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load summary");
+        setError(getErrorMessage(err, "Failed to load summary"));
       } finally {
         setLoading(false);
       }

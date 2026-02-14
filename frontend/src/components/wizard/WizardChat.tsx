@@ -9,6 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "@/i18n/navigation";
 import { onboardingAPI } from "@/lib/api";
+import { getErrorMessage } from "@/lib/utils";
 import { MarkdownContent } from "@/components/MarkdownContent";
 import { useMobileGesture } from "@/contexts/MobileGestureContext";
 import { useSwipeGesture } from "@/hooks/useSwipeGesture";
@@ -188,7 +189,7 @@ export function WizardChat() {
               ...prev,
               {
                 role: "assistant",
-                content: `Failed to create team: ${err instanceof Error ? err.message : "Unknown error"}. You can try again from the Teams page.`,
+                content: `Failed to create team: ${getErrorMessage(err, "Unknown error")}. You can try again from the Teams page.`,
               },
             ]);
           }

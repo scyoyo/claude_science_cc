@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { teamsAPI } from "@/lib/api";
+import { getErrorMessage } from "@/lib/utils";
 import type { Team } from "@/types";
 import { Card, CardHeader, CardTitle, CardDescription, CardAction } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,7 +37,7 @@ export default function TeamsPage() {
       setTeams(data);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load teams");
+      setError(getErrorMessage(err, "Failed to load teams"));
     } finally {
       setLoading(false);
     }
@@ -56,7 +57,7 @@ export default function TeamsPage() {
       setShowCreate(false);
       loadTeams();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create team");
+      setError(getErrorMessage(err, "Failed to create team"));
     }
   };
 
@@ -66,7 +67,7 @@ export default function TeamsPage() {
       await teamsAPI.delete(id);
       loadTeams();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete team");
+      setError(getErrorMessage(err, "Failed to delete team"));
     }
   };
 
