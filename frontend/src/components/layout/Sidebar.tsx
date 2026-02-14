@@ -18,6 +18,9 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useAuth } from "@/contexts/AuthContext";
+import { useMobileGesture } from "@/contexts/MobileGestureContext";
+import { useSwipeGesture } from "@/hooks/useSwipeGesture";
+import { useCallback } from "react";
 
 const navItems = [
   { key: "onboarding", href: "/onboarding", icon: Wand2 },
@@ -31,6 +34,11 @@ export function Sidebar() {
   const pathname = usePathname();
   const t = useTranslations("nav");
   const { user } = useAuth();
+  const { isMobile, sidebarOpen, setSidebarOpen } = useMobileGesture();
+
+  const sidebarSwipe = useSwipeGesture({
+    onSwipeLeft: useCallback(() => setSidebarOpen(false), [setSidebarOpen]),
+  });
 
   function isActive(href: string) {
     if (href === "/") return pathname === "/";
@@ -38,7 +46,15 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="flex h-screen w-14 flex-col border-r border-border/50 bg-background">
+    <aside
+      className={cn(
+        "flex h-[100dvh] sm:h-screen w-14 flex-col border-r border-border/50 bg-background z-50",
+        "transition-transform duration-300 ease-out",
+        isMobile && "fixed left-0 top-0",
+        isMobile && !sidebarOpen && "-translate-x-full"
+      )}
+      {...(isMobile ? sidebarSwipe : {})}
+    >
       {/* Logo */}
       <div className="flex h-12 items-center justify-center border-b border-border/50">
         <Link href="/">
