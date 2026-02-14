@@ -4,8 +4,14 @@ set -e
 # Ensure data directory for SQLite
 mkdir -p backend/data
 
-# Start backend on internal port (not exposed to internet)
+# Run database migrations (PostgreSQL only)
 cd backend
+if [[ "$DATABASE_URL" == postgresql* ]]; then
+    echo "Running Alembic migrations..."
+    alembic upgrade head
+fi
+
+# Start backend on internal port (not exposed to internet)
 uvicorn app.main:app --host 127.0.0.1 --port 8000 &
 BACKEND_PID=$!
 
