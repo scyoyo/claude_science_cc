@@ -29,6 +29,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, Plus, Trash2, Pencil, Workflow, MessageSquare, Bot, Loader2 } from "lucide-react";
 import type { Agent } from "@/types";
+import { MODEL_OPTIONS } from "@/lib/models";
 
 export default function TeamDetailPage() {
   const params = useParams();
@@ -246,11 +247,11 @@ export default function TeamDetailPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="gpt-4">GPT-4</SelectItem>
-                    <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
-                    <SelectItem value="claude-3-opus-20240229">Claude 3 Opus</SelectItem>
-                    <SelectItem value="claude-3-sonnet-20240229">Claude 3 Sonnet</SelectItem>
-                    <SelectItem value="deepseek-chat">DeepSeek Chat</SelectItem>
+                    {MODEL_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <DialogFooter>
@@ -290,7 +291,9 @@ export default function TeamDetailPage() {
                     <p className="line-clamp-2"><span className="font-medium text-foreground">{t("goal")}:</span> {agent.goal}</p>
                   </div>
                   <div className="mt-3 flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">{agent.model}</span>
+                    <Badge variant="outline" className="text-[10px] font-normal max-w-[100px] truncate rounded-full px-2">
+                      {agent.model}
+                    </Badge>
                     <div className="flex items-center gap-1">
                       <span className="text-muted-foreground/60 p-1" aria-hidden>
                         <Pencil className="h-3.5 w-3.5" />
@@ -469,12 +472,11 @@ export default function TeamDetailPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="gpt-4">GPT-4</SelectItem>
-                  <SelectItem value="gpt-4o">GPT-4o</SelectItem>
-                  <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
-                  <SelectItem value="claude-3-opus-20240229">Claude 3 Opus</SelectItem>
-                  <SelectItem value="claude-3-sonnet-20240229">Claude 3 Sonnet</SelectItem>
-                  <SelectItem value="deepseek-chat">DeepSeek Chat</SelectItem>
+                  {MODEL_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

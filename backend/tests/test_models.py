@@ -113,7 +113,7 @@ def test_mirror_agent(db_session):
         goal="Research",
         role="Lead",
         system_prompt="You are a researcher...",
-        model="deepseek",
+        model="deepseek-chat",
         is_mirror=True,
         primary_agent_id=primary_agent.id
     )
