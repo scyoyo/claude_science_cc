@@ -21,18 +21,20 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { MODEL_OPTIONS } from "@/lib/models";
-import type { Agent, AgentSuggestion } from "@/types";
+import type { Agent } from "@/types";
 
 export type EditAgentFormData = Pick<
   Agent,
   "name" | "title" | "expertise" | "goal" | "role" | "model" | "system_prompt"
 >;
 
+/** Agent (full) or AgentSuggestion (suggestion) — suggestion has no system_prompt. */
+export type EditAgentDialogAgent = Omit<EditAgentFormData, "system_prompt"> & { system_prompt?: string };
+
 interface EditAgentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Agent (full) or AgentSuggestion (suggestion). */
-  agent: (EditAgentFormData & { system_prompt?: string }) | null;
+  agent: EditAgentDialogAgent | null;
   /** Full: team page (model Select + system_prompt). Suggestion: onboarding (model Input only). */
   variant: "full" | "suggestion";
   onSave: (data: EditAgentFormData) => void;
