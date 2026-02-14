@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useTranslations } from "next-intl";
-import { Send, Loader2, FlaskConical, User, CheckCircle2, Users } from "lucide-react";
+import { Send, Loader2, FlaskConical, User, CheckCircle2, Users, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Link } from "@/i18n/navigation";
 import { onboardingAPI } from "@/lib/api";
 import { MarkdownContent } from "@/components/MarkdownContent";
+import { useMobileGesture } from "@/contexts/MobileGestureContext";
+import { useSwipeGesture } from "@/hooks/useSwipeGesture";
 import type {
   OnboardingStage,
   OnboardingChatMessage,
@@ -62,6 +64,14 @@ function saveWizardState(state: WizardState) {
 export function WizardChat() {
   const t = useTranslations("wizard");
   const saved = useRef(loadWizardState());
+  const { isMobile, inputVisible, setInputVisible } = useMobileGesture();
+
+  const inputSwipeDown = useSwipeGesture({
+    onSwipeDown: useCallback(() => setInputVisible(false), [setInputVisible]),
+  });
+  const showBarSwipeUp = useSwipeGesture({
+    onSwipeUp: useCallback(() => setInputVisible(true), [setInputVisible]),
+  });
 
   const [messages, setMessages] = useState<ChatMessage[]>(saved.current.messages || []);
   const [input, setInput] = useState("");
@@ -220,8 +230,69 @@ export function WizardChat() {
     sessionStorage.removeItem(WIZARD_STORAGE_KEY);
   }
 
+  const inputContent = isComplete ? (
+    <div className="rounded-lg border border-border/50 bg-muted/30 p-4 space-y-3">
+      <div className="flex items-center gap-3">
+        <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-500" />
+        <div>
+          <p className="text-sm font-medium">{t("teamReady")}</p>
+          <p className="text-xs text-muted-foreground">
+            {t("teamReadyDesc")}
+          </p>
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <Button variant="outline" size="sm" className="flex-1 sm:flex-none" onClick={handleReset}>
+          {t("startOver")}
+        </Button>
+        <Button size="sm" className="flex-1 sm:flex-none" asChild>
+          <Link href={createdTeamId ? `/teams/${createdTeamId}` : "/teams"}>
+            <Users className="mr-1.5 h-3.5 w-3.5" />
+            {t("viewTeam")}
+          </Link>
+        </Button>
+      </div>
+    </div>
+  ) : (
+    <div className="flex gap-2">
+      <Textarea
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder={
+          stage === "problem"
+            ? t("placeholder")
+            : stage === "clarification"
+              ? t("placeholderClarify")
+              : stage === "team_suggestion"
+                ? t("placeholderReview")
+                : stage === "mirror_config"
+                  ? t("placeholderMirror")
+                  : t("placeholder")
+        }
+        className="min-h-[52px] max-h-[120px] resize-none text-sm py-2.5"
+        rows={1}
+        disabled={isLoading}
+      />
+      <Button
+        size="icon"
+        className="h-[52px] w-[52px] shrink-0 self-end"
+        onClick={handleSend}
+        disabled={!input.trim() || isLoading}
+      >
+        {isLoading ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <Send className="h-4 w-4" />
+        )}
+      </Button>
+    </div>
+  );
+
+  const showInputBar = isMobile && !isComplete && !inputVisible;
+
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col min-h-0">
       {/* Messages area */}
       <ScrollArea className="flex-1 min-h-0 px-1" ref={scrollRef}>
         <div className="mx-auto max-w-2xl space-y-4 py-4 px-2 sm:px-0">
@@ -259,92 +330,57 @@ export function WizardChat() {
         </div>
       </ScrollArea>
 
-      {/* Input area */}
-      <div className="border-t border-border/50 px-4 py-3">
-        <div className="mx-auto max-w-2xl">
-          {isComplete ? (
-            <div className="rounded-lg border border-border/50 bg-muted/30 p-4 space-y-3">
-              <div className="flex items-center gap-3">
-                <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-500" />
-                <div>
-                  <p className="text-sm font-medium">{t("teamReady")}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {t("teamReadyDesc")}
-                  </p>
-                </div>
+      {/* Input area - sticky at bottom */}
+      <div className="shrink-0 border-t border-border/50 bg-background overflow-hidden pb-[env(safe-area-inset-bottom)]">
+        {/* Swipe-up bar when input hidden (mobile only) */}
+        {showInputBar && (
+          <div
+            className="flex items-center justify-center py-3 px-4 cursor-pointer touch-manipulation active:bg-muted/50 transition-colors duration-200"
+            onClick={() => setInputVisible(true)}
+            {...showBarSwipeUp}
+          >
+            <ChevronUp className="h-4 w-4 text-muted-foreground mr-1" />
+            <span className="text-xs text-muted-foreground">{t("showInput")}</span>
+          </div>
+        )}
+
+        {/* Main input panel */}
+        <div
+          className={`px-4 py-3 transition-[transform,opacity] duration-300 ease-out ${
+            isMobile && !isComplete && !inputVisible
+              ? "translate-y-full opacity-0 pointer-events-none"
+              : "translate-y-0 opacity-100"
+          }`}
+          {...(isMobile && !isComplete && inputVisible ? inputSwipeDown : {})}
+        >
+          <div className="mx-auto max-w-2xl">
+            {inputContent}
+
+            {!isComplete && messages.length === 0 && (
+              <div className="mt-2 text-center">
+                <Link
+                  href="/teams"
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {t("skipToManual")} &rarr;
+                </Link>
               </div>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" className="flex-1 sm:flex-none" onClick={handleReset}>
+            )}
+
+            {!isComplete && messages.length > 0 && (
+              <div className="mt-2 flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">
+                  {t(`stage.${stage}`)}
+                </span>
+                <button
+                  onClick={handleReset}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
                   {t("startOver")}
-                </Button>
-                <Button size="sm" className="flex-1 sm:flex-none" asChild>
-                  <Link href={createdTeamId ? `/teams/${createdTeamId}` : "/teams"}>
-                    <Users className="mr-1.5 h-3.5 w-3.5" />
-                    {t("viewTeam")}
-                  </Link>
-                </Button>
+                </button>
               </div>
-            </div>
-          ) : (
-            <div className="flex gap-2">
-              <Textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={
-                  stage === "problem"
-                    ? t("placeholder")
-                    : stage === "clarification"
-                      ? t("placeholderClarify")
-                      : stage === "team_suggestion"
-                        ? t("placeholderReview")
-                        : stage === "mirror_config"
-                          ? t("placeholderMirror")
-                          : t("placeholder")
-                }
-                className="min-h-[44px] max-h-[120px] resize-none text-sm"
-                rows={1}
-                disabled={isLoading}
-              />
-              <Button
-                size="icon"
-                className="h-[44px] w-[44px] shrink-0"
-                onClick={handleSend}
-                disabled={!input.trim() || isLoading}
-              >
-                {isLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
-          )}
-
-          {!isComplete && messages.length === 0 && (
-            <div className="mt-2 text-center">
-              <Link
-                href="/teams"
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {t("skipToManual")} &rarr;
-              </Link>
-            </div>
-          )}
-
-          {!isComplete && messages.length > 0 && (
-            <div className="mt-2 flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">
-                {t(`stage.${stage}`)}
-              </span>
-              <button
-                onClick={handleReset}
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {t("startOver")}
-              </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </div>
