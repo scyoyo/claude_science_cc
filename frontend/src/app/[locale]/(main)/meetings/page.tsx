@@ -47,7 +47,11 @@ export default function MeetingsPage() {
     title: "",
     description: "",
     max_rounds: 5,
+    agenda: "",
+    output_type: "code",
+    agenda_questions: [] as string[],
   });
+  const [newQuestion, setNewQuestion] = useState("");
 
   const loadMeetings = async () => {
     try {
@@ -74,15 +78,39 @@ export default function MeetingsPage() {
     if (!meetingForm.team_id || !meetingForm.title.trim()) return;
     try {
       setCreatingMeeting(true);
-      await meetingsAPI.create(meetingForm);
+      await meetingsAPI.create({
+        team_id: meetingForm.team_id,
+        title: meetingForm.title,
+        description: meetingForm.description || undefined,
+        agenda: meetingForm.agenda.trim() || undefined,
+        agenda_questions: meetingForm.agenda_questions.length > 0 ? meetingForm.agenda_questions : undefined,
+        output_type: meetingForm.output_type,
+        max_rounds: meetingForm.max_rounds,
+      });
       setShowCreate(false);
-      setMeetingForm({ team_id: "", title: "", description: "", max_rounds: 5 });
+      setMeetingForm({ team_id: "", title: "", description: "", max_rounds: 5, agenda: "", output_type: "code", agenda_questions: [] });
+      setNewQuestion("");
       await loadMeetings();
     } catch (err) {
       setError(getErrorMessage(err, "Failed to create meeting"));
     } finally {
       setCreatingMeeting(false);
     }
+  };
+
+  const addQuestion = () => {
+    const q = newQuestion.trim();
+    if (q) {
+      setMeetingForm((f) => ({ ...f, agenda_questions: [...f.agenda_questions, q] }));
+      setNewQuestion("");
+    }
+  };
+
+  const removeQuestion = (index: number) => {
+    setMeetingForm((f) => ({
+      ...f,
+      agenda_questions: f.agenda_questions.filter((_, i) => i !== index),
+    }));
   };
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
@@ -162,23 +190,71 @@ export default function MeetingsPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>{t("meetingDescription")}</Label>
+                <Label>{t("meetingAgenda")}</Label>
                 <Textarea
-                  value={meetingForm.description}
-                  onChange={(e) => setMeetingForm((f) => ({ ...f, description: e.target.value }))}
-                  placeholder={t("meetingDescription")}
+                  value={meetingForm.agenda}
+                  onChange={(e) => setMeetingForm((f) => ({ ...f, agenda: e.target.value }))}
+                  placeholder={t("meetingAgendaPlaceholder")}
                   rows={3}
                 />
               </div>
               <div className="space-y-2">
-                <Label>{t("meetingMaxRounds")}</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={20}
-                  value={meetingForm.max_rounds}
-                  onChange={(e) => setMeetingForm((f) => ({ ...f, max_rounds: Number(e.target.value) }))}
-                />
+                <Label>{t("meetingOutputType")}</Label>
+                <Select
+                  value={meetingForm.output_type}
+                  onValueChange={(v) => setMeetingForm((f) => ({ ...f, output_type: v }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="code">{t("meetingOutputCode")}</SelectItem>
+                    <SelectItem value="report">{t("meetingOutputReport")}</SelectItem>
+                    <SelectItem value="paper">{t("meetingOutputPaper")}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>{t("meetingAgendaQuestions")}</Label>
+                {meetingForm.agenda_questions.map((q, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="text-sm flex-1 bg-muted px-2 py-1 rounded">{q}</span>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeQuestion(i)}>
+                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                    </Button>
+                  </div>
+                ))}
+                <div className="flex gap-2">
+                  <Input
+                    value={newQuestion}
+                    onChange={(e) => setNewQuestion(e.target.value)}
+                    placeholder={t("meetingAgendaQuestionsPlaceholder")}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addQuestion(); } }}
+                  />
+                  <Button variant="outline" size="sm" onClick={addQuestion}>
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>{t("meetingMaxRounds")}</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={meetingForm.max_rounds}
+                    onChange={(e) => setMeetingForm((f) => ({ ...f, max_rounds: Number(e.target.value) }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t("meetingDescription")}</Label>
+                  <Input
+                    value={meetingForm.description}
+                    onChange={(e) => setMeetingForm((f) => ({ ...f, description: e.target.value }))}
+                    placeholder={t("meetingDescription")}
+                  />
+                </div>
               </div>
             </div>
             <DialogFooter>

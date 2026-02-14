@@ -1,8 +1,11 @@
-"""Tests for Meeting Execution Engine (Step 1.5).
+"""Tests for Meeting Execution Engine (V1 + V11).
 
 Covers:
 - MeetingEngine: round execution, multi-round meetings (mocked LLM)
+- MeetingEngine structured mode: phase-aware discussion
 - Meeting API: CRUD, user messages, meeting run (mocked LLM)
+- Structured meeting creation with agenda fields
+- Auto-extraction of artifacts on completion
 """
 
 import pytest
@@ -17,7 +20,7 @@ from app.schemas.onboarding import ChatMessage
 
 
 class TestMeetingEngine:
-    """Tests for MeetingEngine core logic."""
+    """Tests for MeetingEngine core logic (legacy mode)."""
 
     def _mock_llm(self, system_prompt, messages):
         """Simple mock that echoes a response based on the system prompt."""
@@ -86,6 +89,125 @@ class TestMeetingEngine:
         assert received_messages[1] == 2
 
 
+class TestStructuredMeetingEngine:
+    """Tests for MeetingEngine structured mode."""
+
+    def _mock_llm(self, system_prompt, messages):
+        # Return last user message content for inspection
+        return f"Response to: {messages[-1].content[:50]}"
+
+    def test_structured_first_round_team_lead_and_members(self):
+        """First round: team lead proposes, members respond."""
+        engine = MeetingEngine(llm_call=self._mock_llm)
+        agents = [
+            {"id": "lead", "name": "Dr. Lead", "system_prompt": "Lead system", "model": "gpt-4"},
+            {"id": "m1", "name": "Dr. Member", "system_prompt": "Member system", "model": "gpt-4"},
+        ]
+        messages = engine.run_structured_round(
+            agents=agents,
+            conversation_history=[],
+            round_num=1,
+            num_rounds=3,
+            agenda="Build a pipeline",
+            agenda_questions=["What algorithm?"],
+        )
+        # Lead + 1 member = 2 messages
+        assert len(messages) == 2
+        assert messages[0]["agent_name"] == "Dr. Lead"
+        assert messages[1]["agent_name"] == "Dr. Member"
+
+    def test_structured_final_round_only_lead(self):
+        """Final round: only Team Lead speaks."""
+        engine = MeetingEngine(llm_call=self._mock_llm)
+        agents = [
+            {"id": "lead", "name": "Dr. Lead", "system_prompt": "Lead system", "model": "gpt-4"},
+            {"id": "m1", "name": "Dr. Member", "system_prompt": "Member system", "model": "gpt-4"},
+        ]
+        messages = engine.run_structured_round(
+            agents=agents,
+            conversation_history=[],
+            round_num=3,
+            num_rounds=3,
+            agenda="Build a pipeline",
+        )
+        # Only lead speaks in final round
+        assert len(messages) == 1
+        assert messages[0]["agent_name"] == "Dr. Lead"
+
+    def test_structured_meeting_start_context_injected(self):
+        """First round should inject meeting start context."""
+        received_prompts = []
+
+        def tracking_llm(system_prompt, messages):
+            received_prompts.append([m.content for m in messages])
+            return "OK"
+
+        engine = MeetingEngine(llm_call=tracking_llm)
+        agents = [
+            {"id": "lead", "name": "Dr. Lead", "system_prompt": "Lead", "model": "gpt-4"},
+        ]
+        engine.run_structured_round(
+            agents=agents,
+            conversation_history=[],
+            round_num=1,
+            num_rounds=3,
+            agenda="Test agenda",
+            agenda_questions=["Q1"],
+            agenda_rules=["Rule1"],
+        )
+        # Lead should see meeting start context
+        lead_msgs = received_prompts[0]
+        context_found = any("Test agenda" in m for m in lead_msgs)
+        assert context_found
+
+    def test_structured_multi_round_meeting(self):
+        """Run a full 3-round structured meeting."""
+        call_count = 0
+
+        def counting_llm(system_prompt, messages):
+            nonlocal call_count
+            call_count += 1
+            return f"Response #{call_count}"
+
+        engine = MeetingEngine(llm_call=counting_llm)
+        agents = [
+            {"id": "lead", "name": "Lead", "system_prompt": "Lead", "model": "gpt-4"},
+            {"id": "m1", "name": "Member", "system_prompt": "Member", "model": "gpt-4"},
+        ]
+        all_rounds = engine.run_structured_meeting(
+            agents=agents,
+            conversation_history=[],
+            rounds=3,
+            agenda="Research plan",
+            agenda_questions=["Q1"],
+            output_type="code",
+        )
+        assert len(all_rounds) == 3
+        # Round 1: lead + member = 2
+        assert len(all_rounds[0]) == 2
+        # Round 2: lead + member = 2
+        assert len(all_rounds[1]) == 2
+        # Round 3 (final): lead only = 1
+        assert len(all_rounds[2]) == 1
+
+    def test_structured_empty_agents(self):
+        """Structured round with no agents returns empty."""
+        engine = MeetingEngine(llm_call=lambda s, m: "OK")
+        messages = engine.run_structured_round([], [], 1, 3)
+        assert messages == []
+
+    def test_structured_single_agent(self):
+        """With only one agent (lead, no members), lead speaks every round."""
+        engine = MeetingEngine(llm_call=lambda s, m: "OK")
+        agents = [{"id": "lead", "name": "Lead", "system_prompt": "Lead", "model": "gpt-4"}]
+        # Round 1: lead speaks (no members)
+        msgs = engine.run_structured_round(agents, [], 1, 3, agenda="Test")
+        assert len(msgs) == 1
+        # Final round: lead speaks
+        msgs = engine.run_structured_round(agents, [], 3, 3, agenda="Test")
+        assert len(msgs) == 1
+
+
 # ==================== Meeting API Tests ====================
 
 
@@ -132,6 +254,37 @@ class TestMeetingCRUDAPI:
         assert data["status"] == "pending"
         assert data["max_rounds"] == 3
         assert data["current_round"] == 0
+
+    def test_create_meeting_with_agenda(self, client, team):
+        """Create a meeting with agenda fields."""
+        resp = client.post("/api/meetings/", json={
+            "team_id": team["id"],
+            "title": "Structured Meeting",
+            "agenda": "Build a protein folding pipeline",
+            "agenda_questions": ["What algorithm?", "What dataset?"],
+            "output_type": "code",
+            "max_rounds": 3,
+        })
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["agenda"] == "Build a protein folding pipeline"
+        assert data["agenda_questions"] == ["What algorithm?", "What dataset?"]
+        assert data["output_type"] == "code"
+        # Default rules should be auto-injected for code type
+        assert len(data["agenda_rules"]) > 0
+
+    def test_create_meeting_custom_rules(self, client, team):
+        """Custom agenda_rules override defaults."""
+        resp = client.post("/api/meetings/", json={
+            "team_id": team["id"],
+            "title": "Custom Rules Meeting",
+            "agenda": "Topic",
+            "agenda_rules": ["Custom rule 1"],
+            "output_type": "code",
+        })
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["agenda_rules"] == ["Custom rule 1"]
 
     def test_create_meeting_invalid_team(self, client):
         """Creating a meeting with invalid team returns 404."""
@@ -377,3 +530,54 @@ class TestMeetingRunAPI:
         resp = client.post(f"/api/meetings/{meeting_id}/run", json={"rounds": 1})
         assert resp.status_code == 400
         assert "No agents" in resp.json()["detail"]
+
+    @patch("app.api.meetings.resolve_llm_call")
+    def test_run_structured_meeting_uses_agenda(self, mock_make_llm, client, team_with_agents):
+        """Structured meeting with agenda uses phase-aware engine."""
+        received_messages = []
+
+        def tracking_llm(sp, msgs):
+            received_messages.append([m.content for m in msgs])
+            return "Structured response"
+
+        mock_make_llm.return_value = tracking_llm
+
+        meeting_resp = client.post("/api/meetings/", json={
+            "team_id": team_with_agents["id"],
+            "title": "Structured Meeting",
+            "agenda": "Build ML pipeline",
+            "agenda_questions": ["What model?"],
+            "output_type": "code",
+            "max_rounds": 1,
+        })
+        meeting_id = meeting_resp.json()["id"]
+
+        resp = client.post(f"/api/meetings/{meeting_id}/run", json={"rounds": 1})
+        assert resp.status_code == 200
+        # Should have meeting start context in prompts
+        all_msgs = [m for sublist in received_messages for m in sublist]
+        assert any("Build ML pipeline" in m for m in all_msgs)
+
+    @patch("app.api.meetings.resolve_llm_call")
+    def test_auto_extract_on_completion(self, mock_make_llm, client, team_with_agents):
+        """Artifacts are auto-extracted when a meeting completes."""
+        mock_make_llm.return_value = lambda sp, msgs: (
+            "Here is the code:\n```python\nprint('hello')\n```"
+        )
+
+        meeting_resp = client.post("/api/meetings/", json={
+            "team_id": team_with_agents["id"],
+            "title": "Code Meeting",
+            "max_rounds": 1,
+        })
+        meeting_id = meeting_resp.json()["id"]
+
+        resp = client.post(f"/api/meetings/{meeting_id}/run", json={"rounds": 1})
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "completed"
+
+        # Check artifacts were auto-extracted
+        artifacts_resp = client.get(f"/api/artifacts/meeting/{meeting_id}")
+        assert artifacts_resp.status_code == 200
+        data = artifacts_resp.json()
+        assert data["total"] > 0

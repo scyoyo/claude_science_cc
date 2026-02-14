@@ -57,7 +57,11 @@ export default function TeamDetailPage() {
     role: "",
     model: "gpt-4",
   });
-  const [meetingForm, setMeetingForm] = useState({ title: "", description: "", max_rounds: "5" });
+  const [meetingForm, setMeetingForm] = useState({
+    title: "", description: "", max_rounds: "5",
+    agenda: "", output_type: "code", agenda_questions: [] as string[],
+  });
+  const [newQuestion, setNewQuestion] = useState("");
   const [creatingMeeting, setCreatingMeeting] = useState(false);
 
   const loadData = async () => {
@@ -140,9 +144,13 @@ export default function TeamDetailPage() {
         team_id: teamId,
         title,
         description: description || undefined,
+        agenda: meetingForm.agenda.trim() || undefined,
+        agenda_questions: meetingForm.agenda_questions.length > 0 ? meetingForm.agenda_questions : undefined,
+        output_type: meetingForm.output_type,
         max_rounds: Math.max(1, Math.min(20, rounds)),
       });
-      setMeetingForm({ title: "", description: "", max_rounds: "5" });
+      setMeetingForm({ title: "", description: "", max_rounds: "5", agenda: "", output_type: "code", agenda_questions: [] });
+      setNewQuestion("");
       setShowNewMeeting(false);
       await loadData();
     } catch (err) {
@@ -150,6 +158,21 @@ export default function TeamDetailPage() {
     } finally {
       setCreatingMeeting(false);
     }
+  };
+
+  const addQuestion = () => {
+    const q = newQuestion.trim();
+    if (q) {
+      setMeetingForm({ ...meetingForm, agenda_questions: [...meetingForm.agenda_questions, q] });
+      setNewQuestion("");
+    }
+  };
+
+  const removeQuestion = (index: number) => {
+    setMeetingForm({
+      ...meetingForm,
+      agenda_questions: meetingForm.agenda_questions.filter((_, i) => i !== index),
+    });
   };
 
   if (loading) return <p className="text-muted-foreground">{tc("loading")}</p>;
@@ -329,7 +352,7 @@ export default function TeamDetailPage() {
                 {t("addMeeting")}
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{t("addMeeting")}</DialogTitle>
               </DialogHeader>
@@ -345,27 +368,75 @@ export default function TeamDetailPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>{t("meetingDescription")}</Label>
+                  <Label>{t("meetingAgenda")}</Label>
                   <Textarea
-                    value={meetingForm.description}
-                    onChange={(e) => setMeetingForm({ ...meetingForm, description: e.target.value })}
-                    placeholder={t("meetingDescription")}
+                    value={meetingForm.agenda}
+                    onChange={(e) => setMeetingForm({ ...meetingForm, agenda: e.target.value })}
+                    placeholder={t("meetingAgendaPlaceholder")}
                     rows={3}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>{t("meetingMaxRounds")}</Label>
-                  <Input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    placeholder="5"
-                    value={meetingForm.max_rounds}
-                    onChange={(e) => {
-                      const v = e.target.value.replace(/[^0-9]/g, "");
-                      setMeetingForm({ ...meetingForm, max_rounds: v });
-                    }}
-                  />
+                  <Label>{t("meetingOutputType")}</Label>
+                  <Select
+                    value={meetingForm.output_type}
+                    onValueChange={(v) => setMeetingForm({ ...meetingForm, output_type: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="code">{t("meetingOutputCode")}</SelectItem>
+                      <SelectItem value="report">{t("meetingOutputReport")}</SelectItem>
+                      <SelectItem value="paper">{t("meetingOutputPaper")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>{t("meetingAgendaQuestions")}</Label>
+                  {meetingForm.agenda_questions.map((q, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <span className="text-sm flex-1 bg-muted px-2 py-1 rounded">{q}</span>
+                      <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeQuestion(i)}>
+                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                      </Button>
+                    </div>
+                  ))}
+                  <div className="flex gap-2">
+                    <Input
+                      value={newQuestion}
+                      onChange={(e) => setNewQuestion(e.target.value)}
+                      placeholder={t("meetingAgendaQuestionsPlaceholder")}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addQuestion(); } }}
+                    />
+                    <Button type="button" variant="outline" size="sm" onClick={addQuestion}>
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>{t("meetingMaxRounds")}</Label>
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      placeholder="5"
+                      value={meetingForm.max_rounds}
+                      onChange={(e) => {
+                        const v = e.target.value.replace(/[^0-9]/g, "");
+                        setMeetingForm({ ...meetingForm, max_rounds: v });
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{t("meetingDescription")}</Label>
+                    <Input
+                      value={meetingForm.description}
+                      onChange={(e) => setMeetingForm({ ...meetingForm, description: e.target.value })}
+                      placeholder={t("meetingDescription")}
+                    />
+                  </div>
                 </div>
                 <DialogFooter>
                   <Button type="button" variant="outline" onClick={() => setShowNewMeeting(false)} disabled={creatingMeeting}>

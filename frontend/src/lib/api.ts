@@ -5,6 +5,7 @@ import type {
   Agent,
   AgentCreate,
   Meeting,
+  MeetingCreate,
   MeetingWithMessages,
   MeetingUpdate,
   MeetingSummary,
@@ -101,7 +102,7 @@ export const meetingsAPI = {
     const res = await fetchAPI<PaginatedResponse<Meeting>>(`/meetings/team/${teamId}`);
     return res.items;
   },
-  create: (data: { team_id: string; title: string; description?: string; max_rounds?: number }) =>
+  create: (data: MeetingCreate) =>
     fetchAPI<Meeting>("/meetings/", { method: "POST", body: JSON.stringify(data) }),
   update: (id: string, data: MeetingUpdate) =>
     fetchAPI<Meeting>(`/meetings/${id}`, { method: "PUT", body: JSON.stringify(data) }),

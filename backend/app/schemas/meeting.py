@@ -7,12 +7,20 @@ class MeetingCreate(BaseModel):
     team_id: str
     title: str = Field(..., min_length=1, max_length=255)
     description: str = ""
+    agenda: str = ""
+    agenda_questions: List[str] = []
+    agenda_rules: List[str] = []
+    output_type: str = "code"
     max_rounds: int = Field(default=5, ge=1, le=20)
 
 
 class MeetingUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=255)
     description: Optional[str] = None
+    agenda: Optional[str] = None
+    agenda_questions: Optional[List[str]] = None
+    agenda_rules: Optional[List[str]] = None
+    output_type: Optional[str] = None
     max_rounds: Optional[int] = Field(None, ge=1, le=20)
 
 
@@ -36,6 +44,10 @@ class MeetingResponse(BaseModel):
     team_id: str
     title: str
     description: Optional[str] = ""
+    agenda: Optional[str] = ""
+    agenda_questions: list = []
+    agenda_rules: list = []
+    output_type: Optional[str] = "code"
     status: str
     max_rounds: int
     current_round: int

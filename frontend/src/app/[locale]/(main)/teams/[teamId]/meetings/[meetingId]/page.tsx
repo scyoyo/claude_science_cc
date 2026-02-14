@@ -320,6 +320,15 @@ export default function MeetingDetailPage() {
             )}
           </span>
         </div>
+        {meeting.agenda && (
+          <div className="flex items-center gap-2 text-sm">
+            <span className="font-medium">{t("agenda")}:</span>
+            <span className="text-muted-foreground">{meeting.agenda}</span>
+            {meeting.output_type && meeting.output_type !== "code" && (
+              <Badge variant="outline" className="text-xs">{meeting.output_type}</Badge>
+            )}
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-sm text-muted-foreground mr-auto">
             {t("round", { current: meeting.current_round, max: meeting.max_rounds })}
@@ -384,34 +393,48 @@ export default function MeetingDetailPage() {
               {allMessages.length === 0 ? (
                 <p className="text-muted-foreground text-sm">{t("noMessages")}</p>
               ) : (
-                allMessages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`p-4 rounded-lg border ${
-                      msg.role === "user"
-                        ? "bg-primary/5 border-primary/20"
-                        : "bg-card"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium text-sm">
-                        {msg.role === "user" ? t("you") : msg.agent_name || "Assistant"}
-                      </span>
-                      {msg.round_number > 0 && (
-                        <Badge variant="outline" className="text-xs">
-                          R{msg.round_number}
-                        </Badge>
+                allMessages.map((msg) => {
+                  const isFinalSummary =
+                    isCompleted &&
+                    meeting.agenda &&
+                    msg.round_number === meeting.max_rounds &&
+                    msg.role === "assistant";
+                  return (
+                    <div
+                      key={msg.id}
+                      className={`p-4 rounded-lg border ${
+                        isFinalSummary
+                          ? "bg-primary/5 border-primary/30 ring-1 ring-primary/20"
+                          : msg.role === "user"
+                          ? "bg-primary/5 border-primary/20"
+                          : "bg-card"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-medium text-sm">
+                          {msg.role === "user" ? t("you") : msg.agent_name || "Assistant"}
+                        </span>
+                        {isFinalSummary && (
+                          <Badge variant="default" className="text-xs">
+                            {t("finalSummary")}
+                          </Badge>
+                        )}
+                        {msg.round_number > 0 && (
+                          <Badge variant="outline" className="text-xs">
+                            R{msg.round_number}
+                          </Badge>
+                        )}
+                      </div>
+                      {msg.role === "user" ? (
+                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                          {msg.content}
+                        </p>
+                      ) : (
+                        <MarkdownContent content={msg.content} className="text-sm text-muted-foreground" />
                       )}
                     </div>
-                    {msg.role === "user" ? (
-                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                        {msg.content}
-                      </p>
-                    ) : (
-                      <MarkdownContent content={msg.content} className="text-sm text-muted-foreground" />
-                    )}
-                  </div>
-                ))
+                  );
+                })
               )}
 
               {speaking && (

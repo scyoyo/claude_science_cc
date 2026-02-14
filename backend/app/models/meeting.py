@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Integer, Enum
+from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Integer, JSON
 from sqlalchemy.orm import relationship, backref
 from datetime import datetime, UTC
 import uuid
@@ -21,6 +21,10 @@ class Meeting(Base):
     team_id = Column(String(36), ForeignKey("teams.id", ondelete="CASCADE"), nullable=False)
     title = Column(String(255), nullable=False)
     description = Column(Text, default="")
+    agenda = Column(Text, default="")
+    agenda_questions = Column(JSON, default=list)
+    agenda_rules = Column(JSON, default=list)
+    output_type = Column(String(20), default="code")
     status = Column(String(20), default=MeetingStatus.pending.value)
     max_rounds = Column(Integer, default=5)
     current_round = Column(Integer, default=0)

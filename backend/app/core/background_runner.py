@@ -11,10 +11,11 @@ from typing import Optional, Callable
 
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.models import Meeting, MeetingMessage, MeetingStatus, Agent
+from app.models import Meeting, MeetingMessage, MeetingStatus, Agent, CodeArtifact
 from app.schemas.onboarding import ChatMessage
 from app.core.meeting_engine import MeetingEngine
 from app.core.llm_client import resolve_llm_call
+from app.core.code_extractor import extract_from_meeting_messages
 
 logger = logging.getLogger(__name__)
 
@@ -117,10 +118,27 @@ def _run_meeting_thread(
                     ChatMessage(role="user", content=f"[{label}]: {msg.content}")
                 )
 
+        use_structured = bool(meeting.agenda)
+
         # Run round by round, committing after each
         for round_idx in range(rounds_to_run):
-            round_topic = topic if round_idx == 0 else None
-            round_messages = engine.run_round(agent_dicts, conversation_history, round_topic)
+            current_round_num = meeting.current_round + 1
+            total_rounds = meeting.max_rounds
+
+            if use_structured:
+                round_messages = engine.run_structured_round(
+                    agents=agent_dicts,
+                    conversation_history=conversation_history,
+                    round_num=current_round_num,
+                    num_rounds=total_rounds,
+                    agenda=meeting.agenda or "",
+                    agenda_questions=meeting.agenda_questions or [],
+                    agenda_rules=meeting.agenda_rules or [],
+                    output_type=meeting.output_type or "code",
+                )
+            else:
+                round_topic = topic if round_idx == 0 else None
+                round_messages = engine.run_round(agent_dicts, conversation_history, round_topic)
 
             round_number = meeting.current_round + 1
             for msg_data in round_messages:
@@ -147,6 +165,10 @@ def _run_meeting_thread(
             meeting.status = MeetingStatus.pending.value
         db.commit()
 
+        # Auto-extract artifacts on completion
+        if meeting.status == MeetingStatus.completed.value:
+            _auto_extract_artifacts(db, meeting_id)
+
     except Exception:
         logger.exception("Background meeting run failed for %s", meeting_id)
         try:
@@ -160,6 +182,36 @@ def _run_meeting_thread(
         db.close()
         with _lock:
             _running.pop(meeting_id, None)
+
+
+def _auto_extract_artifacts(db: Session, meeting_id: str) -> None:
+    """Extract code artifacts from meeting messages after completion."""
+    try:
+        messages = db.query(MeetingMessage).filter(
+            MeetingMessage.meeting_id == meeting_id,
+            MeetingMessage.role == "assistant",
+        ).order_by(MeetingMessage.created_at).all()
+
+        msg_dicts = [
+            {"content": m.content, "agent_name": m.agent_name, "role": m.role}
+            for m in messages
+        ]
+        extracted = extract_from_meeting_messages(msg_dicts)
+
+        for block in extracted:
+            artifact = CodeArtifact(
+                meeting_id=meeting_id,
+                filename=block.suggested_filename,
+                language=block.language,
+                content=block.content,
+                description=f"Auto-extracted from {block.source_agent or 'agent'} response",
+            )
+            db.add(artifact)
+
+        if extracted:
+            db.commit()
+    except Exception:
+        logger.exception("Auto-extract artifacts failed for meeting %s", meeting_id)
 
 
 def cleanup_stuck_meetings(session_factory: sessionmaker) -> int:

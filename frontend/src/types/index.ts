@@ -81,6 +81,10 @@ export interface Meeting {
   team_id: string;
   title: string;
   description: string;
+  agenda: string;
+  agenda_questions: string[];
+  agenda_rules: string[];
+  output_type: string;
   status: "pending" | "running" | "completed" | "failed";
   max_rounds: number;
   current_round: number;
@@ -103,9 +107,24 @@ export interface MeetingWithMessages extends Meeting {
   messages: MeetingMessage[];
 }
 
+export interface MeetingCreate {
+  team_id: string;
+  title: string;
+  description?: string;
+  agenda?: string;
+  agenda_questions?: string[];
+  agenda_rules?: string[];
+  output_type?: string;
+  max_rounds?: number;
+}
+
 export interface MeetingUpdate {
   title?: string;
   description?: string;
+  agenda?: string;
+  agenda_questions?: string[];
+  agenda_rules?: string[];
+  output_type?: string;
   max_rounds?: number;
 }
 

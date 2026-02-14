@@ -4,7 +4,8 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from app.database import get_db
-from app.models import Team, Agent, Meeting, MeetingMessage, MeetingStatus
+from app.models import Team, Agent, Meeting, MeetingMessage, MeetingStatus, CodeArtifact
+from app.core.code_extractor import extract_from_meeting_messages
 from app.schemas.meeting import (
     MeetingCreate,
     MeetingUpdate,
@@ -86,14 +87,25 @@ def list_meetings(
 @router.post("/", response_model=MeetingResponse, status_code=status.HTTP_201_CREATED)
 def create_meeting(data: MeetingCreate, db: Session = Depends(get_db)):
     """Create a new meeting for a team."""
+    from app.core.meeting_prompts import get_default_rules
+
     team = db.query(Team).filter(Team.id == data.team_id).first()
     if not team:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
+
+    # Auto-inject default rules based on output_type if none provided
+    rules = data.agenda_rules
+    if not rules and data.output_type:
+        rules = get_default_rules(data.output_type)
 
     meeting = Meeting(
         team_id=data.team_id,
         title=data.title,
         description=data.description,
+        agenda=data.agenda,
+        agenda_questions=data.agenda_questions,
+        agenda_rules=rules,
+        output_type=data.output_type,
         max_rounds=data.max_rounds,
     )
     db.add(meeting)
@@ -113,6 +125,10 @@ def clone_meeting(meeting_id: str, db: Session = Depends(get_db)):
         team_id=original.team_id,
         title=f"{original.title} (copy)",
         description=original.description,
+        agenda=original.agenda,
+        agenda_questions=original.agenda_questions,
+        agenda_rules=original.agenda_rules,
+        output_type=original.output_type,
         max_rounds=original.max_rounds,
     )
     db.add(clone)
@@ -409,12 +425,26 @@ def run_meeting(
     db.commit()
 
     try:
-        all_rounds = engine.run_meeting(
-            agents=agent_dicts,
-            conversation_history=conversation_history,
-            rounds=rounds_to_run,
-            topic=request.topic,
-        )
+        use_structured = bool(meeting.agenda)
+
+        if use_structured:
+            all_rounds = engine.run_structured_meeting(
+                agents=agent_dicts,
+                conversation_history=conversation_history,
+                rounds=rounds_to_run,
+                agenda=meeting.agenda,
+                agenda_questions=meeting.agenda_questions or [],
+                agenda_rules=meeting.agenda_rules or [],
+                output_type=meeting.output_type or "code",
+                start_round=meeting.current_round + 1,
+            )
+        else:
+            all_rounds = engine.run_meeting(
+                agents=agent_dicts,
+                conversation_history=conversation_history,
+                rounds=rounds_to_run,
+                topic=request.topic,
+            )
 
         # Store messages
         for round_idx, round_messages in enumerate(all_rounds):
@@ -439,6 +469,10 @@ def run_meeting(
         db.commit()
         db.refresh(meeting)
 
+        # Auto-extract artifacts on completion
+        if meeting.status == MeetingStatus.completed.value:
+            _auto_extract_artifacts(db, meeting_id)
+
     except Exception as e:
         meeting.status = MeetingStatus.failed.value
         db.commit()
@@ -448,3 +482,33 @@ def run_meeting(
         )
 
     return meeting
+
+
+def _auto_extract_artifacts(db: Session, meeting_id: str) -> None:
+    """Extract code artifacts from meeting messages after completion."""
+    try:
+        messages = db.query(MeetingMessage).filter(
+            MeetingMessage.meeting_id == meeting_id,
+            MeetingMessage.role == "assistant",
+        ).order_by(MeetingMessage.created_at).all()
+
+        msg_dicts = [
+            {"content": m.content, "agent_name": m.agent_name, "role": m.role}
+            for m in messages
+        ]
+        extracted = extract_from_meeting_messages(msg_dicts)
+
+        for block in extracted:
+            artifact = CodeArtifact(
+                meeting_id=meeting_id,
+                filename=block.suggested_filename,
+                language=block.language,
+                content=block.content,
+                description=f"Auto-extracted from {block.source_agent or 'agent'} response",
+            )
+            db.add(artifact)
+
+        if extracted:
+            db.commit()
+    except Exception:
+        pass  # Don't fail the meeting if extraction fails

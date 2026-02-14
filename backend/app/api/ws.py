@@ -18,10 +18,11 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
 from sqlalchemy.orm import Session
 
 from app.database import get_db, SessionLocal
-from app.models import Meeting, Agent, MeetingMessage, MeetingStatus
+from app.models import Meeting, Agent, MeetingMessage, MeetingStatus, CodeArtifact
 from app.schemas.onboarding import ChatMessage
 from app.core.meeting_engine import MeetingEngine
 from app.core.llm_client import resolve_llm_call
+from app.core.code_extractor import extract_from_meeting_messages
 
 router = APIRouter(tags=["websocket"])
 
@@ -146,14 +147,27 @@ async def _handle_start_round(websocket: WebSocket, db: Session, meeting: Meetin
     meeting.status = MeetingStatus.running.value
     db.commit()
 
+    use_structured = bool(meeting.agenda)
+
     try:
         engine = MeetingEngine(llm_call=llm_call)
 
         for round_idx in range(rounds_to_run):
             round_number = meeting.current_round + round_idx + 1
 
-            # Run one round, streaming each agent's response
-            round_messages = engine.run_round(agent_dicts, history, topic=topic)
+            if use_structured:
+                round_messages = engine.run_structured_round(
+                    agents=agent_dicts,
+                    conversation_history=history,
+                    round_num=round_number,
+                    num_rounds=meeting.max_rounds,
+                    agenda=meeting.agenda or "",
+                    agenda_questions=meeting.agenda_questions or [],
+                    agenda_rules=meeting.agenda_rules or [],
+                    output_type=meeting.output_type or "code",
+                )
+            else:
+                round_messages = engine.run_round(agent_dicts, history, topic=topic)
 
             for msg_data in round_messages:
                 # Notify client agent is speaking
@@ -204,6 +218,8 @@ async def _handle_start_round(websocket: WebSocket, db: Session, meeting: Meetin
         db.commit()
 
         if meeting.status == MeetingStatus.completed.value:
+            # Auto-extract artifacts
+            _auto_extract_artifacts(db, meeting.id)
             await websocket.send_json({"type": "meeting_complete", "status": "completed"})
 
     except Exception as e:
@@ -212,3 +228,31 @@ async def _handle_start_round(websocket: WebSocket, db: Session, meeting: Meetin
         await websocket.send_json({"type": "error", "detail": f"Execution failed: {str(e)}"})
 
 
+def _auto_extract_artifacts(db: Session, meeting_id: str) -> None:
+    """Extract code artifacts from meeting messages after completion."""
+    try:
+        messages = db.query(MeetingMessage).filter(
+            MeetingMessage.meeting_id == meeting_id,
+            MeetingMessage.role == "assistant",
+        ).order_by(MeetingMessage.created_at).all()
+
+        msg_dicts = [
+            {"content": m.content, "agent_name": m.agent_name, "role": m.role}
+            for m in messages
+        ]
+        extracted = extract_from_meeting_messages(msg_dicts)
+
+        for block in extracted:
+            artifact = CodeArtifact(
+                meeting_id=meeting_id,
+                filename=block.suggested_filename,
+                language=block.language,
+                content=block.content,
+                description=f"Auto-extracted from {block.source_agent or 'agent'} response",
+            )
+            db.add(artifact)
+
+        if extracted:
+            db.commit()
+    except Exception:
+        pass
