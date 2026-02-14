@@ -70,6 +70,66 @@ Building a web app based on https://github.com/zou-group/virtual-lab that allows
 5. **System prompt auto-generated** from agent's title/expertise/goal/role fields
 6. **Mirror agent support**: Agent model has `is_mirror` and `primary_agent_id` fields
 
+## Database Migration Rules (CRITICAL)
+
+### Alembic is the single source of truth for PostgreSQL schema
+
+- **Every model change MUST have a corresponding Alembic migration file**
+- `Base.metadata.create_all()` only creates NEW tables; it NEVER adds columns to existing tables
+- SQLite local dev may hide missing migrations because `database.py` has band-aid functions (`_ensure_meetings_columns_sqlite`)
+- **Always test on PostgreSQL** (or verify Alembic migration) before deploying to Railway
+
+### Writing migrations
+
+```bash
+cd backend && source venv/bin/activate
+alembic revision --autogenerate -m "description of change"
+# Review generated file, then commit
+```
+
+### Making migrations idempotent (for DBs bootstrapped by create_all)
+
+When a database was initially created by `create_all()` instead of Alembic, migrations must check before acting:
+
+```python
+from sqlalchemy import inspect
+
+def _column_exists(table, column):
+    bind = op.get_bind()
+    columns = [c["name"] for c in inspect(bind).get_columns(table)]
+    return column in columns
+
+def _table_exists(table):
+    return table in inspect(op.get_bind()).get_table_names()
+
+# In upgrade(): check before adding
+if not _column_exists("meetings", "agenda"):
+    op.add_column("meetings", sa.Column(...))
+if not _table_exists("webhook_configs"):
+    op.create_table(...)
+```
+
+### Pydantic + nullable DB columns = 500 errors
+
+When adding new columns to existing tables, old rows will have `NULL`. Response schemas MUST use `Optional`:
+
+```python
+# WRONG - will 500 on old rows where value is NULL
+agenda_questions: list = []
+
+# CORRECT - accepts None from DB, falls back to default
+agenda_questions: Optional[list] = []
+```
+
+## Railway Deployment (Nixpacks)
+
+- Railway uses **Nixpacks** (not Docker) — config in `railway.json` + `nixpacks.toml`
+- Startup script: **`start.sh`** (not `entrypoint.sh` which is for Docker only)
+- `start.sh` runs `alembic upgrade head` before starting uvicorn (for PostgreSQL)
+- First-time Alembic on existing DB: `start.sh` auto-stamps initial migration if `alembic_version` table is missing
+- Frontend (Next.js) runs on Railway's `$PORT`, backend on internal `127.0.0.1:8000`
+- Next.js rewrites proxy `/api/*` → backend
+
 ## Current Dependency Versions (Python 3.13 compatible)
 
 ```
