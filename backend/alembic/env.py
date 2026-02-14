@@ -10,7 +10,7 @@ from app.database import Base
 from app.config import settings
 from app.models import (  # noqa: F401 - import to register models with Base
     Team, Agent, APIKey, Meeting, MeetingMessage, CodeArtifact,
-    User, UserTeamRole,
+    User, UserTeamRole, WebhookConfig,
 )
 
 # this is the Alembic Config object
