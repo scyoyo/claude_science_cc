@@ -3,8 +3,10 @@ import type { TokenResponse, User, LoginRequest, RegisterRequest } from "@/types
 const TOKEN_KEY = "vlab_access_token";
 const REFRESH_KEY = "vlab_refresh_token";
 
-// Use NEXT_PUBLIC_API_URL when set (e.g. Vercel → Railway), else /api (local)
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "/api";
+/** Single source for API base URL (client). Use in auth, api, and pages. */
+export function getApiBase(): string {
+  return process.env.NEXT_PUBLIC_API_URL || "/api";
+}
 
 export function getAccessToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -32,7 +34,7 @@ export function getAuthHeaders(): Record<string, string> {
 }
 
 export async function login(data: LoginRequest): Promise<TokenResponse> {
-  const res = await fetch(`${API_BASE}/auth/login`, {
+  const res = await fetch(`${getApiBase()}/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -47,7 +49,7 @@ export async function login(data: LoginRequest): Promise<TokenResponse> {
 }
 
 export async function register(data: RegisterRequest): Promise<User> {
-  const res = await fetch(`${API_BASE}/auth/register`, {
+  const res = await fetch(`${getApiBase()}/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -63,7 +65,7 @@ export async function fetchMe(): Promise<User | null> {
   const token = getAccessToken();
   if (!token) return null;
 
-  const res = await fetch(`${API_BASE}/auth/me`, {
+  const res = await fetch(`${getApiBase()}/auth/me`, {
     headers: { Authorization: `Bearer ${token}` },
   });
 
@@ -73,7 +75,7 @@ export async function fetchMe(): Promise<User | null> {
   if (res.status === 401) {
     const refreshed = await tryRefresh();
     if (refreshed) {
-      const retry = await fetch(`${API_BASE}/auth/me`, {
+      const retry = await fetch(`${getApiBase()}/auth/me`, {
         headers: { Authorization: `Bearer ${getAccessToken()}` },
       });
       if (retry.ok) return retry.json();
@@ -89,7 +91,7 @@ async function tryRefresh(): Promise<boolean> {
   if (!refreshToken) return false;
 
   try {
-    const res = await fetch(`${API_BASE}/auth/refresh`, {
+    const res = await fetch(`${getApiBase()}/auth/refresh`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refresh_token: refreshToken }),

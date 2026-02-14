@@ -13,7 +13,7 @@ import type {
   OnboardingChatResponse,
   GenerateTeamRequest,
 } from "@/types";
-import { getAuthHeaders } from "@/lib/auth";
+import { getAuthHeaders, getApiBase } from "@/lib/auth";
 
 // Backend paginated response shape
 interface PaginatedResponse<T> {
@@ -23,9 +23,10 @@ interface PaginatedResponse<T> {
   limit: number;
 }
 
-// In browser: use NEXT_PUBLIC_API_URL when set (e.g. Vercel → Railway), else /api (local rewrites)
-// In SSR: use full URL to backend
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || (typeof window !== "undefined" ? "/api" : "http://localhost:8000/api");
+const API_BASE =
+  typeof window !== "undefined"
+    ? getApiBase()
+    : (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api");
 
 async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {

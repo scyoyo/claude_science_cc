@@ -4,14 +4,13 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { getAuthHeaders } from "@/lib/auth";
+import { getAuthHeaders, getApiBase } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "/api";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -61,7 +60,7 @@ export default function ProfilePage() {
     }
 
     try {
-      const res = await fetch(`${API_BASE}/auth/me`, {
+      const res = await fetch(`${getApiBase()}/auth/me`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify(body),
