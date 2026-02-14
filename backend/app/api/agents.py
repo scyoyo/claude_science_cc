@@ -5,6 +5,7 @@ from typing import List, Optional
 from sqlalchemy import func
 from app.database import get_db
 from app.models import Agent, Team, MeetingMessage
+from sqlalchemy import update
 from app.schemas.agent import AgentCreate, AgentUpdate, AgentResponse
 from app.schemas.pagination import PaginatedResponse
 from app.core.prompt import generate_system_prompt
@@ -87,6 +88,13 @@ def batch_delete_agents(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Empty ID list",
         )
+    # Null out references to avoid FK constraint on delete
+    db.execute(
+        update(MeetingMessage).where(MeetingMessage.agent_id.in_(agent_ids)).values(agent_id=None)
+    )
+    db.execute(
+        update(Agent).where(Agent.primary_agent_id.in_(agent_ids)).values(primary_agent_id=None)
+    )
     deleted = db.query(Agent).filter(Agent.id.in_(agent_ids)).delete(synchronize_session="fetch")
     db.commit()
     return {"deleted": deleted}
@@ -222,7 +230,13 @@ def delete_agent(agent_id: str, db: Session = Depends(get_db)):
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Agent not found"
         )
-
+    # Null out references to avoid FK constraint on delete
+    db.execute(
+        update(MeetingMessage).where(MeetingMessage.agent_id == agent_id).values(agent_id=None)
+    )
+    db.execute(
+        update(Agent).where(Agent.primary_agent_id == agent_id).values(primary_agent_id=None)
+    )
     db.delete(agent)
     db.commit()
     return None
