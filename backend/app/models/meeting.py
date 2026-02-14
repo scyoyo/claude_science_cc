@@ -27,6 +27,12 @@ class Meeting(Base):
     output_type = Column(String(20), default="code")
     context_meeting_ids = Column(JSON, default=list)  # IDs of previous meetings to load context from
     participant_agent_ids = Column(JSON, default=list)  # If non-empty, only these agents join the meeting
+    meeting_type = Column(String(20), default="team")  # "team" | "individual" | "merge"
+    individual_agent_id = Column(String(36), ForeignKey("agents.id"), nullable=True)
+    source_meeting_ids = Column(JSON, default=list)  # for merge: IDs of source meetings
+    parent_meeting_id = Column(String(36), ForeignKey("meetings.id"), nullable=True)  # for rewrite
+    rewrite_feedback = Column(Text, default="")
+    agenda_strategy = Column(String(30), default="manual")  # manual|ai_auto|onboarding|agent_voting|chain
     status = Column(String(20), default=MeetingStatus.pending.value)
     max_rounds = Column(Integer, default=5)
     current_round = Column(Integer, default=0)

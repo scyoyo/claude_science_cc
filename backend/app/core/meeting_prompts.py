@@ -280,6 +280,174 @@ def output_structure_prompt(output_type: str, has_questions: bool) -> str:
     return "\n".join(template)
 
 
+# ==================== Individual Meeting Prompts ====================
+
+SCIENTIFIC_CRITIC = {
+    "name": "Scientific Critic",
+    "system_prompt": (
+        "You are a Scientific Critic. Your role is to critically evaluate scientific "
+        "proposals, methodologies, and results. You should:\n"
+        "- Identify potential flaws in reasoning or methodology.\n"
+        "- Suggest improvements with specific, actionable feedback.\n"
+        "- Point out missing controls, confounding variables, or alternative explanations.\n"
+        "- Be constructive but rigorous—every critique should include a suggestion.\n"
+        "- Be direct and concise."
+    ),
+}
+
+
+def individual_meeting_start_prompt(
+    agent_name: str,
+    agenda: str,
+    questions: List[str],
+    rules: List[str],
+    num_rounds: int,
+    preferred_lang: Optional[str] = None,
+) -> str:
+    """Generate start prompt for an individual meeting with a critic."""
+    parts = [
+        f"## Individual Meeting",
+        f"",
+        f"**Participant:** {agent_name}",
+        f"**Critic:** Scientific Critic",
+        f"**Number of Rounds:** {num_rounds}",
+    ]
+
+    if agenda:
+        parts.append(f"")
+        parts.append(f"## Agenda")
+        parts.append(agenda)
+
+    if questions:
+        parts.append(f"")
+        parts.append(f"## Questions to Answer")
+        for i, q in enumerate(questions, 1):
+            parts.append(f"{i}. {q}")
+
+    if rules:
+        parts.append(f"")
+        parts.append(f"## Rules")
+        for rule in rules:
+            parts.append(f"- {rule}")
+
+    if preferred_lang:
+        parts.append(f"")
+        parts.append(
+            "## Language\nRespond in Chinese (中文)." if preferred_lang == "zh"
+            else "## Language\nRespond in English."
+        )
+
+    return "\n".join(parts)
+
+
+def individual_meeting_critic_prompt(critic_name: str, agent_name: str) -> str:
+    """Prompt for the critic to evaluate the agent's response."""
+    return (
+        f"{critic_name}, please critically evaluate {agent_name}'s response. "
+        f"Identify strengths, weaknesses, and areas for improvement. "
+        f"Provide specific, actionable suggestions."
+    )
+
+
+def individual_meeting_agent_revision_prompt(critic_name: str, agent_name: str) -> str:
+    """Prompt for the agent to revise based on critic feedback."""
+    return (
+        f"{agent_name}, please revise your response based on {critic_name}'s feedback. "
+        f"Address each critique point and improve your answer."
+    )
+
+
+# ==================== Merge Meeting Prompts ====================
+
+def create_merge_prompt(
+    agenda: str,
+    source_summaries: List[Dict],
+    questions: Optional[List[str]] = None,
+    rules: Optional[List[str]] = None,
+) -> str:
+    """Prompt to merge N independent discussions into a consensus answer."""
+    parts = [
+        "## Merge Meeting",
+        "",
+        "You are synthesizing the results of multiple independent discussions on the same topic.",
+        "",
+    ]
+
+    if agenda:
+        parts.append(f"## Original Agenda")
+        parts.append(agenda)
+        parts.append("")
+
+    parts.append("## Source Discussions")
+    parts.append("")
+    for i, s in enumerate(source_summaries, 1):
+        parts.append(f"### Discussion {i}: {s['title']}")
+        parts.append(s["summary"])
+        parts.append("")
+
+    parts.append("## Your Task")
+    parts.append(
+        "Synthesize the best components from each discussion. "
+        "Identify areas of agreement and resolve disagreements. "
+        "Produce a unified, high-quality answer."
+    )
+
+    if questions:
+        parts.append("")
+        parts.append("## Questions to Answer")
+        for i, q in enumerate(questions, 1):
+            parts.append(f"{i}. {q}")
+
+    if rules:
+        parts.append("")
+        parts.append("## Rules")
+        for rule in rules:
+            parts.append(f"- {rule}")
+
+    return "\n".join(parts)
+
+
+# ==================== Rewrite Prompts ====================
+
+def rewrite_meeting_prompt(
+    original_output: str,
+    feedback: str,
+    agenda: str,
+    questions: Optional[List[str]] = None,
+) -> str:
+    """Prompt to improve a previous meeting output based on feedback."""
+    parts = [
+        "## Rewrite / Improve",
+        "",
+        "You are improving a previous meeting's output based on specific feedback.",
+        "",
+        "## Original Output",
+        original_output,
+        "",
+        "## Improvement Feedback",
+        feedback,
+        "",
+    ]
+
+    if agenda:
+        parts.append("## Original Agenda")
+        parts.append(agenda)
+        parts.append("")
+
+    if questions:
+        parts.append("## Questions to Answer")
+        for i, q in enumerate(questions, 1):
+            parts.append(f"{i}. {q}")
+        parts.append("")
+
+    parts.append(
+        "Revise and improve the original output, addressing all feedback points. "
+        "Maintain what was good and fix what was identified as needing improvement."
+    )
+
+    return "\n".join(parts)
+
+
 # ==================== Temperature by Phase ====================
 
 def phase_temperature(round_num: int, num_rounds: int) -> float:

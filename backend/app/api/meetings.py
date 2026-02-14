@@ -15,10 +15,25 @@ from app.schemas.meeting import (
     UserMessageRequest,
     MeetingMessageResponse,
     MeetingSummary,
+    ContextPreviewResponse,
+    BatchMeetingRunRequest,
+    BatchMeetingRunResponse,
+    RewriteRequest,
+    AgendaAutoRequest,
+    AgendaAutoResponse,
+    AgentVotingRequest,
+    AgentVotingResponse,
+    AgentProposal,
+    ChainRecommendRequest,
+    RecommendStrategyRequest,
+    RecommendStrategyResponse,
 )
 from app.core.meeting_engine import MeetingEngine
 from app.core.llm_client import create_provider, detect_provider, resolve_llm_call
 from app.core.lang_detect import meeting_preferred_lang
+from app.core.context_extractor import extract_relevant_context, extract_keywords_from_agenda
+from app.core.agenda_proposer import AgendaProposer
+from app.core.meeting_prompts import rewrite_meeting_prompt
 from app.core.background_runner import start_background_run, is_running
 from app.schemas.onboarding import ChatMessage
 from app.schemas.pagination import PaginatedResponse
@@ -74,6 +89,173 @@ def compare_meetings(
     }
 
 
+@router.post("/batch-run", response_model=BatchMeetingRunResponse)
+def batch_run_meetings(
+    request: BatchMeetingRunRequest,
+    db: Session = Depends(get_db),
+):
+    """Clone a meeting N times, run all iterations, optionally create a merge meeting.
+
+    Flow: clone N meetings -> run all -> create merge meeting with source_meeting_ids.
+    Note: actual running is left to the caller (via /run endpoint) since it requires LLM.
+    This endpoint creates the meetings and returns their IDs.
+    """
+    original = db.query(Meeting).filter(Meeting.id == request.meeting_id).first()
+    if not original:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+
+    iteration_ids = []
+    for i in range(request.num_iterations):
+        clone = Meeting(
+            team_id=original.team_id,
+            title=f"{original.title} (iteration {i + 1})",
+            description=original.description,
+            agenda=original.agenda,
+            agenda_questions=original.agenda_questions,
+            agenda_rules=original.agenda_rules,
+            output_type=original.output_type,
+            context_meeting_ids=getattr(original, "context_meeting_ids", None) or [],
+            participant_agent_ids=getattr(original, "participant_agent_ids", None) or [],
+            meeting_type=original.meeting_type or "team",
+            individual_agent_id=original.individual_agent_id,
+            agenda_strategy=original.agenda_strategy or "manual",
+            max_rounds=original.max_rounds,
+        )
+        db.add(clone)
+        db.flush()
+        iteration_ids.append(clone.id)
+
+    merge_id = None
+    if request.auto_merge:
+        merge = Meeting(
+            team_id=original.team_id,
+            title=f"{original.title} (merge)",
+            description=f"Merge of {request.num_iterations} iterations",
+            agenda=original.agenda,
+            agenda_questions=original.agenda_questions,
+            agenda_rules=original.agenda_rules,
+            output_type=original.output_type,
+            participant_agent_ids=getattr(original, "participant_agent_ids", None) or [],
+            meeting_type="merge",
+            source_meeting_ids=iteration_ids,
+            agenda_strategy=original.agenda_strategy or "manual",
+            max_rounds=min(original.max_rounds, 2),
+        )
+        db.add(merge)
+        db.flush()
+        merge_id = merge.id
+
+    db.commit()
+    return BatchMeetingRunResponse(
+        iteration_meeting_ids=iteration_ids,
+        merge_meeting_id=merge_id,
+    )
+
+
+# ==================== Agenda Strategy Endpoints ====================
+
+@router.post("/agenda/auto-generate", response_model=AgendaAutoResponse)
+def agenda_auto_generate(request: AgendaAutoRequest, db: Session = Depends(get_db)):
+    """AI generates agenda + questions + rules based on team composition & goals."""
+    team = db.query(Team).filter(Team.id == request.team_id).first()
+    if not team:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
+
+    agents = db.query(Agent).filter(Agent.team_id == request.team_id, Agent.is_mirror == False).all()
+    agent_dicts = [
+        {"name": a.name, "title": a.title, "expertise": a.expertise, "system_prompt": a.system_prompt}
+        for a in agents
+    ]
+
+    prev_meetings = []
+    for mid in request.prev_meeting_ids:
+        m = db.query(Meeting).filter(Meeting.id == mid).first()
+        if m:
+            prev_meetings.append({"title": m.title})
+
+    try:
+        llm_call = resolve_llm_call(db)
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No API key configured")
+
+    proposer = AgendaProposer(llm_call=llm_call)
+    result = proposer.auto_generate(
+        agents=agent_dicts,
+        team_desc=team.description or team.name,
+        goal=request.goal or "",
+        prev_meetings=prev_meetings or None,
+    )
+    return AgendaAutoResponse(**result)
+
+
+@router.post("/agenda/agent-voting", response_model=AgentVotingResponse)
+def agenda_agent_voting(request: AgentVotingRequest, db: Session = Depends(get_db)):
+    """Each agent proposes 2-3 agenda items. Returns all proposals + merged agenda."""
+    team = db.query(Team).filter(Team.id == request.team_id).first()
+    if not team:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
+
+    agents = db.query(Agent).filter(Agent.team_id == request.team_id, Agent.is_mirror == False).all()
+    if not agents:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No agents in team")
+
+    agent_dicts = [
+        {"name": a.name, "title": a.title, "expertise": a.expertise, "system_prompt": a.system_prompt}
+        for a in agents
+    ]
+
+    try:
+        llm_call = resolve_llm_call(db)
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No API key configured")
+
+    proposer = AgendaProposer(llm_call=llm_call)
+    result = proposer.agent_voting(agents=agent_dicts, topic=request.topic)
+    return AgentVotingResponse(
+        proposals=[AgentProposal(**p) for p in result["proposals"]],
+        merged_agenda=result["merged_agenda"],
+    )
+
+
+@router.post("/agenda/chain-recommend", response_model=AgendaAutoResponse)
+def agenda_chain_recommend(request: ChainRecommendRequest, db: Session = Depends(get_db)):
+    """Based on previous meeting results, suggest next meeting agenda."""
+    if not request.prev_meeting_ids:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No previous meeting IDs provided")
+
+    summaries = _load_context_summaries(db, request.prev_meeting_ids)
+    if not summaries:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No valid previous meetings found")
+
+    try:
+        llm_call = resolve_llm_call(db)
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No API key configured")
+
+    proposer = AgendaProposer(llm_call=llm_call)
+    result = proposer.chain_recommend(prev_meeting_summaries=summaries)
+    return AgendaAutoResponse(**result)
+
+
+@router.post("/agenda/recommend-strategy", response_model=RecommendStrategyResponse)
+def agenda_recommend_strategy(request: RecommendStrategyRequest, db: Session = Depends(get_db)):
+    """AI recommends which agenda strategy is best for the situation."""
+    team = db.query(Team).filter(Team.id == request.team_id).first()
+    if not team:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
+
+    agents = db.query(Agent).filter(Agent.team_id == request.team_id, Agent.is_mirror == False).all()
+    agent_dicts = [{"name": a.name} for a in agents]
+
+    proposer = AgendaProposer(llm_call=lambda s, m: "")  # Not needed for rule-based recommend
+    result = proposer.recommend_strategy(
+        agents=agent_dicts,
+        has_prev=request.has_prev_meetings,
+        topic=request.topic or "",
+    )
+    return RecommendStrategyResponse(**result)
+
+
 @router.get("/", response_model=PaginatedResponse[MeetingResponse])
 def list_meetings(
     pagination: tuple[int, int] = Depends(pagination_params),
@@ -109,6 +291,12 @@ def create_meeting(data: MeetingCreate, db: Session = Depends(get_db)):
         output_type=data.output_type,
         context_meeting_ids=data.context_meeting_ids,
         participant_agent_ids=data.participant_agent_ids or [],
+        meeting_type=data.meeting_type,
+        individual_agent_id=data.individual_agent_id,
+        source_meeting_ids=data.source_meeting_ids or [],
+        parent_meeting_id=data.parent_meeting_id,
+        rewrite_feedback=data.rewrite_feedback,
+        agenda_strategy=data.agenda_strategy,
         max_rounds=data.max_rounds,
     )
     db.add(meeting)
@@ -134,6 +322,10 @@ def clone_meeting(meeting_id: str, db: Session = Depends(get_db)):
         output_type=original.output_type,
         context_meeting_ids=getattr(original, "context_meeting_ids", None) or [],
         participant_agent_ids=getattr(original, "participant_agent_ids", None) or [],
+        meeting_type=original.meeting_type or "team",
+        individual_agent_id=original.individual_agent_id,
+        source_meeting_ids=getattr(original, "source_meeting_ids", None) or [],
+        agenda_strategy=original.agenda_strategy or "manual",
         max_rounds=original.max_rounds,
     )
     db.add(clone)
@@ -317,6 +509,93 @@ def get_meeting_transcript(meeting_id: str, db: Session = Depends(get_db)):
     )
 
 
+@router.post("/{meeting_id}/rewrite", response_model=MeetingResponse, status_code=status.HTTP_201_CREATED)
+def rewrite_meeting(meeting_id: str, request: RewriteRequest, db: Session = Depends(get_db)):
+    """Create a new meeting that rewrites/improves a completed meeting based on feedback.
+
+    Only works on completed meetings. Creates a new meeting with parent_meeting_id set.
+    The original meeting output + feedback are injected as context.
+    """
+    original = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    if not original:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+
+    if original.status != MeetingStatus.completed.value:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Can only rewrite completed meetings",
+        )
+
+    # Get original's last assistant message as the output to improve
+    last_msg = db.query(MeetingMessage).filter(
+        MeetingMessage.meeting_id == meeting_id,
+        MeetingMessage.role == "assistant",
+    ).order_by(MeetingMessage.created_at.desc()).first()
+
+    original_output = last_msg.content if last_msg else ""
+
+    # Create new meeting with parent reference
+    rewrite = Meeting(
+        team_id=original.team_id,
+        title=f"{original.title} (rewrite)",
+        description=original.description,
+        agenda=original.agenda,
+        agenda_questions=original.agenda_questions,
+        agenda_rules=original.agenda_rules,
+        output_type=original.output_type,
+        context_meeting_ids=getattr(original, "context_meeting_ids", None) or [],
+        participant_agent_ids=getattr(original, "participant_agent_ids", None) or [],
+        meeting_type=original.meeting_type or "team",
+        individual_agent_id=original.individual_agent_id,
+        parent_meeting_id=meeting_id,
+        rewrite_feedback=request.feedback,
+        agenda_strategy=original.agenda_strategy or "manual",
+        max_rounds=request.rounds,
+    )
+
+    # Inject rewrite context as a system message
+    rewrite_context = rewrite_meeting_prompt(
+        original_output=original_output,
+        feedback=request.feedback,
+        agenda=original.agenda or "",
+        questions=original.agenda_questions or [],
+    )
+
+    db.add(rewrite)
+    db.flush()
+
+    # Add the rewrite context as first message
+    context_msg = MeetingMessage(
+        meeting_id=rewrite.id,
+        role="user",
+        content=rewrite_context,
+        round_number=0,
+    )
+    db.add(context_msg)
+    db.commit()
+    db.refresh(rewrite)
+    return rewrite
+
+
+@router.post("/{meeting_id}/preview-context", response_model=ContextPreviewResponse)
+def preview_context(meeting_id: str, db: Session = Depends(get_db)):
+    """Preview what context would be injected for this meeting's context_meeting_ids."""
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    if not meeting:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+
+    context_ids = getattr(meeting, "context_meeting_ids", None) or []
+    if not context_ids:
+        return ContextPreviewResponse(contexts=[], total_chars=0)
+
+    keywords = extract_keywords_from_agenda(
+        meeting.agenda or "", meeting.agenda_questions or []
+    )
+    contexts = extract_relevant_context(db, context_ids, keywords=keywords or None)
+    total_chars = sum(len(c["summary"]) for c in contexts)
+    return ContextPreviewResponse(contexts=contexts, total_chars=total_chars)
+
+
 @router.get("/team/{team_id}", response_model=PaginatedResponse[MeetingResponse])
 def list_team_meetings(
     team_id: str,
@@ -463,16 +742,65 @@ def run_meeting(
 
     try:
         use_structured = bool(meeting.agenda)
+        meeting_type = getattr(meeting, "meeting_type", "team") or "team"
 
-        # Load context from previous meetings if configured
+        # Load context from previous meetings if configured (smart RAG extraction)
         context_summaries = None
         if meeting.context_meeting_ids:
-            context_summaries = _load_context_summaries(db, meeting.context_meeting_ids)
+            keywords = extract_keywords_from_agenda(
+                meeting.agenda or "", meeting.agenda_questions or []
+            )
+            context_summaries = extract_relevant_context(
+                db, meeting.context_meeting_ids, keywords=keywords or None
+            )
 
         preferred_lang = meeting_preferred_lang(
             existing_messages, getattr(request, "topic", None), getattr(request, "locale", None)
         )
-        if use_structured:
+
+        if meeting_type == "individual":
+            # Individual meeting: single agent + scientific critic
+            ind_agent_id = getattr(meeting, "individual_agent_id", None)
+            if ind_agent_id:
+                ind_agent = db.query(Agent).filter(Agent.id == ind_agent_id).first()
+                if not ind_agent:
+                    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Individual agent not found")
+                agent_dict = {
+                    "id": str(ind_agent.id),
+                    "name": ind_agent.name,
+                    "system_prompt": ind_agent.system_prompt,
+                    "model": ind_agent.model,
+                }
+            else:
+                # Fallback to first agent
+                agent_dict = agent_dicts[0]
+
+            all_rounds = engine.run_individual_meeting(
+                agent=agent_dict,
+                conversation_history=conversation_history,
+                rounds=rounds_to_run,
+                agenda=meeting.agenda or "",
+                agenda_questions=meeting.agenda_questions or [],
+                agenda_rules=meeting.agenda_rules or [],
+                context_summaries=context_summaries,
+                preferred_lang=preferred_lang,
+            )
+        elif meeting_type == "merge":
+            # Merge meeting: synthesize source meetings
+            source_ids = getattr(meeting, "source_meeting_ids", None) or []
+            source_summaries = _load_context_summaries(db, source_ids) if source_ids else []
+            all_rounds = engine.run_merge_meeting(
+                agents=agent_dicts,
+                source_summaries=source_summaries,
+                conversation_history=conversation_history,
+                rounds=rounds_to_run,
+                agenda=meeting.agenda or "",
+                agenda_questions=meeting.agenda_questions or [],
+                agenda_rules=meeting.agenda_rules or [],
+                output_type=meeting.output_type or "code",
+                preferred_lang=preferred_lang,
+            )
+        elif use_structured:
             all_rounds = engine.run_structured_meeting(
                 agents=agent_dicts,
                 conversation_history=conversation_history,

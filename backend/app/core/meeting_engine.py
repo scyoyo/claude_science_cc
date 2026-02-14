@@ -21,6 +21,11 @@ from app.core.meeting_prompts import (
     phase_temperature,
     previous_context_prompt,
     CONCISENESS_RULE,
+    SCIENTIFIC_CRITIC,
+    individual_meeting_start_prompt,
+    individual_meeting_critic_prompt,
+    individual_meeting_agent_revision_prompt,
+    create_merge_prompt,
 )
 
 
@@ -314,3 +319,140 @@ class MeetingEngine:
                 ))
 
         return all_rounds
+
+    # ==================== Individual Meeting (Agent + Critic) ====================
+
+    def run_individual_meeting(
+        self,
+        agent: Dict,
+        conversation_history: List[ChatMessage],
+        rounds: int = 3,
+        agenda: str = "",
+        agenda_questions: Optional[List[str]] = None,
+        agenda_rules: Optional[List[str]] = None,
+        context_summaries: Optional[List[Dict]] = None,
+        preferred_lang: Optional[str] = None,
+    ) -> List[List[Dict]]:
+        """Run an individual meeting: agent responds, critic critiques, agent revises.
+
+        Round 0: Agent responds to agenda, Critic critiques.
+        Round 1+: Agent revises based on critique, Critic critiques again.
+        Final round: Agent only (final revised answer).
+
+        Returns:
+            List of rounds, each containing a list of messages.
+        """
+        questions = agenda_questions or []
+        rules = agenda_rules or []
+        critic = SCIENTIFIC_CRITIC
+        all_rounds = []
+        current_history = list(conversation_history)
+
+        # Inject context from previous meetings
+        if context_summaries:
+            ctx_prompt = previous_context_prompt(context_summaries)
+            if ctx_prompt:
+                current_history.append(ChatMessage(role="user", content=ctx_prompt))
+
+        # Inject meeting start
+        start_prompt = individual_meeting_start_prompt(
+            agent_name=agent["name"],
+            agenda=agenda,
+            questions=questions,
+            rules=rules,
+            num_rounds=rounds,
+            preferred_lang=preferred_lang,
+        )
+        current_history.append(ChatMessage(role="user", content=start_prompt))
+
+        for round_idx in range(rounds):
+            round_messages = []
+            is_final = round_idx == rounds - 1
+
+            # Agent speaks
+            if round_idx == 0:
+                agent_prompt = (
+                    f"{agent['name']}, please provide your detailed response to the agenda."
+                )
+            else:
+                agent_prompt = individual_meeting_agent_revision_prompt(
+                    critic_name=critic["name"], agent_name=agent["name"]
+                )
+
+            messages = list(current_history)
+            messages.append(ChatMessage(role="user", content=agent_prompt))
+            agent_response = self.llm_call(agent["system_prompt"], messages)
+            round_messages.append({
+                "agent_id": agent["id"],
+                "agent_name": agent["name"],
+                "role": "assistant",
+                "content": agent_response,
+            })
+
+            current_history.append(ChatMessage(
+                role="user", content=f"[{agent['name']}]: {agent_response}"
+            ))
+
+            # Critic speaks (unless final round)
+            if not is_final:
+                critic_prompt = individual_meeting_critic_prompt(
+                    critic_name=critic["name"], agent_name=agent["name"]
+                )
+                messages = list(current_history)
+                messages.append(ChatMessage(role="user", content=critic_prompt))
+                critic_response = self.llm_call(critic["system_prompt"], messages)
+                round_messages.append({
+                    "agent_id": None,
+                    "agent_name": critic["name"],
+                    "role": "assistant",
+                    "content": critic_response,
+                })
+                current_history.append(ChatMessage(
+                    role="user", content=f"[{critic['name']}]: {critic_response}"
+                ))
+
+            all_rounds.append(round_messages)
+
+        return all_rounds
+
+    # ==================== Merge Meeting ====================
+
+    def run_merge_meeting(
+        self,
+        agents: List[Dict],
+        source_summaries: List[Dict],
+        conversation_history: List[ChatMessage],
+        rounds: int = 2,
+        agenda: str = "",
+        agenda_questions: Optional[List[str]] = None,
+        agenda_rules: Optional[List[str]] = None,
+        output_type: str = "code",
+        preferred_lang: Optional[str] = None,
+    ) -> List[List[Dict]]:
+        """Run a merge meeting that synthesizes multiple source discussions.
+
+        Injects merge context, then runs a short structured meeting where
+        the team synthesizes the best components from each source.
+
+        Returns:
+            List of rounds, each containing a list of messages.
+        """
+        merge_prompt = create_merge_prompt(
+            agenda=agenda,
+            source_summaries=source_summaries,
+            questions=agenda_questions,
+            rules=agenda_rules,
+        )
+        enriched_history = list(conversation_history)
+        enriched_history.append(ChatMessage(role="user", content=merge_prompt))
+
+        return self.run_structured_meeting(
+            agents=agents,
+            conversation_history=enriched_history,
+            rounds=rounds,
+            agenda=agenda,
+            agenda_questions=agenda_questions,
+            agenda_rules=agenda_rules,
+            output_type=output_type,
+            preferred_lang=preferred_lang,
+        )

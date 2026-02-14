@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useTranslations, useLocale } from "next-intl";
 import { Link } from "@/i18n/navigation";
-import { meetingsAPI } from "@/lib/api";
+import { meetingsAPI, agendaAPI } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
 import { useMeetingPolling } from "@/hooks/useMeetingPolling";
 import { downloadBlob } from "@/lib/utils";
@@ -49,6 +49,10 @@ import {
   MessageSquare,
   BarChart3,
   Code,
+  RefreshCw,
+  Layers,
+  User,
+  GitMerge,
 } from "lucide-react";
 
 export default function MeetingDetailPage() {
@@ -71,6 +75,9 @@ export default function MeetingDetailPage() {
   const [editForm, setEditForm] = useState({ title: "", description: "", max_rounds: "5" });
   const [cloning, setCloning] = useState(false);
   const [backgroundRunning, setBackgroundRunning] = useState(false);
+  const [showRewriteDialog, setShowRewriteDialog] = useState(false);
+  const [rewriteFeedback, setRewriteFeedback] = useState("");
+  const [rewriting, setRewriting] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = useCallback(() => {
@@ -281,6 +288,21 @@ export default function MeetingDetailPage() {
     }
   };
 
+  const handleRewrite = async () => {
+    if (!rewriteFeedback.trim()) return;
+    try {
+      setRewriting(true);
+      const rewritten = await meetingsAPI.rewrite(meetingId, rewriteFeedback);
+      setShowRewriteDialog(false);
+      setRewriteFeedback("");
+      router.push(`/teams/${teamId}/meetings/${rewritten.id}`);
+    } catch (err) {
+      setError(getErrorMessage(err, "Failed to create rewrite"));
+    } finally {
+      setRewriting(false);
+    }
+  };
+
   const openEditDialog = () => {
     if (meeting) {
       setEditForm({
@@ -320,6 +342,12 @@ export default function MeetingDetailPage() {
         </Link>
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-xl sm:text-2xl font-bold truncate">{meeting.title}</h1>
+          {meeting.meeting_type && meeting.meeting_type !== "team" && (
+            <Badge variant="outline" className="capitalize">
+              {meeting.meeting_type === "individual" ? <User className="h-3 w-3 mr-1 inline" /> : <GitMerge className="h-3 w-3 mr-1 inline" />}
+              {meeting.meeting_type}
+            </Badge>
+          )}
           <Badge variant={statusVariant(meeting.status)}>
             {t(`status.${meeting.status}`)}
           </Badge>
@@ -338,6 +366,24 @@ export default function MeetingDetailPage() {
             {meeting.output_type && meeting.output_type !== "code" && (
               <Badge variant="outline" className="text-xs">{meeting.output_type}</Badge>
             )}
+          </div>
+        )}
+        {meeting.meeting_type === "merge" && meeting.source_meeting_ids && meeting.source_meeting_ids.length > 0 && (
+          <div className="flex items-center gap-2 text-sm">
+            <span className="font-medium">Sources:</span>
+            {meeting.source_meeting_ids.map((sid, i) => (
+              <Link key={sid} href={`/teams/${teamId}/meetings/${sid}`} className="text-primary hover:underline text-xs">
+                Source {i + 1}
+              </Link>
+            ))}
+          </div>
+        )}
+        {meeting.parent_meeting_id && (
+          <div className="flex items-center gap-2 text-sm">
+            <span className="font-medium">Rewrite of:</span>
+            <Link href={`/teams/${teamId}/meetings/${meeting.parent_meeting_id}`} className="text-primary hover:underline text-xs">
+              Original meeting
+            </Link>
           </div>
         )}
         <div className="flex flex-wrap items-center gap-2">
@@ -365,6 +411,12 @@ export default function MeetingDetailPage() {
                   <Pencil className="h-4 w-4 mr-2" />
                   {t("edit")}
                 </DropdownMenuItem>
+                {isCompleted && (
+                  <DropdownMenuItem onClick={() => setShowRewriteDialog(true)}>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Rewrite / Improve
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem variant="destructive" onClick={handleDelete}>
                   <Trash2 className="h-4 w-4 mr-2" />
@@ -410,12 +462,15 @@ export default function MeetingDetailPage() {
                     meeting.agenda &&
                     msg.round_number === meeting.max_rounds &&
                     msg.role === "assistant";
+                  const isCritic = msg.agent_name === "Scientific Critic";
                   return (
                     <div
                       key={msg.id}
                       className={`p-4 rounded-lg border ${
                         isFinalSummary
                           ? "bg-primary/5 border-primary/30 ring-1 ring-primary/20"
+                          : isCritic
+                          ? "bg-amber-50 border-amber-200 dark:bg-amber-950/20 dark:border-amber-800"
                           : msg.role === "user"
                           ? "bg-primary/5 border-primary/20"
                           : "bg-card"
@@ -523,6 +578,35 @@ export default function MeetingDetailPage() {
           <ArtifactsPanel meetingId={meetingId} meetingTitle={meeting.title} />
         </TabsContent>
       </Tabs>
+
+      {/* Rewrite Dialog */}
+      <Dialog open={showRewriteDialog} onOpenChange={setShowRewriteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rewrite / Improve Meeting</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              Provide feedback on what to improve. A new meeting will be created with the original output and your feedback injected as context.
+            </p>
+            <Textarea
+              value={rewriteFeedback}
+              onChange={(e) => setRewriteFeedback(e.target.value)}
+              placeholder="What should be improved? Be specific..."
+              rows={4}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowRewriteDialog(false)}>
+              {tc("cancel")}
+            </Button>
+            <Button onClick={handleRewrite} disabled={rewriting || !rewriteFeedback.trim()}>
+              {rewriting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              Create Rewrite
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>

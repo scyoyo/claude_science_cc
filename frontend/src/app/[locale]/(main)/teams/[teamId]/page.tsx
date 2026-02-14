@@ -251,7 +251,7 @@ export default function TeamDetailPage() {
     const ids = [...selectedIds];
     setParticipantIdsForNewMeeting(ids);
     const names = ids
-      .map((id) => team.agents.find((a) => a.id === id)?.name)
+      .map((id) => team?.agents.find((a) => a.id === id)?.name)
       .filter(Boolean) as string[];
     setMeetingForm((f) => ({
       ...f,

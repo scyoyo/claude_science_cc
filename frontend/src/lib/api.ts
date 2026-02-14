@@ -21,6 +21,11 @@ import type {
   MeetingComparison,
   TeamStats,
   AgentMetrics,
+  AgendaAutoResponse,
+  AgentVotingResponse,
+  RecommendStrategyResponse,
+  BatchMeetingRunResponse,
+  ContextPreviewResponse,
 } from "@/types";
 import { getAuthHeaders, getApiBase } from "@/lib/auth";
 
@@ -168,6 +173,42 @@ export const meetingsAPI = {
     }>(`/meetings/${meetingId}/status`),
   compare: (id1: string, id2: string) =>
     fetchAPI<MeetingComparison>(`/meetings/compare?ids=${id1},${id2}`),
+  rewrite: (meetingId: string, feedback: string, rounds: number = 2) =>
+    fetchAPI<Meeting>(`/meetings/${meetingId}/rewrite`, {
+      method: "POST",
+      body: JSON.stringify({ feedback, rounds }),
+    }),
+  batchRun: (meetingId: string, numIterations: number = 3, autoMerge: boolean = true) =>
+    fetchAPI<BatchMeetingRunResponse>("/meetings/batch-run", {
+      method: "POST",
+      body: JSON.stringify({ meeting_id: meetingId, num_iterations: numIterations, auto_merge: autoMerge }),
+    }),
+  previewContext: (meetingId: string) =>
+    fetchAPI<ContextPreviewResponse>(`/meetings/${meetingId}/preview-context`, { method: "POST" }),
+};
+
+// Agenda Strategies
+export const agendaAPI = {
+  autoGenerate: (data: { team_id: string; goal?: string; prev_meeting_ids?: string[] }) =>
+    fetchAPI<AgendaAutoResponse>("/meetings/agenda/auto-generate", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  agentVoting: (data: { team_id: string; topic: string }) =>
+    fetchAPI<AgentVotingResponse>("/meetings/agenda/agent-voting", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  chainRecommend: (data: { prev_meeting_ids: string[] }) =>
+    fetchAPI<AgendaAutoResponse>("/meetings/agenda/chain-recommend", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  recommendStrategy: (data: { team_id: string; topic?: string; has_prev_meetings?: boolean }) =>
+    fetchAPI<RecommendStrategyResponse>("/meetings/agenda/recommend-strategy", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 };
 
 // Artifacts

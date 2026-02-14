@@ -76,6 +76,9 @@ export interface AgentCreate {
   model_params?: Record<string, unknown>;
 }
 
+export type MeetingType = "team" | "individual" | "merge";
+export type AgendaStrategy = "manual" | "ai_auto" | "onboarding" | "agent_voting" | "chain";
+
 export interface Meeting {
   id: string;
   team_id: string;
@@ -87,6 +90,12 @@ export interface Meeting {
   output_type: string;
   context_meeting_ids: string[];
   participant_agent_ids?: string[];
+  meeting_type: MeetingType;
+  individual_agent_id?: string | null;
+  source_meeting_ids: string[];
+  parent_meeting_id?: string | null;
+  rewrite_feedback?: string;
+  agenda_strategy: AgendaStrategy;
   status: "pending" | "running" | "completed" | "failed";
   max_rounds: number;
   current_round: number;
@@ -119,6 +128,12 @@ export interface MeetingCreate {
   output_type?: string;
   context_meeting_ids?: string[];
   participant_agent_ids?: string[];
+  meeting_type?: MeetingType;
+  individual_agent_id?: string;
+  source_meeting_ids?: string[];
+  parent_meeting_id?: string;
+  rewrite_feedback?: string;
+  agenda_strategy?: AgendaStrategy;
   max_rounds?: number;
 }
 
@@ -313,4 +328,37 @@ export interface AgentMetrics {
   total_meetings: number;
   avg_message_length: number;
   rounds_participated: number;
+}
+
+// Agenda Strategy Types
+export interface AgendaAutoResponse {
+  agenda: string;
+  questions: string[];
+  rules: string[];
+}
+
+export interface AgentProposal {
+  agent_name: string;
+  proposals: string[];
+}
+
+export interface AgentVotingResponse {
+  proposals: AgentProposal[];
+  merged_agenda: string;
+}
+
+export interface RecommendStrategyResponse {
+  recommended: string;
+  reasoning: string;
+}
+
+// Batch Run / Rewrite Types
+export interface BatchMeetingRunResponse {
+  iteration_meeting_ids: string[];
+  merge_meeting_id: string | null;
+}
+
+export interface ContextPreviewResponse {
+  contexts: Array<{ title: string; summary: string }>;
+  total_chars: number;
 }

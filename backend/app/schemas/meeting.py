@@ -13,6 +13,12 @@ class MeetingCreate(BaseModel):
     output_type: str = "code"
     context_meeting_ids: List[str] = []
     participant_agent_ids: List[str] = []  # If non-empty, only these agents participate
+    meeting_type: str = "team"  # "team" | "individual" | "merge"
+    individual_agent_id: Optional[str] = None
+    source_meeting_ids: List[str] = []
+    parent_meeting_id: Optional[str] = None
+    rewrite_feedback: str = ""
+    agenda_strategy: str = "manual"
     max_rounds: int = Field(default=5, ge=1, le=20)
 
 
@@ -25,6 +31,12 @@ class MeetingUpdate(BaseModel):
     output_type: Optional[str] = None
     context_meeting_ids: Optional[List[str]] = None
     participant_agent_ids: Optional[List[str]] = None
+    meeting_type: Optional[str] = None
+    individual_agent_id: Optional[str] = None
+    source_meeting_ids: Optional[List[str]] = None
+    parent_meeting_id: Optional[str] = None
+    rewrite_feedback: Optional[str] = None
+    agenda_strategy: Optional[str] = None
     max_rounds: Optional[int] = Field(None, ge=1, le=20)
 
 
@@ -54,6 +66,12 @@ class MeetingResponse(BaseModel):
     output_type: Optional[str] = "code"
     context_meeting_ids: Optional[list] = []
     participant_agent_ids: Optional[list] = []
+    meeting_type: Optional[str] = "team"
+    individual_agent_id: Optional[str] = None
+    source_meeting_ids: Optional[list] = []
+    parent_meeting_id: Optional[str] = None
+    rewrite_feedback: Optional[str] = ""
+    agenda_strategy: Optional[str] = "manual"
     status: str
     max_rounds: int
     current_round: int
@@ -85,3 +103,60 @@ class MeetingSummary(BaseModel):
     participants: List[str]
     key_points: List[str]
     status: str
+
+
+# ==================== Agenda Strategy Schemas ====================
+
+class AgendaAutoRequest(BaseModel):
+    team_id: str
+    goal: Optional[str] = ""
+    prev_meeting_ids: List[str] = []
+
+class AgendaAutoResponse(BaseModel):
+    agenda: str
+    questions: List[str]
+    rules: List[str]
+
+class AgentVotingRequest(BaseModel):
+    team_id: str
+    topic: str
+
+class AgentProposal(BaseModel):
+    agent_name: str
+    proposals: List[str]
+
+class AgentVotingResponse(BaseModel):
+    proposals: List[AgentProposal]
+    merged_agenda: str
+
+class ChainRecommendRequest(BaseModel):
+    prev_meeting_ids: List[str]
+
+class RecommendStrategyRequest(BaseModel):
+    team_id: str
+    topic: Optional[str] = ""
+    has_prev_meetings: bool = False
+
+class RecommendStrategyResponse(BaseModel):
+    recommended: str
+    reasoning: str
+
+
+# ==================== Batch Run / Rewrite Schemas ====================
+
+class BatchMeetingRunRequest(BaseModel):
+    meeting_id: str
+    num_iterations: int = Field(default=3, ge=2, le=10)
+    auto_merge: bool = True
+
+class BatchMeetingRunResponse(BaseModel):
+    iteration_meeting_ids: List[str]
+    merge_meeting_id: Optional[str] = None
+
+class RewriteRequest(BaseModel):
+    feedback: str = Field(..., min_length=1)
+    rounds: int = Field(default=2, ge=1, le=10)
+
+class ContextPreviewResponse(BaseModel):
+    contexts: List[dict]
+    total_chars: int

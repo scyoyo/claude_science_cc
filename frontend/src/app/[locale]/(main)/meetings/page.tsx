@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
-import { meetingsAPI, teamsAPI } from "@/lib/api";
+import { meetingsAPI, teamsAPI, agentsAPI, agendaAPI } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
-import type { Meeting, Team } from "@/types";
+import type { Meeting, Team, Agent, MeetingType, AgendaStrategy } from "@/types";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { MessageSquare, Search, Trash2, Plus, Loader2, ArrowLeftRight } from "lucide-react";
+import { MessageSquare, Search, Trash2, Plus, Loader2, ArrowLeftRight, Sparkles, Users, User, GitMerge } from "lucide-react";
 
 type StatusFilter = "all" | "pending" | "completed" | "failed";
 
@@ -42,6 +42,7 @@ export default function MeetingsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [showCreate, setShowCreate] = useState(false);
   const [creatingMeeting, setCreatingMeeting] = useState(false);
+  const [teamAgents, setTeamAgents] = useState<Agent[]>([]);
   const [meetingForm, setMeetingForm] = useState({
     team_id: "",
     title: "",
@@ -51,8 +52,13 @@ export default function MeetingsPage() {
     output_type: "code",
     agenda_questions: [] as string[],
     context_meeting_ids: [] as string[],
+    meeting_type: "team" as MeetingType,
+    individual_agent_id: "",
+    source_meeting_ids: [] as string[],
+    agenda_strategy: "manual" as AgendaStrategy,
   });
   const [newQuestion, setNewQuestion] = useState("");
+  const [generatingAgenda, setGeneratingAgenda] = useState(false);
 
   const loadMeetings = async () => {
     try {
@@ -87,16 +93,50 @@ export default function MeetingsPage() {
         agenda_questions: meetingForm.agenda_questions.length > 0 ? meetingForm.agenda_questions : undefined,
         output_type: meetingForm.output_type,
         context_meeting_ids: meetingForm.context_meeting_ids.length > 0 ? meetingForm.context_meeting_ids : undefined,
+        meeting_type: meetingForm.meeting_type,
+        individual_agent_id: meetingForm.meeting_type === "individual" ? meetingForm.individual_agent_id || undefined : undefined,
+        source_meeting_ids: meetingForm.meeting_type === "merge" ? meetingForm.source_meeting_ids : undefined,
+        agenda_strategy: meetingForm.agenda_strategy,
         max_rounds: meetingForm.max_rounds,
       });
       setShowCreate(false);
-      setMeetingForm({ team_id: "", title: "", description: "", max_rounds: 5, agenda: "", output_type: "code", agenda_questions: [], context_meeting_ids: [] });
+      setMeetingForm({ team_id: "", title: "", description: "", max_rounds: 5, agenda: "", output_type: "code", agenda_questions: [], context_meeting_ids: [], meeting_type: "team", individual_agent_id: "", source_meeting_ids: [], agenda_strategy: "manual" });
       setNewQuestion("");
       await loadMeetings();
     } catch (err) {
       setError(getErrorMessage(err, "Failed to create meeting"));
     } finally {
       setCreatingMeeting(false);
+    }
+  };
+
+  // Load agents when team changes
+  useEffect(() => {
+    if (meetingForm.team_id) {
+      agentsAPI.listByTeam(meetingForm.team_id).then(setTeamAgents).catch(() => setTeamAgents([]));
+    } else {
+      setTeamAgents([]);
+    }
+  }, [meetingForm.team_id]);
+
+  const handleAutoGenerate = async () => {
+    if (!meetingForm.team_id) return;
+    try {
+      setGeneratingAgenda(true);
+      const result = await agendaAPI.autoGenerate({
+        team_id: meetingForm.team_id,
+        goal: meetingForm.description || meetingForm.title,
+        prev_meeting_ids: meetingForm.context_meeting_ids,
+      });
+      setMeetingForm((f) => ({
+        ...f,
+        agenda: result.agenda,
+        agenda_questions: result.questions,
+      }));
+    } catch (err) {
+      setError(getErrorMessage(err, "Failed to generate agenda"));
+    } finally {
+      setGeneratingAgenda(false);
     }
   };
 
@@ -190,6 +230,71 @@ export default function MeetingsPage() {
                   </SelectContent>
                 </Select>
               </div>
+              {/* Meeting Type */}
+              <div className="space-y-2">
+                <Label>Meeting Type</Label>
+                <div className="flex gap-2">
+                  {([
+                    { key: "team" as const, icon: Users, label: "Team" },
+                    { key: "individual" as const, icon: User, label: "Individual" },
+                    { key: "merge" as const, icon: GitMerge, label: "Merge" },
+                  ]).map(({ key, icon: Icon, label }) => (
+                    <Button
+                      key={key}
+                      type="button"
+                      size="sm"
+                      variant={meetingForm.meeting_type === key ? "default" : "outline"}
+                      onClick={() => setMeetingForm((f) => ({ ...f, meeting_type: key }))}
+                    >
+                      <Icon className="h-4 w-4 mr-1" />
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              {/* Individual: agent picker */}
+              {meetingForm.meeting_type === "individual" && teamAgents.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Select Agent</Label>
+                  <Select
+                    value={meetingForm.individual_agent_id}
+                    onValueChange={(v) => setMeetingForm((f) => ({ ...f, individual_agent_id: v }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose agent for 1:1 with critic" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {teamAgents.map((a) => (
+                        <SelectItem key={a.id} value={a.id}>{a.name} ({a.title})</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              {/* Merge: source meetings */}
+              {meetingForm.meeting_type === "merge" && meetings.filter((m) => m.status === "completed").length > 0 && (
+                <div className="space-y-2">
+                  <Label>Source Meetings (completed)</Label>
+                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                    {meetings.filter((m) => m.status === "completed").map((m) => (
+                      <label key={m.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={meetingForm.source_meeting_ids.includes(m.id)}
+                          onChange={(e) => {
+                            const ids = e.target.checked
+                              ? [...meetingForm.source_meeting_ids, m.id]
+                              : meetingForm.source_meeting_ids.filter((id) => id !== m.id);
+                            setMeetingForm((f) => ({ ...f, source_meeting_ids: ids }));
+                          }}
+                          className="rounded"
+                        />
+                        <span className="truncate">{m.title}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label>{t("meetingTitle")}</Label>
                 <Input
@@ -222,6 +327,38 @@ export default function MeetingsPage() {
                     <SelectItem value="paper">{t("meetingOutputPaper")}</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              {/* Agenda Strategy */}
+              <div className="space-y-2">
+                <Label>Agenda Strategy</Label>
+                <div className="flex items-center gap-2">
+                  <Select
+                    value={meetingForm.agenda_strategy}
+                    onValueChange={(v) => setMeetingForm((f) => ({ ...f, agenda_strategy: v as AgendaStrategy }))}
+                  >
+                    <SelectTrigger className="flex-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="manual">Manual</SelectItem>
+                      <SelectItem value="ai_auto">AI Auto-Generate</SelectItem>
+                      <SelectItem value="agent_voting">Agent Voting</SelectItem>
+                      <SelectItem value="chain">Chain (from previous)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {meetingForm.agenda_strategy === "ai_auto" && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleAutoGenerate}
+                      disabled={generatingAgenda || !meetingForm.team_id}
+                    >
+                      {generatingAgenda ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                      <span className="ml-1">Generate</span>
+                    </Button>
+                  )}
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>{t("meetingAgendaQuestions")}</Label>
@@ -365,6 +502,12 @@ export default function MeetingsPage() {
                       {meeting.title}
                     </CardTitle>
                     <div className="flex flex-wrap items-center gap-2">
+                      {meeting.meeting_type && meeting.meeting_type !== "team" && (
+                        <Badge variant="outline" className="text-xs capitalize">
+                          {meeting.meeting_type === "individual" ? <User className="h-3 w-3 mr-1" /> : <GitMerge className="h-3 w-3 mr-1" />}
+                          {meeting.meeting_type}
+                        </Badge>
+                      )}
                       <Badge variant={statusVariant(meeting.status)}>
                         {t(`status.${meeting.status}`)}
                       </Badge>
