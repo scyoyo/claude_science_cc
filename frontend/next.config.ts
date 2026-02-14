@@ -11,6 +11,7 @@ const nextConfig: NextConfig = {
     root: __dirname,
   },
   output: "standalone",
+  skipTrailingSlashRedirect: true,
   async rewrites() {
     return [
       {
