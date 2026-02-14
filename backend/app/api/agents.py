@@ -7,18 +7,9 @@ from app.database import get_db
 from app.models import Agent, Team, MeetingMessage
 from app.schemas.agent import AgentCreate, AgentUpdate, AgentResponse
 from app.schemas.pagination import PaginatedResponse
+from app.core.prompt import generate_system_prompt
 
 router = APIRouter(prefix="/agents", tags=["agents"])
-
-
-def generate_system_prompt(agent: Agent) -> str:
-    """Generate system prompt from agent fields"""
-    return (
-        f"You are a {agent.title}. "
-        f"Your expertise is in {agent.expertise}. "
-        f"Your goal is to {agent.goal}. "
-        f"Your role is to {agent.role}."
-    )
 
 
 @router.post("/", response_model=AgentResponse, status_code=status.HTTP_201_CREATED)

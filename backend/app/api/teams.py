@@ -4,7 +4,7 @@ from typing import List, Optional
 
 from app.database import get_db
 from app.models import Team, Agent, Meeting, MeetingMessage, CodeArtifact
-from app.api.agents import generate_system_prompt
+from app.core.prompt import generate_system_prompt
 from app.models.user import User, UserTeamRole
 from app.schemas.team import TeamCreate, TeamUpdate, TeamResponse, TeamWithAgents
 from app.schemas.user import TeamRoleAssign, TeamRoleResponse

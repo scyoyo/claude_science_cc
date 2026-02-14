@@ -6,7 +6,7 @@ from app.database import get_db
 from app.models import Agent, Team
 from app.schemas.agent import AgentResponse
 from app.core.agent_templates import get_all_templates, get_template_by_id, get_templates_by_category
-from app.api.agents import generate_system_prompt
+from app.core.prompt import generate_system_prompt
 
 router = APIRouter(prefix="/templates", tags=["templates"])
 

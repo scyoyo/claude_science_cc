@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import get_db
 from app.models import Team, Agent
-from app.api.agents import generate_system_prompt
+from app.core.prompt import generate_system_prompt
 from app.core.team_builder import TeamBuilder
 from app.core.llm_client import create_provider
 from app.schemas.onboarding import (
