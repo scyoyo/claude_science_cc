@@ -462,15 +462,17 @@ class TestOnboardingChatAPI:
         assert "agents" in data["data"]["team_suggestion"]
         assert len(data["data"]["team_suggestion"]["agents"]) > 0
 
-    def test_clarification_stage_missing_analysis(self, client):
-        """Clarification stage fails without analysis context."""
+    def test_clarification_stage_missing_analysis_auto_recovers(self, client):
+        """Clarification stage auto-generates analysis when missing from context."""
         response = client.post("/api/onboarding/chat", json={
             "stage": "clarification",
-            "message": "team of 3",
+            "message": "rna folding team of 3",
             "context": {},
         })
-        assert response.status_code == 400
-        assert "analysis" in response.json()["detail"].lower()
+        assert response.status_code == 200
+        data = response.json()
+        assert data["stage"] == "clarification"
+        assert "team_suggestion" in data["data"]
 
     def test_team_suggestion_stage(self, client):
         """POST /api/onboarding/chat with team_suggestion stage."""

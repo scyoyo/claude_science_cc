@@ -210,16 +210,25 @@ def _handle_clarification_stage(
                     "proposed_team": [a.model_dump() for a in suggestion.agents],
                 },
             )
-        # LLM failed to produce valid JSON, fall through to template
-        pass
+        # LLM failed to produce valid JSON — ask user for more detail instead of crashing
+        return OnboardingChatResponse(
+            stage=OnboardingStage.clarification,
+            next_stage=OnboardingStage.clarification,
+            message=(
+                raw_text if raw_text else
+                "Could you tell me more about your research goals? "
+                "For example, what specific problem are you trying to solve, "
+                "and what kind of expertise would be most helpful?"
+            ),
+            data={},
+        )
 
-    # Template mode: reconstruct analysis from context
+    # Template mode: reconstruct analysis from context (or generate it on the fly)
     analysis_data = request.context.get("analysis")
     if not analysis_data:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Missing 'analysis' in context. Complete the 'problem' stage first.",
-        )
+        # Auto-generate analysis from the user's message
+        analysis = team_builder.analyze_problem(request.message)
+        analysis_data = analysis.model_dump()
 
     analysis = DomainAnalysis(**analysis_data)
     parsed = _parse_preferences_from_message(request.message)
