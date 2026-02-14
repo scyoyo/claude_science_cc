@@ -40,7 +40,7 @@ import {
   PlayCircle,
   Wifi,
   WifiOff,
-  Copy,
+  CopyPlus,
   FileDown,
   MoreVertical,
   Pencil,
@@ -393,7 +393,7 @@ export default function MeetingDetailPage() {
           </p>
           <div className="flex items-center gap-1">
             <Button variant="outline" size="sm" onClick={handleClone} disabled={cloning}>
-              {cloning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy className="h-4 w-4" />}
+              {cloning ? <Loader2 className="h-4 w-4 animate-spin" /> : <CopyPlus className="h-4 w-4" />}
               <span className="hidden sm:inline ml-1">{t("clone")}</span>
             </Button>
             <Button variant="outline" size="sm" onClick={handleDownloadTranscript}>

@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Plus, Trash2, Pencil, Workflow, MessageSquare, Bot, Loader2, LayoutTemplate, Copy, CheckSquare, Download, PlayCircle, CopyPlus } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Pencil, Workflow, MessageSquare, Bot, Loader2, LayoutTemplate, CheckSquare, Download, PlayCircle, CopyPlus } from "lucide-react";
 import { SHOW_VISUAL_EDITOR, SHOW_EXPORT_TEAM } from "@/lib/feature-flags";
 import type { Agent } from "@/types";
 import { MODEL_OPTIONS } from "@/lib/models";
@@ -560,7 +560,7 @@ export default function TeamDetailPage() {
                         onClick={(e) => { e.stopPropagation(); handleCloneAgent(agent.id); }}
                         title={t("cloneAgent")}
                       >
-                        <Copy className="h-3.5 w-3.5" />
+                        <CopyPlus className="h-3.5 w-3.5" />
                       </Button>
                       <span className="text-muted-foreground/60 p-1" aria-hidden>
                         <Pencil className="h-3.5 w-3.5" />
