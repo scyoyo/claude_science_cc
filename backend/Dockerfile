@@ -1,17 +1,20 @@
+# syntax=docker/dockerfile:1
+# Use BuildKit for cache mounts (faster pip installs on Railway)
 FROM python:3.13-slim
 
 WORKDIR /app
 
-# Install system dependencies for psycopg2
+# Install system dependencies for psycopg2 (layer cached when unchanged)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Install production deps only (no pytest); cache pip across builds
+COPY requirements-prod.txt .
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir -r requirements-prod.txt
 
-# Copy application code
+# Copy application code (after deps so code changes don't invalidate pip layer)
 COPY . .
 
 # Create data directory (for SQLite mode)

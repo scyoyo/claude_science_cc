@@ -1,0 +1,29 @@
+# Git and env
+.git
+.gitignore
+.env
+.env.*
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.venv
+venv
+env
+
+# Tests and dev (not needed in production image)
+tests/
+.pytest_cache
+.coverage
+htmlcov/
+*.db
+test.db
+
+# Docs and misc
+*.md
+.dockerignore
+Dockerfile
+railway.json
+Procfile
