@@ -4,26 +4,42 @@ from pathlib import Path
 from app.config import settings
 
 
-def _ensure_meetings_columns_sqlite(engine):
-    """Add missing columns to meetings table for existing SQLite DBs (no such column errors)."""
+def _ensure_table_columns_sqlite(engine, table_name: str, columns_to_add: list[tuple[str, str]]) -> None:
+    """Add missing columns to a table for existing SQLite DBs."""
     with engine.connect() as conn:
-        r = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='meetings'"))
+        r = conn.execute(
+            text("SELECT name FROM sqlite_master WHERE type='table' AND name=:t"),
+            {"t": table_name},
+        )
         if r.fetchone() is None:
             return
-        r = conn.execute(text("PRAGMA table_info(meetings)"))
+        r = conn.execute(text(f"PRAGMA table_info({table_name})"))
         existing = {row[1] for row in r}
-    columns_to_add = [
-        ("agenda", "TEXT DEFAULT ''"),
-        ("agenda_questions", "TEXT"),  # stored as JSON list
-        ("agenda_rules", "TEXT"),
-        ("output_type", "VARCHAR(20) DEFAULT 'code'"),
-        ("context_meeting_ids", "TEXT"),
-    ]
     with engine.connect() as conn:
         for name, col_def in columns_to_add:
             if name not in existing:
-                conn.execute(text(f"ALTER TABLE meetings ADD COLUMN {name} {col_def}"))
+                conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {name} {col_def}"))
                 conn.commit()
+
+
+def _ensure_meetings_columns_sqlite(engine):
+    """Add missing columns to meetings table for existing SQLite DBs (no such column errors)."""
+    _ensure_table_columns_sqlite(
+        engine,
+        "meetings",
+        [
+            ("agenda", "TEXT DEFAULT ''"),
+            ("agenda_questions", "TEXT"),
+            ("agenda_rules", "TEXT"),
+            ("output_type", "VARCHAR(20) DEFAULT 'code'"),
+            ("context_meeting_ids", "TEXT"),
+        ],
+    )
+
+
+def _ensure_teams_columns_sqlite(engine):
+    """Add owner_id for V2 auth (nullable); dashboard/stats need teams table to match model."""
+    _ensure_table_columns_sqlite(engine, "teams", [("owner_id", "VARCHAR(36)")])
 
 
 def _create_engine():
@@ -65,3 +81,4 @@ def init_db():
     Base.metadata.create_all(bind=engine)
     if settings.DATABASE_URL.startswith("sqlite"):
         _ensure_meetings_columns_sqlite(engine)
+        _ensure_teams_columns_sqlite(engine)
