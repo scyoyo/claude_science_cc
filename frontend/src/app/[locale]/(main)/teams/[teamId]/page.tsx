@@ -6,7 +6,8 @@ import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { teamsAPI, agentsAPI, meetingsAPI } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
-import type { TeamWithAgents, Meeting } from "@/types";
+import type { TeamWithAgents, Meeting, TeamStats, AgentMetrics } from "@/types";
+import TemplatesBrowser from "@/components/TemplatesBrowser";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardAction } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,7 +29,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Plus, Trash2, Pencil, Workflow, MessageSquare, Bot, Loader2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Pencil, Workflow, MessageSquare, Bot, Loader2, LayoutTemplate } from "lucide-react";
 import type { Agent } from "@/types";
 import { MODEL_OPTIONS } from "@/lib/models";
 
@@ -64,17 +65,36 @@ export default function TeamDetailPage() {
   });
   const [newQuestion, setNewQuestion] = useState("");
   const [creatingMeeting, setCreatingMeeting] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [teamStats, setTeamStats] = useState<TeamStats | null>(null);
+  const [agentMetricsMap, setAgentMetricsMap] = useState<Record<string, AgentMetrics>>({});
 
   const loadData = async () => {
     try {
       setLoading(true);
-      const [teamData, meetingsData] = await Promise.all([
+      const [teamData, meetingsData, statsData] = await Promise.all([
         teamsAPI.get(teamId),
         meetingsAPI.listByTeam(teamId),
+        teamsAPI.stats(teamId).catch(() => null),
       ]);
       setTeam(teamData);
       setMeetings(meetingsData);
+      if (statsData) setTeamStats(statsData);
       setError(null);
+
+      // Load agent metrics in background
+      if (teamData.agents.length > 0) {
+        const metricsEntries = await Promise.all(
+          teamData.agents.map((a) =>
+            agentsAPI.metrics(a.id).then((m) => [a.id, m] as const).catch(() => null)
+          )
+        );
+        const map: Record<string, AgentMetrics> = {};
+        for (const entry of metricsEntries) {
+          if (entry) map[entry[0]] = entry[1];
+        }
+        setAgentMetricsMap(map);
+      }
     } catch (err) {
       setError(getErrorMessage(err, "Failed to load team"));
     } finally {
@@ -211,6 +231,24 @@ export default function TeamDetailPage() {
         )}
       </div>
 
+      {/* Stats Bar */}
+      {teamStats && (
+        <div className="flex gap-4 flex-wrap text-sm">
+          {[
+            { label: t("stats.agents"), value: teamStats.agent_count },
+            { label: t("stats.meetings"), value: teamStats.meeting_count },
+            { label: t("stats.completed"), value: teamStats.completed_meetings },
+            { label: t("stats.messages"), value: teamStats.message_count },
+            { label: t("stats.artifacts"), value: teamStats.artifact_count },
+          ].map((s) => (
+            <div key={s.label} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-muted">
+              <span className="font-medium">{s.value}</span>
+              <span className="text-muted-foreground">{s.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {error && (
         <div className="p-3 bg-destructive/10 text-destructive rounded-lg text-sm">{error}</div>
       )}
@@ -221,13 +259,31 @@ export default function TeamDetailPage() {
           <h2 className="text-xl font-semibold">
             {t("agents")} ({team.agents.length})
           </h2>
-          <Dialog open={showAddAgent} onOpenChange={setShowAddAgent}>
-            <DialogTrigger asChild>
-              <Button size="sm">
-                <Plus className="h-4 w-4 mr-1" />
-                {t("addAgent")}
-              </Button>
-            </DialogTrigger>
+          <div className="flex gap-2">
+            <Dialog open={showTemplates} onOpenChange={setShowTemplates}>
+              <DialogTrigger asChild>
+                <Button size="sm" variant="outline">
+                  <LayoutTemplate className="h-4 w-4 mr-1" />
+                  {t("fromTemplate")}
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>{t("browseTemplates")}</DialogTitle>
+                </DialogHeader>
+                <TemplatesBrowser
+                  teamId={teamId}
+                  onApplied={() => { setShowTemplates(false); loadData(); }}
+                />
+              </DialogContent>
+            </Dialog>
+            <Dialog open={showAddAgent} onOpenChange={setShowAddAgent}>
+              <DialogTrigger asChild>
+                <Button size="sm">
+                  <Plus className="h-4 w-4 mr-1" />
+                  {t("addAgent")}
+                </Button>
+              </DialogTrigger>
             <DialogContent className="sm:max-w-lg">
               <DialogHeader>
                 <DialogTitle>{t("createAgent")}</DialogTitle>
@@ -289,6 +345,7 @@ export default function TeamDetailPage() {
               </form>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
 
         {team.agents.length === 0 ? (
@@ -317,9 +374,18 @@ export default function TeamDetailPage() {
                     <p className="line-clamp-2"><span className="font-medium text-foreground">{t("goal")}:</span> {agent.goal}</p>
                   </div>
                   <div className="mt-3 flex items-center justify-between">
-                    <Badge variant="outline" className="text-[10px] font-normal max-w-[100px] truncate rounded-full px-2">
-                      {agent.model}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-[10px] font-normal max-w-[100px] truncate rounded-full px-2">
+                        {agent.model}
+                      </Badge>
+                      {agentMetricsMap[agent.id] && (
+                        <span className="text-[10px] text-muted-foreground">
+                          {t("agentMetrics.messages", { count: agentMetricsMap[agent.id].total_messages })}
+                          {" · "}
+                          {t("agentMetrics.meetings", { count: agentMetricsMap[agent.id].total_meetings })}
+                        </span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-1">
                       <span className="text-muted-foreground/60 p-1" aria-hidden>
                         <Pencil className="h-3.5 w-3.5" />

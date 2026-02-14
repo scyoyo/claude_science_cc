@@ -96,7 +96,20 @@
     "round": "轮次",
     "mirror": "镜像",
     "contextMeetings": "引用历史会议",
-    "noCompletedMeetings": "暂无已完成的会议"
+    "noCompletedMeetings": "暂无已完成的会议",
+    "fromTemplate": "从模板",
+    "browseTemplates": "浏览模板",
+    "stats": {
+      "agents": "智能体",
+      "meetings": "会议",
+      "completed": "已完成",
+      "messages": "消息",
+      "artifacts": "产物"
+    },
+    "agentMetrics": {
+      "messages": "{count} 条消息",
+      "meetings": "{count} 场会议"
+    }
   },
   "meeting": {
     "backToTeam": "返回团队",
@@ -198,7 +211,8 @@
     "meetingAgendaQuestions": "需要回答的问题",
     "meetingAgendaQuestionsPlaceholder": "添加一个具体问题...",
     "contextMeetings": "引用历史会议",
-    "noCompletedMeetings": "暂无已完成的会议"
+    "noCompletedMeetings": "暂无已完成的会议",
+    "compareMeetings": "对比"
   },
   "editor": {
     "title": "可视化编辑器",
@@ -263,7 +277,56 @@
       "complete": "完成"
     }
   },
-  "profile": {
+  "dashboard": {
+    "teams": "团队",
+    "agents": "智能体",
+    "meetings": "会议",
+    "artifacts": "产物",
+    "newProject": "新建项目",
+    "newTeam": "新建团队",
+    "recentMeetings": "最近会议",
+    "teamsOverview": "团队概览",
+    "noRecentMeetings": "暂无会议。",
+    "noTeams": "暂无团队。"
+  },
+  "templates": {
+    "title": "智能体模板",
+    "all": "全部",
+    "addToTeam": "添加到团队",
+    "adding": "添加中...",
+    "added": "已从模板添加智能体",
+    "fromTemplate": "从模板",
+    "browse": "浏览模板"
+  },
+  "webhooks": {
+    "title": "Webhooks",
+    "url": "URL",
+    "events": "事件",
+    "secret": "密钥（可选）",
+    "active": "已启用",
+    "inactive": "已停用",
+    "addWebhook": "添加 Webhook",
+    "editWebhook": "编辑 Webhook",
+    "deleteConfirm": "确定删除此 Webhook 吗？",
+    "noWebhooks": "暂未配置 Webhook。",
+    "urlPlaceholder": "https://example.com/webhook"
+  },
+  "comparison": {
+    "title": "对比会议",
+    "selectFirst": "第一个会议",
+    "selectSecond": "第二个会议",
+    "compare": "对比",
+    "rounds": "轮次",
+    "messages": "消息",
+    "participants": "参与者",
+    "sharedParticipants": "共同参与者",
+    "uniqueToFirst": "仅第一个会议",
+    "uniqueToSecond": "仅第二个会议",
+    "selectBoth": "选择两个已完成的会议进行对比。",
+    "compareButton": "对比会议",
+    "noCompletedMeetings": "暂无已完成的会议可供对比。"
+  },
+  "teamDetail": {
     "title": "个人资料",
     "email": "邮箱",
     "username": "用户名",

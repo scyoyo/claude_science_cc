@@ -27,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { MessageSquare, Search, Trash2, Plus, Loader2 } from "lucide-react";
+import { MessageSquare, Search, Trash2, Plus, Loader2, ArrowLeftRight } from "lucide-react";
 
 type StatusFilter = "all" | "pending" | "completed" | "failed";
 
@@ -153,13 +153,20 @@ export default function MeetingsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">{t("title")}</h1>
-        <Dialog open={showCreate} onOpenChange={setShowCreate}>
-          <DialogTrigger asChild>
-            <Button size="sm">
-              <Plus className="h-4 w-4 mr-1" />
-              {t("create")}
-            </Button>
-          </DialogTrigger>
+        <div className="flex gap-2">
+          <Button asChild size="sm" variant="outline">
+            <Link href="/meetings/compare">
+              <ArrowLeftRight className="h-4 w-4 mr-1" />
+              {t("compareMeetings")}
+            </Link>
+          </Button>
+          <Dialog open={showCreate} onOpenChange={setShowCreate}>
+            <DialogTrigger asChild>
+              <Button size="sm">
+                <Plus className="h-4 w-4 mr-1" />
+                {t("create")}
+              </Button>
+            </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>{t("newMeeting")}</DialogTitle>
@@ -299,6 +306,7 @@ export default function MeetingsPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {error && (

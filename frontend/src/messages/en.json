@@ -96,7 +96,20 @@
     "round": "Round",
     "mirror": "Mirror",
     "contextMeetings": "Reference previous meetings",
-    "noCompletedMeetings": "No completed meetings"
+    "noCompletedMeetings": "No completed meetings",
+    "fromTemplate": "From Template",
+    "browseTemplates": "Browse Templates",
+    "stats": {
+      "agents": "Agents",
+      "meetings": "Meetings",
+      "completed": "Completed",
+      "messages": "Messages",
+      "artifacts": "Artifacts"
+    },
+    "agentMetrics": {
+      "messages": "{count} messages",
+      "meetings": "{count} meetings"
+    }
   },
   "meeting": {
     "backToTeam": "Back to Team",
@@ -198,7 +211,8 @@
     "meetingAgendaQuestions": "Questions to answer",
     "meetingAgendaQuestionsPlaceholder": "Add a specific question...",
     "contextMeetings": "Reference previous meetings",
-    "noCompletedMeetings": "No completed meetings"
+    "noCompletedMeetings": "No completed meetings",
+    "compareMeetings": "Compare"
   },
   "editor": {
     "title": "Visual Editor",
@@ -263,7 +277,56 @@
       "complete": "Complete"
     }
   },
-  "profile": {
+  "dashboard": {
+    "teams": "Teams",
+    "agents": "Agents",
+    "meetings": "Meetings",
+    "artifacts": "Artifacts",
+    "newProject": "New Project",
+    "newTeam": "New Team",
+    "recentMeetings": "Recent Meetings",
+    "teamsOverview": "Teams Overview",
+    "noRecentMeetings": "No meetings yet.",
+    "noTeams": "No teams yet."
+  },
+  "templates": {
+    "title": "Agent Templates",
+    "all": "All",
+    "addToTeam": "Add to Team",
+    "adding": "Adding...",
+    "added": "Agent added from template",
+    "fromTemplate": "From Template",
+    "browse": "Browse Templates"
+  },
+  "webhooks": {
+    "title": "Webhooks",
+    "url": "URL",
+    "events": "Events",
+    "secret": "Secret (optional)",
+    "active": "Active",
+    "inactive": "Inactive",
+    "addWebhook": "Add Webhook",
+    "editWebhook": "Edit Webhook",
+    "deleteConfirm": "Delete this webhook?",
+    "noWebhooks": "No webhooks configured.",
+    "urlPlaceholder": "https://example.com/webhook"
+  },
+  "comparison": {
+    "title": "Compare Meetings",
+    "selectFirst": "First meeting",
+    "selectSecond": "Second meeting",
+    "compare": "Compare",
+    "rounds": "Rounds",
+    "messages": "Messages",
+    "participants": "Participants",
+    "sharedParticipants": "Shared Participants",
+    "uniqueToFirst": "Unique to First",
+    "uniqueToSecond": "Unique to Second",
+    "selectBoth": "Select two completed meetings to compare.",
+    "compareButton": "Compare Meetings",
+    "noCompletedMeetings": "No completed meetings to compare."
+  },
+  "teamDetail": {
     "title": "Profile",
     "email": "Email",
     "username": "Username",

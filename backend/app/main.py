@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from app.config import settings
 from app.database import init_db
-from app.api import teams, agents, onboarding, llm, meetings, artifacts, export, auth, ws, search, templates, webhooks
+from app.api import teams, agents, onboarding, llm, meetings, artifacts, export, auth, ws, search, templates, webhooks, dashboard
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.middleware.logging import LoggingMiddleware
 
@@ -62,7 +62,7 @@ app.add_middleware(
 _api_routers = [
     teams.router, agents.router, onboarding.router, llm.router,
     meetings.router, artifacts.router, export.router, auth.router,
-    search.router, templates.router, webhooks.router,
+    search.router, templates.router, webhooks.router, dashboard.router,
 ]
 for router in _api_routers:
     app.include_router(router, prefix="/api")

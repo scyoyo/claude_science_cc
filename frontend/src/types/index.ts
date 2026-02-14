@@ -206,3 +206,106 @@ export interface GenerateTeamRequest {
   agents: AgentSuggestion[];
   mirror_config?: MirrorConfig;
 }
+
+// Dashboard
+export interface DashboardRecentMeeting {
+  id: string;
+  title: string;
+  team_id: string;
+  team_name: string;
+  status: string;
+  current_round: number;
+  max_rounds: number;
+  updated_at: string;
+}
+
+export interface DashboardTeamOverview {
+  id: string;
+  name: string;
+  description: string | null;
+  agent_count: number;
+  meeting_count: number;
+  created_at: string;
+}
+
+export interface DashboardStats {
+  total_teams: number;
+  total_agents: number;
+  total_meetings: number;
+  completed_meetings: number;
+  total_artifacts: number;
+  total_messages: number;
+  recent_meetings: DashboardRecentMeeting[];
+  teams_overview: DashboardTeamOverview[];
+}
+
+// Agent Templates
+export interface AgentTemplate {
+  id: string;
+  name: string;
+  title: string;
+  expertise: string;
+  goal: string;
+  role: string;
+  model: string;
+  category: string;
+}
+
+// Webhooks
+export interface Webhook {
+  id: string;
+  url: string;
+  events: string[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WebhookCreate {
+  url: string;
+  events: string[];
+  secret?: string;
+}
+
+export interface WebhookUpdate {
+  url?: string;
+  events?: string[];
+  is_active?: boolean;
+}
+
+// Meeting Comparison
+export interface MeetingComparisonItem {
+  id: string;
+  title: string;
+  status: string;
+  rounds: number;
+  max_rounds: number;
+  message_count: number;
+  participants: string[];
+}
+
+export interface MeetingComparison {
+  meetings: MeetingComparisonItem[];
+  shared_participants: string[];
+  unique_to_first: string[];
+  unique_to_second: string[];
+}
+
+// Team Stats
+export interface TeamStats {
+  team_id: string;
+  agent_count: number;
+  meeting_count: number;
+  completed_meetings: number;
+  message_count: number;
+  artifact_count: number;
+}
+
+// Agent Metrics
+export interface AgentMetrics {
+  agent_id: string;
+  total_messages: number;
+  total_meetings: number;
+  avg_message_length: number;
+  rounds_participated: number;
+}

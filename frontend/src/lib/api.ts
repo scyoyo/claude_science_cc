@@ -13,6 +13,14 @@ import type {
   OnboardingChatRequest,
   OnboardingChatResponse,
   GenerateTeamRequest,
+  DashboardStats,
+  AgentTemplate,
+  Webhook,
+  WebhookCreate,
+  WebhookUpdate,
+  MeetingComparison,
+  TeamStats,
+  AgentMetrics,
 } from "@/types";
 import { getAuthHeaders, getApiBase } from "@/lib/auth";
 
@@ -59,6 +67,7 @@ export const teamsAPI = {
     fetchAPI<Team>(`/teams/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   delete: (id: string) =>
     fetchAPI<void>(`/teams/${id}`, { method: "DELETE" }),
+  stats: (id: string) => fetchAPI<TeamStats>(`/teams/${id}/stats`),
 };
 
 // Agents
@@ -74,6 +83,7 @@ export const agentsAPI = {
     fetchAPI<Agent>(`/agents/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   delete: (id: string) =>
     fetchAPI<void>(`/agents/${id}`, { method: "DELETE" }),
+  metrics: (id: string) => fetchAPI<AgentMetrics>(`/agents/${id}/metrics`),
 };
 
 async function fetchRaw(path: string, options?: RequestInit): Promise<Response> {
@@ -140,6 +150,8 @@ export const meetingsAPI = {
       message_count: number;
       background_running: boolean;
     }>(`/meetings/${meetingId}/status`),
+  compare: (id1: string, id2: string) =>
+    fetchAPI<MeetingComparison>(`/meetings/compare?ids=${id1},${id2}`),
 };
 
 // Artifacts
@@ -208,4 +220,33 @@ export const llmAPI = {
     }),
   deleteKey: (id: string) =>
     fetchAPI<void>(`/llm/api-keys/${id}`, { method: "DELETE" }),
+};
+
+// Dashboard
+export const dashboardAPI = {
+  stats: () => fetchAPI<DashboardStats>("/dashboard/stats"),
+};
+
+// Templates
+export const templatesAPI = {
+  list: (category?: string) =>
+    fetchAPI<AgentTemplate[]>(`/templates/${category ? `?category=${category}` : ""}`),
+  get: (id: string) => fetchAPI<AgentTemplate>(`/templates/${id}`),
+  apply: (templateId: string, teamId: string) =>
+    fetchAPI<Agent>(`/templates/apply?template_id=${templateId}&team_id=${teamId}`, {
+      method: "POST",
+    }),
+};
+
+// Webhooks
+export const webhooksAPI = {
+  list: () => fetchAPI<Webhook[]>("/webhooks/"),
+  events: () => fetchAPI<string[]>("/webhooks/events"),
+  get: (id: string) => fetchAPI<Webhook>(`/webhooks/${id}`),
+  create: (data: WebhookCreate) =>
+    fetchAPI<Webhook>("/webhooks/", { method: "POST", body: JSON.stringify(data) }),
+  update: (id: string, data: WebhookUpdate) =>
+    fetchAPI<Webhook>(`/webhooks/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  delete: (id: string) =>
+    fetchAPI<void>(`/webhooks/${id}`, { method: "DELETE" }),
 };
