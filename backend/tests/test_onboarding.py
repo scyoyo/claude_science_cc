@@ -484,7 +484,7 @@ class TestOnboardingChatAPI:
         assert response.status_code == 200
         data = response.json()
         assert data["stage"] == "team_suggestion"
-        assert data["next_stage"] == "mirror_config"
+        assert data["next_stage"] is None  # mirror step skipped
 
     def test_mirror_config_stage(self, client):
         """POST /api/onboarding/chat with mirror_config stage."""
@@ -603,20 +603,19 @@ class TestOnboardingChatAPI:
         assert response.status_code == 200
         data = response.json()
         assert data["stage"] == "team_suggestion"
-        assert data["next_stage"] == "mirror_config"
+        assert data["next_stage"] is None  # mirror step skipped
 
-    def test_chat_omits_stage_infers_mirror_config(self, client):
-        """When stage is omitted, backend infers mirror_config from context."""
+    def test_chat_omits_stage_infers_team_suggestion_completes(self, client):
+        """When stage is omitted with team_suggestion context, accepting completes onboarding."""
         response = client.post("/api/onboarding/chat", json={
             "message": "Yes, enable mirrors with claude",
             "context": {
                 "team_suggestion": {"team_name": "T", "agents": []},
-                "mirror_config": {"enabled": True, "mirror_model": "claude-3-opus"},
             },
         })
         assert response.status_code == 200
         data = response.json()
-        assert data["stage"] == "mirror_config"
+        assert data["stage"] == "team_suggestion"
         assert data["next_stage"] is None
 
 
@@ -809,8 +808,7 @@ class TestOnboardingChatLLMMode:
                 })
                 assert response.status_code == 200
                 data = response.json()
-                assert data["next_stage"] == "mirror_config"
-                assert "mirror" in data["message"].lower()
+                assert data["next_stage"] is None  # mirror step skipped, goes to complete
         finally:
             app.dependency_overrides.pop(get_team_builder, None)
 
@@ -924,7 +922,7 @@ class TestOnboardingChatLLMMode:
                 assert r2.json()["next_stage"] == "team_suggestion"
                 assert "proposed_team" in r2.json()["data"]
 
-                # Stage 3: Accept team → mirror explanation
+                # Stage 3: Accept team → complete (mirror step skipped)
                 r3 = client.post("/api/onboarding/chat", json={
                     "stage": "team_suggestion",
                     "message": "Accept",
@@ -937,19 +935,7 @@ class TestOnboardingChatLLMMode:
                     ],
                 })
                 assert r3.status_code == 200
-                assert r3.json()["next_stage"] == "mirror_config"
-
-                # Stage 4: Mirror config → complete
-                r4 = client.post("/api/onboarding/chat", json={
-                    "stage": "mirror_config",
-                    "message": "No mirrors",
-                    "context": {
-                        "team_suggestion": r2.json()["data"]["team_suggestion"],
-                        "mirror_config": {"enabled": False},
-                    },
-                })
-                assert r4.status_code == 200
-                assert r4.json()["next_stage"] is None
+                assert r3.json()["next_stage"] is None
         finally:
             app.dependency_overrides.pop(get_team_builder, None)
 

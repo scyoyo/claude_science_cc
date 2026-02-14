@@ -140,8 +140,6 @@ def _infer_stage(request: OnboardingChatRequest) -> OnboardingStage:
     """
     ctx = request.context or {}
     history = request.conversation_history or []
-    if ctx.get("mirror_config") is not None and ctx.get("team_suggestion"):
-        return OnboardingStage.mirror_config
     if ctx.get("team_suggestion"):
         return OnboardingStage.team_suggestion
     if ctx.get("analysis") or len(history) >= 2:
@@ -360,31 +358,11 @@ def _handle_team_suggestion_stage(
         )
 
     # Accept (or unclear → default to accept and proceed)
-    response_lang = _response_lang(request)
-    if team_builder.llm_func:
-        try:
-            history = list(request.conversation_history)
-            mirror_explanation = team_builder.explain_mirrors(
-                history, preferred_lang=response_lang
-            )
-            return OnboardingChatResponse(
-                stage=OnboardingStage.team_suggestion,
-                next_stage=OnboardingStage.mirror_config,
-                message=mirror_explanation,
-                data={"team_suggestion": request.context.get("team_suggestion", {})},
-            )
-        except Exception:
-            pass  # Fallback to static message below on timeout / LLM error
-
+    # Skip mirror_config stage — mirrors can be added later from the team page
     return OnboardingChatResponse(
         stage=OnboardingStage.team_suggestion,
-        next_stage=OnboardingStage.mirror_config,
-        message=(
-            "Would you like to enable mirror agents?\n\n"
-            "Mirror agents use a different AI model to independently verify "
-            "the primary agents' outputs, helping catch errors and biases.\n\n"
-            "If yes, which model should mirrors use? (e.g., claude-3-opus, gpt-4)"
-        ),
+        next_stage=None,
+        message="Great! Creating your team now...",
         data={"team_suggestion": request.context.get("team_suggestion", {})},
     )
 
