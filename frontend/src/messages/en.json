@@ -94,7 +94,9 @@
     "meetingAgendaQuestions": "Questions to answer",
     "meetingAgendaQuestionsPlaceholder": "Add a specific question...",
     "round": "Round",
-    "mirror": "Mirror"
+    "mirror": "Mirror",
+    "contextMeetings": "Reference previous meetings",
+    "noCompletedMeetings": "No completed meetings"
   },
   "meeting": {
     "backToTeam": "Back to Team",
@@ -159,7 +161,10 @@
     "exportZip": "Export ZIP",
     "exportNotebook": "Export Colab Notebook",
     "exportGithub": "Export GitHub Files",
-    "exporting": "Exporting..."
+    "exportJson": "Export JSON",
+    "exporting": "Exporting...",
+    "contextMeetings": "Reference previous meetings",
+    "noCompletedMeetings": "No completed meetings"
   },
   "meetings": {
     "title": "Meetings",
@@ -191,7 +196,9 @@
     "meetingOutputReport": "Research Report",
     "meetingOutputPaper": "Academic Paper",
     "meetingAgendaQuestions": "Questions to answer",
-    "meetingAgendaQuestionsPlaceholder": "Add a specific question..."
+    "meetingAgendaQuestionsPlaceholder": "Add a specific question...",
+    "contextMeetings": "Reference previous meetings",
+    "noCompletedMeetings": "No completed meetings"
   },
   "editor": {
     "title": "Visual Editor",

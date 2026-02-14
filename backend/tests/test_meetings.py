@@ -581,3 +581,114 @@ class TestMeetingRunAPI:
         assert artifacts_resp.status_code == 200
         data = artifacts_resp.json()
         assert data["total"] > 0
+
+
+# ==================== Meeting Chain Tests ====================
+
+
+class TestMeetingChain:
+    """Tests for meeting chain (context_meeting_ids) feature."""
+
+    @pytest.fixture
+    def client(self):
+        with TestClient(app) as c:
+            yield c
+
+    @pytest.fixture
+    def team(self, client):
+        return client.post("/api/teams/", json={"name": "Chain Team"}).json()
+
+    def test_create_meeting_with_context(self, client, team):
+        """Create a meeting with context_meeting_ids."""
+        # Create first meeting
+        m1 = client.post("/api/meetings/", json={
+            "team_id": team["id"],
+            "title": "Meeting 1",
+        }).json()
+
+        # Create second meeting referencing first
+        m2 = client.post("/api/meetings/", json={
+            "team_id": team["id"],
+            "title": "Meeting 2",
+            "context_meeting_ids": [m1["id"]],
+        }).json()
+        assert m2["context_meeting_ids"] == [m1["id"]]
+
+    def test_create_meeting_without_context(self, client, team):
+        """Create a meeting without context_meeting_ids defaults to empty."""
+        m = client.post("/api/meetings/", json={
+            "team_id": team["id"],
+            "title": "No Context",
+        }).json()
+        assert m["context_meeting_ids"] == []
+
+    def test_update_meeting_context(self, client, team):
+        """Update context_meeting_ids on existing meeting."""
+        m1 = client.post("/api/meetings/", json={
+            "team_id": team["id"],
+            "title": "First",
+        }).json()
+        m2 = client.post("/api/meetings/", json={
+            "team_id": team["id"],
+            "title": "Second",
+        }).json()
+
+        resp = client.put(f"/api/meetings/{m2['id']}", json={
+            "context_meeting_ids": [m1["id"]],
+        })
+        assert resp.status_code == 200
+        assert resp.json()["context_meeting_ids"] == [m1["id"]]
+
+    @patch("app.api.meetings.resolve_llm_call")
+    def test_meeting_chain_injects_context(self, mock_make_llm, client, team):
+        """Running a meeting with context_meeting_ids injects previous summaries."""
+        received_messages = []
+
+        def tracking_llm(sp, msgs):
+            received_messages.append([m.content for m in msgs])
+            return "Response with context"
+
+        mock_make_llm.return_value = tracking_llm
+
+        # Create agents
+        for name in ["Lead", "Member"]:
+            client.post("/api/agents/", json={
+                "team_id": team["id"],
+                "name": name,
+                "title": "Researcher",
+                "expertise": "testing",
+                "goal": "test things",
+                "role": "tester",
+                "model": "gpt-4",
+            })
+
+        # Create and "complete" first meeting with a message
+        m1 = client.post("/api/meetings/", json={
+            "team_id": team["id"],
+            "title": "Previous Meeting",
+            "max_rounds": 1,
+        }).json()
+        # Run meeting 1
+        resp = client.post(f"/api/meetings/{m1['id']}/run", json={"rounds": 1})
+        assert resp.status_code == 200
+
+        # Reset tracking
+        received_messages.clear()
+
+        # Create second meeting with agenda and context
+        m2 = client.post("/api/meetings/", json={
+            "team_id": team["id"],
+            "title": "Follow-up Meeting",
+            "agenda": "Continue from previous work",
+            "context_meeting_ids": [m1["id"]],
+            "max_rounds": 1,
+        }).json()
+
+        # Run meeting 2
+        resp = client.post(f"/api/meetings/{m2['id']}/run", json={"rounds": 1})
+        assert resp.status_code == 200
+
+        # Check that context from previous meeting was injected
+        all_msgs = [m for sublist in received_messages for m in sublist]
+        assert any("Previous Meeting" in m for m in all_msgs)
+        assert any("Context from Previous Meetings" in m for m in all_msgs)

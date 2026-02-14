@@ -94,7 +94,9 @@
     "meetingAgendaQuestions": "需要回答的问题",
     "meetingAgendaQuestionsPlaceholder": "添加一个具体问题...",
     "round": "轮次",
-    "mirror": "镜像"
+    "mirror": "镜像",
+    "contextMeetings": "引用历史会议",
+    "noCompletedMeetings": "暂无已完成的会议"
   },
   "meeting": {
     "backToTeam": "返回团队",
@@ -159,7 +161,10 @@
     "exportZip": "导出 ZIP",
     "exportNotebook": "导出 Colab 笔记本",
     "exportGithub": "导出 GitHub 文件",
-    "exporting": "导出中..."
+    "exportJson": "导出 JSON",
+    "exporting": "导出中...",
+    "contextMeetings": "引用历史会议",
+    "noCompletedMeetings": "暂无已完成的会议"
   },
   "meetings": {
     "title": "会议",
@@ -191,7 +196,9 @@
     "meetingOutputReport": "研究报告",
     "meetingOutputPaper": "学术论文",
     "meetingAgendaQuestions": "需要回答的问题",
-    "meetingAgendaQuestionsPlaceholder": "添加一个具体问题..."
+    "meetingAgendaQuestionsPlaceholder": "添加一个具体问题...",
+    "contextMeetings": "引用历史会议",
+    "noCompletedMeetings": "暂无已完成的会议"
   },
   "editor": {
     "title": "可视化编辑器",

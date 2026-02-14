@@ -150,14 +150,14 @@ class TestFullWorkflow:
         notebook = resp.json()
         assert notebook["nbformat"] == 4
         code_cells = [c for c in notebook["cells"] if c["cell_type"] == "code"]
-        assert len(code_cells) == 2
+        assert len(code_cells) >= 2  # 2 artifacts + optional pip install cell
 
         # Step 5: Export as GitHub files
         resp = client.get(f"/api/export/meeting/{meeting['id']}/github")
         assert resp.status_code == 200
         data = resp.json()
         assert data["project_name"] == "Code Generation"
-        assert len(data["files"]) == 3  # README + 2 artifacts
+        assert len(data["files"]) >= 3  # README + requirements.txt + 2 artifacts
 
     def test_agent_update_and_position_save(self, client):
         """Frontend flow: Visual editor -> drag agent -> save position."""

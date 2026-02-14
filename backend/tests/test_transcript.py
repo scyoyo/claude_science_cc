@@ -1,10 +1,23 @@
+"""Tests for Meeting Transcript (V8 + V12 enhancements).
+
+Covers:
+- Transcript format with rounds and speakers
+- Enhanced transcript with agenda, participants, output_type
+- Artifact listing in transcript footer
+"""
+
 import pytest
-from app.models import Meeting, MeetingMessage
+from app.models import Meeting, MeetingMessage, CodeArtifact
 
 
 class TestMeetingTranscript:
-    def _setup_meeting(self, test_db, team_id):
-        meeting = Meeting(team_id=team_id, title="ML Discussion", current_round=2, status="completed")
+    def _setup_meeting(self, test_db, team_id, **kwargs):
+        defaults = dict(
+            team_id=team_id, title="ML Discussion",
+            current_round=2, status="completed", max_rounds=5,
+        )
+        defaults.update(kwargs)
+        meeting = Meeting(**defaults)
         test_db.add(meeting)
         test_db.commit()
         test_db.refresh(meeting)
@@ -67,3 +80,48 @@ class TestMeetingTranscript:
         text = resp.text
         assert "completed" in text
         assert "2/5" in text  # current_round/max_rounds
+
+    def test_transcript_has_agenda(self, client, test_db):
+        """Transcript includes agenda and output_type when present."""
+        team = client.post("/api/teams/", json={"name": "Team"}).json()
+        meeting = self._setup_meeting(
+            test_db, team["id"],
+            agenda="Build a protein folding pipeline",
+            output_type="code",
+        )
+
+        resp = client.get(f"/api/meetings/{meeting.id}/transcript")
+        text = resp.text
+        assert "Build a protein folding pipeline" in text
+        assert "Output Type" in text
+
+    def test_transcript_has_participants(self, client, test_db):
+        """Transcript includes participant list."""
+        team = client.post("/api/teams/", json={"name": "Team"}).json()
+        meeting = self._setup_meeting(test_db, team["id"])
+
+        resp = client.get(f"/api/meetings/{meeting.id}/transcript")
+        text = resp.text
+        assert "Participants" in text
+        assert "Alice" in text
+        assert "Bob" in text
+
+    def test_transcript_has_artifacts(self, client, test_db):
+        """Transcript includes artifact listing when artifacts exist."""
+        team = client.post("/api/teams/", json={"name": "Team"}).json()
+        meeting = self._setup_meeting(test_db, team["id"])
+
+        # Add artifacts
+        artifact = CodeArtifact(
+            meeting_id=meeting.id,
+            filename="pipeline.py",
+            language="python",
+            content="class Pipeline: pass",
+        )
+        test_db.add(artifact)
+        test_db.commit()
+
+        resp = client.get(f"/api/meetings/{meeting.id}/transcript")
+        text = resp.text
+        assert "## Artifacts" in text
+        assert "`pipeline.py`" in text

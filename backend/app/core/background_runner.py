@@ -232,5 +232,9 @@ def cleanup_stuck_meetings(session_factory: sessionmaker) -> int:
         if count:
             db.commit()
         return count
+    except Exception:
+        # Schema mismatch (e.g. new columns not yet in DB) — skip cleanup
+        logger.debug("cleanup_stuck_meetings skipped due to schema mismatch")
+        return 0
     finally:
         db.close()

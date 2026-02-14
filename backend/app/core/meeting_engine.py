@@ -19,6 +19,7 @@ from app.core.meeting_prompts import (
     team_lead_final_prompt,
     team_member_prompt,
     phase_temperature,
+    previous_context_prompt,
     CONCISENESS_RULE,
 )
 
@@ -136,6 +137,7 @@ class MeetingEngine:
         agenda_questions: Optional[List[str]] = None,
         agenda_rules: Optional[List[str]] = None,
         output_type: str = "code",
+        context_summaries: Optional[List[Dict]] = None,
     ) -> List[Dict]:
         """Run one structured round with phase-aware prompts.
 
@@ -167,6 +169,17 @@ class MeetingEngine:
 
         # Inject meeting start context on the first round
         if round_num == 1:
+            conversation_history = list(conversation_history)
+
+            # Inject previous meeting context if available
+            if context_summaries:
+                ctx_prompt = previous_context_prompt(context_summaries)
+                if ctx_prompt:
+                    conversation_history.append(ChatMessage(
+                        role="user",
+                        content=ctx_prompt,
+                    ))
+
             start_context = meeting_start_prompt(
                 team_lead_name=team_lead["name"],
                 member_names=[m["name"] for m in members],
@@ -175,7 +188,6 @@ class MeetingEngine:
                 agenda_rules=rules,
                 num_rounds=num_rounds,
             )
-            conversation_history = list(conversation_history)
             conversation_history.append(ChatMessage(
                 role="user",
                 content=start_context,
@@ -254,6 +266,7 @@ class MeetingEngine:
         agenda_rules: Optional[List[str]] = None,
         output_type: str = "code",
         start_round: int = 1,
+        context_summaries: Optional[List[Dict]] = None,
     ) -> List[List[Dict]]:
         """Run a full structured meeting across multiple rounds.
 
@@ -285,6 +298,7 @@ class MeetingEngine:
                 agenda_questions=agenda_questions,
                 agenda_rules=agenda_rules,
                 output_type=output_type,
+                context_summaries=context_summaries if current_round == start_round else None,
             )
             all_rounds.append(round_messages)
 

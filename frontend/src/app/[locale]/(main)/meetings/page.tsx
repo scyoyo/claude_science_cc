@@ -50,6 +50,7 @@ export default function MeetingsPage() {
     agenda: "",
     output_type: "code",
     agenda_questions: [] as string[],
+    context_meeting_ids: [] as string[],
   });
   const [newQuestion, setNewQuestion] = useState("");
 
@@ -85,10 +86,11 @@ export default function MeetingsPage() {
         agenda: meetingForm.agenda.trim() || undefined,
         agenda_questions: meetingForm.agenda_questions.length > 0 ? meetingForm.agenda_questions : undefined,
         output_type: meetingForm.output_type,
+        context_meeting_ids: meetingForm.context_meeting_ids.length > 0 ? meetingForm.context_meeting_ids : undefined,
         max_rounds: meetingForm.max_rounds,
       });
       setShowCreate(false);
-      setMeetingForm({ team_id: "", title: "", description: "", max_rounds: 5, agenda: "", output_type: "code", agenda_questions: [] });
+      setMeetingForm({ team_id: "", title: "", description: "", max_rounds: 5, agenda: "", output_type: "code", agenda_questions: [], context_meeting_ids: [] });
       setNewQuestion("");
       await loadMeetings();
     } catch (err) {
@@ -236,6 +238,32 @@ export default function MeetingsPage() {
                   </Button>
                 </div>
               </div>
+              {/* Context meetings selector */}
+              {meetings.filter((m) => m.status === "completed").length > 0 && (
+                <div className="space-y-2">
+                  <Label>{t("contextMeetings")}</Label>
+                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                    {meetings
+                      .filter((m) => m.status === "completed")
+                      .map((m) => (
+                        <label key={m.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={meetingForm.context_meeting_ids.includes(m.id)}
+                            onChange={(e) => {
+                              const ids = e.target.checked
+                                ? [...meetingForm.context_meeting_ids, m.id]
+                                : meetingForm.context_meeting_ids.filter((id) => id !== m.id);
+                              setMeetingForm((f) => ({ ...f, context_meeting_ids: ids }));
+                            }}
+                            className="rounded"
+                          />
+                          <span className="truncate">{m.title}</span>
+                        </label>
+                      ))}
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <Label>{t("meetingMaxRounds")}</Label>

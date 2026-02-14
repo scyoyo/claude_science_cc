@@ -60,6 +60,7 @@ export default function TeamDetailPage() {
   const [meetingForm, setMeetingForm] = useState({
     title: "", description: "", max_rounds: "5",
     agenda: "", output_type: "code", agenda_questions: [] as string[],
+    context_meeting_ids: [] as string[],
   });
   const [newQuestion, setNewQuestion] = useState("");
   const [creatingMeeting, setCreatingMeeting] = useState(false);
@@ -147,9 +148,10 @@ export default function TeamDetailPage() {
         agenda: meetingForm.agenda.trim() || undefined,
         agenda_questions: meetingForm.agenda_questions.length > 0 ? meetingForm.agenda_questions : undefined,
         output_type: meetingForm.output_type,
+        context_meeting_ids: meetingForm.context_meeting_ids.length > 0 ? meetingForm.context_meeting_ids : undefined,
         max_rounds: Math.max(1, Math.min(20, rounds)),
       });
-      setMeetingForm({ title: "", description: "", max_rounds: "5", agenda: "", output_type: "code", agenda_questions: [] });
+      setMeetingForm({ title: "", description: "", max_rounds: "5", agenda: "", output_type: "code", agenda_questions: [], context_meeting_ids: [] });
       setNewQuestion("");
       setShowNewMeeting(false);
       await loadData();
@@ -414,6 +416,32 @@ export default function TeamDetailPage() {
                     </Button>
                   </div>
                 </div>
+                {/* Context meetings selector */}
+                {meetings.filter((m) => m.status === "completed").length > 0 && (
+                  <div className="space-y-2">
+                    <Label>{t("contextMeetings")}</Label>
+                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                      {meetings
+                        .filter((m) => m.status === "completed")
+                        .map((m) => (
+                          <label key={m.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={meetingForm.context_meeting_ids.includes(m.id)}
+                              onChange={(e) => {
+                                const ids = e.target.checked
+                                  ? [...meetingForm.context_meeting_ids, m.id]
+                                  : meetingForm.context_meeting_ids.filter((id) => id !== m.id);
+                                setMeetingForm({ ...meetingForm, context_meeting_ids: ids });
+                              }}
+                              className="rounded"
+                            />
+                            <span className="truncate">{m.title}</span>
+                          </label>
+                        ))}
+                    </div>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <Label>{t("meetingMaxRounds")}</Label>

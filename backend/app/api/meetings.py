@@ -106,6 +106,7 @@ def create_meeting(data: MeetingCreate, db: Session = Depends(get_db)):
         agenda_questions=data.agenda_questions,
         agenda_rules=rules,
         output_type=data.output_type,
+        context_meeting_ids=data.context_meeting_ids,
         max_rounds=data.max_rounds,
     )
     db.add(meeting)
@@ -258,10 +259,25 @@ def get_meeting_transcript(meeting_id: str, db: Session = Depends(get_db)):
         "",
         f"**Status:** {meeting.status} | **Rounds:** {meeting.current_round}/{meeting.max_rounds}",
         f"**Created:** {meeting.created_at.strftime('%Y-%m-%d %H:%M')}",
-        "",
-        "---",
-        "",
     ]
+
+    # Agenda info
+    if meeting.agenda:
+        lines.append(f"**Agenda:** {meeting.agenda}")
+    if meeting.output_type:
+        lines.append(f"**Output Type:** {meeting.output_type}")
+
+    # Participants
+    participants = list({
+        m.agent_name for m in messages
+        if m.agent_name and m.role == "assistant"
+    })
+    if participants:
+        lines.append(f"**Participants:** {', '.join(sorted(participants))}")
+
+    lines.append("")
+    lines.append("---")
+    lines.append("")
 
     current_round = None
     for msg in messages:
@@ -275,6 +291,19 @@ def get_meeting_transcript(meeting_id: str, db: Session = Depends(get_db)):
         else:
             speaker = msg.agent_name or "Agent"
             lines.append(f"**{speaker}:** {msg.content}")
+        lines.append("")
+
+    # Artifacts section
+    artifacts = db.query(CodeArtifact).filter(
+        CodeArtifact.meeting_id == meeting_id,
+    ).all()
+    if artifacts:
+        lines.append("---")
+        lines.append("")
+        lines.append("## Artifacts")
+        lines.append("")
+        for a in artifacts:
+            lines.append(f"- `{a.filename}` ({a.language})")
         lines.append("")
 
     return PlainTextResponse(
@@ -427,6 +456,11 @@ def run_meeting(
     try:
         use_structured = bool(meeting.agenda)
 
+        # Load context from previous meetings if configured
+        context_summaries = None
+        if meeting.context_meeting_ids:
+            context_summaries = _load_context_summaries(db, meeting.context_meeting_ids)
+
         if use_structured:
             all_rounds = engine.run_structured_meeting(
                 agents=agent_dicts,
@@ -437,6 +471,7 @@ def run_meeting(
                 agenda_rules=meeting.agenda_rules or [],
                 output_type=meeting.output_type or "code",
                 start_round=meeting.current_round + 1,
+                context_summaries=context_summaries,
             )
         else:
             all_rounds = engine.run_meeting(
@@ -482,6 +517,29 @@ def run_meeting(
         )
 
     return meeting
+
+
+def _load_context_summaries(db: Session, context_meeting_ids: list) -> list:
+    """Load final summaries from context meetings.
+
+    For each referenced meeting, takes the last assistant message as the summary.
+    """
+    summaries = []
+    for mid in context_meeting_ids:
+        ctx_meeting = db.query(Meeting).filter(Meeting.id == mid).first()
+        if not ctx_meeting:
+            continue
+        # Get last assistant message as summary
+        last_msg = db.query(MeetingMessage).filter(
+            MeetingMessage.meeting_id == mid,
+            MeetingMessage.role == "assistant",
+        ).order_by(MeetingMessage.created_at.desc()).first()
+        if last_msg:
+            summaries.append({
+                "title": ctx_meeting.title,
+                "summary": last_msg.content,
+            })
+    return summaries
 
 
 def _auto_extract_artifacts(db: Session, meeting_id: str) -> None:

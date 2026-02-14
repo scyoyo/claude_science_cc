@@ -121,6 +121,19 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
     }
   };
 
+  const handleExportJson = async () => {
+    try {
+      setExporting(true);
+      setError(null);
+      const blob = await exportAPI.json(meetingId);
+      downloadBlob(blob, `${meetingTitle.replace(/\s+/g, "_")}.json`);
+    } catch (err) {
+      setError(getErrorMessage(err, "Export failed"));
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const langColor = (lang: string) => {
     const colors: Record<string, string> = {
       python: "bg-blue-500/10 text-blue-600",
@@ -168,6 +181,10 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
               <DropdownMenuItem onClick={handleExportGithub}>
                 <Code className="h-4 w-4 mr-2" />
                 {t("exportGithub")}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportJson}>
+                <FileCode className="h-4 w-4 mr-2" />
+                {t("exportJson")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

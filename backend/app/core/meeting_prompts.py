@@ -51,6 +51,33 @@ def get_default_rules(output_type: str) -> List[str]:
     return list(DEFAULT_RULES.get(output_type, [CONCISENESS_RULE]))
 
 
+# ==================== Previous Context Prompt ====================
+
+def previous_context_prompt(summaries: List[Dict]) -> str:
+    """Generate context from previous meeting summaries.
+
+    Args:
+        summaries: List of dicts with 'title' and 'summary' keys.
+
+    Returns:
+        Formatted context string to inject into meeting start.
+    """
+    if not summaries:
+        return ""
+
+    parts = [
+        "## Context from Previous Meetings",
+        "",
+    ]
+    for i, s in enumerate(summaries, 1):
+        parts.append(f"### Meeting {i}: {s['title']}")
+        parts.append(s["summary"])
+        parts.append("")
+
+    parts.append("Use the above context to inform this meeting's discussion.")
+    return "\n".join(parts)
+
+
 # ==================== Meeting Start Prompt ====================
 
 def meeting_start_prompt(

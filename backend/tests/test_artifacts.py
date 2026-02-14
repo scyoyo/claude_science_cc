@@ -1,14 +1,21 @@
-"""Tests for Code Generation / Artifacts (Step 1.8).
+"""Tests for Code Generation / Artifacts (Step 1.8 + V12 enhancements).
 
 Covers:
 - CodeExtractor: code block extraction, filename suggestion, multi-message extraction
+- Filepath detection: hint patterns in text before code blocks
+- Requirements generation: scanning Python imports
 - Artifact API: CRUD, auto-extraction from meeting messages
 """
 
 import pytest
 from fastapi.testclient import TestClient
 from app.main import app
-from app.core.code_extractor import extract_code_blocks, extract_from_meeting_messages
+from app.core.code_extractor import (
+    extract_code_blocks,
+    extract_from_meeting_messages,
+    generate_requirements,
+    _detect_filepath_hint,
+)
 
 
 # ==================== CodeExtractor Unit Tests ====================
@@ -95,6 +102,100 @@ class TestCodeExtractor:
         assert len(blocks) == 2
         assert blocks[0].source_agent == "ML Lead"
         assert blocks[1].source_agent == "Data Engineer"
+
+
+# ==================== Filepath Detection Tests ====================
+
+
+class TestFilepathDetection:
+    """Tests for filepath hint detection in text before code blocks."""
+
+    def test_detect_filename_comment(self):
+        """Detect '# filename: path/to/file.py' pattern."""
+        assert _detect_filepath_hint("# filename: src/main.py") == "src/main.py"
+
+    def test_detect_filename_capitalized(self):
+        """Detect '# Filename: path/to/file.py' pattern."""
+        assert _detect_filepath_hint("# Filename: utils/helper.py") == "utils/helper.py"
+
+    def test_detect_save_as(self):
+        """Detect 'Save as `path/to/file.py`' pattern."""
+        assert _detect_filepath_hint("Save as `models/pipeline.py`") == "models/pipeline.py"
+
+    def test_detect_file_colon(self):
+        """Detect 'File: `path/to/file.py`' pattern."""
+        assert _detect_filepath_hint("File: `tests/test_main.py`") == "tests/test_main.py"
+
+    def test_detect_heading(self):
+        """Detect '### path/to/file.py' pattern."""
+        assert _detect_filepath_hint("### src/config.py") == "src/config.py"
+
+    def test_detect_bold(self):
+        """Detect '**path/to/file.py**' pattern."""
+        assert _detect_filepath_hint("Here is **data/loader.py**") == "data/loader.py"
+
+    def test_no_hint_returns_none(self):
+        """Return None when no filepath hint found."""
+        assert _detect_filepath_hint("This is just regular text") is None
+
+    def test_extract_uses_filepath_hint(self):
+        """extract_code_blocks uses filepath hint when available."""
+        text = "Save as `src/models/pipeline.py`\n```python\nclass Pipeline:\n    pass\n```"
+        blocks = extract_code_blocks(text)
+        assert len(blocks) == 1
+        assert blocks[0].suggested_filename == "src/models/pipeline.py"
+
+    def test_extract_falls_back_without_hint(self):
+        """extract_code_blocks falls back to content-based inference without hint."""
+        text = "Here is some code:\n```python\nclass DataLoader:\n    pass\n```"
+        blocks = extract_code_blocks(text)
+        assert blocks[0].suggested_filename == "data_loader.py"
+
+
+# ==================== Requirements Generation Tests ====================
+
+
+class TestRequirementsGeneration:
+    """Tests for generate_requirements()."""
+
+    def test_basic_imports(self):
+        """Detect common third-party imports."""
+        artifacts = [
+            {"language": "python", "content": "import numpy\nimport pandas\nfrom sklearn import svm"},
+        ]
+        reqs = generate_requirements(artifacts)
+        assert "numpy" in reqs
+        assert "pandas" in reqs
+        assert "scikit-learn" in reqs
+
+    def test_stdlib_excluded(self):
+        """Standard library modules are excluded."""
+        artifacts = [
+            {"language": "python", "content": "import os\nimport sys\nimport json\nimport re"},
+        ]
+        reqs = generate_requirements(artifacts)
+        assert reqs == ""
+
+    def test_alias_imports(self):
+        """Known aliases (np, pd, plt) are mapped correctly."""
+        artifacts = [
+            {"language": "python", "content": "import numpy as np\nimport pandas as pd"},
+        ]
+        reqs = generate_requirements(artifacts)
+        assert "numpy" in reqs
+        assert "pandas" in reqs
+
+    def test_non_python_ignored(self):
+        """Non-Python artifacts are ignored."""
+        artifacts = [
+            {"language": "javascript", "content": "import numpy from 'numpy'"},
+        ]
+        reqs = generate_requirements(artifacts)
+        assert reqs == ""
+
+    def test_empty_artifacts(self):
+        """Empty artifact list returns empty string."""
+        assert generate_requirements([]) == ""
 
 
 # ==================== Artifact API Tests ====================
