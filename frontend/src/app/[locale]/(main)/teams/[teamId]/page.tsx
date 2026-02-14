@@ -27,7 +27,8 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Plus, Trash2, Workflow, MessageSquare, Bot } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Pencil, Workflow, MessageSquare, Bot } from "lucide-react";
+import type { Agent } from "@/types";
 
 export default function TeamDetailPage() {
   const params = useParams();
@@ -41,6 +42,10 @@ export default function TeamDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [showAddAgent, setShowAddAgent] = useState(false);
   const [showNewMeeting, setShowNewMeeting] = useState(false);
+  const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
+  const [editAgentForm, setEditAgentForm] = useState({
+    name: "", title: "", expertise: "", goal: "", role: "", model: "gpt-4", system_prompt: "",
+  });
 
   const [agentForm, setAgentForm] = useState({
     name: "",
@@ -50,7 +55,7 @@ export default function TeamDetailPage() {
     role: "",
     model: "gpt-4",
   });
-  const [meetingForm, setMeetingForm] = useState({ title: "", description: "", max_rounds: 5 });
+  const [meetingForm, setMeetingForm] = useState({ title: "", description: "", max_rounds: "5" });
 
   const loadData = async () => {
     try {
@@ -95,17 +100,43 @@ export default function TeamDetailPage() {
     }
   };
 
+  const openEditAgent = (agent: Agent) => {
+    setEditAgentForm({
+      name: agent.name,
+      title: agent.title,
+      expertise: agent.expertise,
+      goal: agent.goal,
+      role: agent.role,
+      model: agent.model,
+      system_prompt: agent.system_prompt,
+    });
+    setEditingAgent(agent);
+  };
+
+  const handleEditAgent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAgent) return;
+    try {
+      await agentsAPI.update(editingAgent.id, editAgentForm as Record<string, unknown>);
+      setEditingAgent(null);
+      loadData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update agent");
+    }
+  };
+
   const handleCreateMeeting = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!meetingForm.title.trim()) return;
+    const rounds = parseInt(meetingForm.max_rounds) || 5;
     try {
       await meetingsAPI.create({
         team_id: teamId,
         title: meetingForm.title,
         description: meetingForm.description || undefined,
-        max_rounds: meetingForm.max_rounds,
+        max_rounds: Math.max(1, Math.min(20, rounds)),
       });
-      setMeetingForm({ title: "", description: "", max_rounds: 5 });
+      setMeetingForm({ title: "", description: "", max_rounds: "5" });
       setShowNewMeeting(false);
       loadData();
     } catch (err) {
@@ -247,8 +278,15 @@ export default function TeamDetailPage() {
                         <CardDescription>{agent.title}</CardDescription>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
                       <Badge variant="outline">{agent.model}</Badge>
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        onClick={() => openEditAgent(agent)}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon-xs"
@@ -315,7 +353,7 @@ export default function TeamDetailPage() {
                     min={1}
                     max={20}
                     value={meetingForm.max_rounds}
-                    onChange={(e) => setMeetingForm({ ...meetingForm, max_rounds: parseInt(e.target.value) || 5 })}
+                    onChange={(e) => setMeetingForm({ ...meetingForm, max_rounds: e.target.value })}
                   />
                 </div>
                 <DialogFooter>
@@ -361,6 +399,93 @@ export default function TeamDetailPage() {
           </div>
         )}
       </section>
+
+      {/* Edit Agent Dialog */}
+      <Dialog open={!!editingAgent} onOpenChange={(open) => !open && setEditingAgent(null)}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{t("editAgent")}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEditAgent} className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>{t("agentName")}</Label>
+                <Input
+                  value={editAgentForm.name}
+                  onChange={(e) => setEditAgentForm({ ...editAgentForm, name: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>{t("agentTitle")}</Label>
+                <Input
+                  value={editAgentForm.title}
+                  onChange={(e) => setEditAgentForm({ ...editAgentForm, title: e.target.value })}
+                  required
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label>{t("expertise")}</Label>
+              <Input
+                value={editAgentForm.expertise}
+                onChange={(e) => setEditAgentForm({ ...editAgentForm, expertise: e.target.value })}
+                required
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>{t("goal")}</Label>
+              <Input
+                value={editAgentForm.goal}
+                onChange={(e) => setEditAgentForm({ ...editAgentForm, goal: e.target.value })}
+                required
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>{t("role")}</Label>
+              <Input
+                value={editAgentForm.role}
+                onChange={(e) => setEditAgentForm({ ...editAgentForm, role: e.target.value })}
+                required
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>{t("model")}</Label>
+              <Select
+                value={editAgentForm.model}
+                onValueChange={(v) => setEditAgentForm({ ...editAgentForm, model: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="gpt-4">GPT-4</SelectItem>
+                  <SelectItem value="gpt-4o">GPT-4o</SelectItem>
+                  <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
+                  <SelectItem value="claude-3-opus-20240229">Claude 3 Opus</SelectItem>
+                  <SelectItem value="claude-3-sonnet-20240229">Claude 3 Sonnet</SelectItem>
+                  <SelectItem value="deepseek-chat">DeepSeek Chat</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>{t("systemPrompt")}</Label>
+              <Textarea
+                value={editAgentForm.system_prompt}
+                onChange={(e) => setEditAgentForm({ ...editAgentForm, system_prompt: e.target.value })}
+                rows={6}
+                className="font-mono text-xs"
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setEditingAgent(null)}>
+                {tc("cancel")}
+              </Button>
+              <Button type="submit">{tc("save")}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -9,41 +9,42 @@ interface MarkdownContentProps {
 
 export function MarkdownContent({ content, className = "" }: MarkdownContentProps) {
   return (
-    <div className={`prose prose-sm dark:prose-invert max-w-none break-words ${className}`}>
+    <div className={`max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 ${className}`}>
       <ReactMarkdown
         components={{
-          // Keep paragraphs compact
-          p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-          // Style code blocks
+          p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
+          strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+          em: ({ children }) => <em>{children}</em>,
           pre: ({ children }) => (
-            <pre className="bg-muted rounded-md p-3 overflow-x-auto text-xs my-2">
+            <pre className="bg-muted/70 rounded-md p-2.5 overflow-x-auto text-xs my-2">
               {children}
             </pre>
           ),
           code: ({ children, className: codeClassName }) => {
-            // Inline code (no language class)
             if (!codeClassName) {
               return (
-                <code className="bg-muted rounded px-1.5 py-0.5 text-xs font-mono">
+                <code className="bg-muted/70 rounded px-1 py-0.5 text-xs font-mono">
                   {children}
                 </code>
               );
             }
             return <code className={codeClassName}>{children}</code>;
           },
-          // Lists
-          ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-1">{children}</ul>,
-          ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-1">{children}</ol>,
-          li: ({ children }) => <li className="text-sm">{children}</li>,
-          // Headings
-          h1: ({ children }) => <h3 className="font-semibold text-base mb-1">{children}</h3>,
-          h2: ({ children }) => <h3 className="font-semibold text-sm mb-1">{children}</h3>,
-          h3: ({ children }) => <h4 className="font-semibold text-sm mb-1">{children}</h4>,
-          // Links
+          ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-0.5">{children}</ul>,
+          ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-0.5">{children}</ol>,
+          li: ({ children }) => <li>{children}</li>,
+          h1: ({ children }) => <p className="font-semibold mb-1">{children}</p>,
+          h2: ({ children }) => <p className="font-semibold mb-1">{children}</p>,
+          h3: ({ children }) => <p className="font-semibold mb-1">{children}</p>,
           a: ({ href, children }) => (
             <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline">
               {children}
             </a>
+          ),
+          blockquote: ({ children }) => (
+            <blockquote className="border-l-2 border-muted-foreground/30 pl-3 my-2 italic">
+              {children}
+            </blockquote>
           ),
         }}
       />

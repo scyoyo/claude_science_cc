@@ -169,7 +169,23 @@ export const onboardingAPI = {
     }),
 };
 
-// LLM providers
+// LLM
+export interface APIKeyInfo {
+  id: string;
+  provider: string;
+  is_active: boolean;
+  key_preview: string;
+  created_at: string;
+}
+
 export const llmAPI = {
   providers: () => fetchAPI<{ providers: string[] }>("/llm/providers"),
+  listKeys: () => fetchAPI<APIKeyInfo[]>("/llm/api-keys"),
+  addKey: (provider: string, api_key: string) =>
+    fetchAPI<APIKeyInfo>("/llm/api-keys", {
+      method: "POST",
+      body: JSON.stringify({ provider, api_key }),
+    }),
+  deleteKey: (id: string) =>
+    fetchAPI<void>(`/llm/api-keys/${id}`, { method: "DELETE" }),
 };
