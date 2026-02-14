@@ -47,10 +47,10 @@ class MeetingResponse(BaseModel):
     title: str
     description: Optional[str] = ""
     agenda: Optional[str] = ""
-    agenda_questions: list = []
-    agenda_rules: list = []
+    agenda_questions: Optional[list] = []
+    agenda_rules: Optional[list] = []
     output_type: Optional[str] = "code"
-    context_meeting_ids: list = []
+    context_meeting_ids: Optional[list] = []
     status: str
     max_rounds: int
     current_round: int
