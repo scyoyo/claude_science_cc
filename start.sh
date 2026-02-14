@@ -8,6 +8,17 @@ mkdir -p backend/data
 cd backend
 if [[ "$DATABASE_URL" == postgresql* ]]; then
     echo "Running Alembic migrations..."
+    # If tables already exist (created by init_db/create_all) but Alembic
+    # has never run, stamp the initial migration so Alembic knows to skip it.
+    python -c "
+from sqlalchemy import create_engine, inspect
+import os, subprocess
+engine = create_engine(os.environ['DATABASE_URL'])
+tables = inspect(engine).get_table_names()
+if 'alembic_version' not in tables and 'teams' in tables:
+    print('DB has tables but no alembic_version — stamping initial migration...')
+    subprocess.run(['alembic', 'stamp', '2da00d343264'], check=True)
+"
     alembic upgrade head
 fi
 
