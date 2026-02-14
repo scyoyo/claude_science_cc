@@ -10,6 +10,7 @@ import { useMeetingWebSocket, type WSMessage } from "@/hooks/useMeetingWebSocket
 import type { MeetingWithMessages, MeetingMessage } from "@/types";
 import MeetingSummaryPanel from "@/components/MeetingSummaryPanel";
 import ArtifactsPanel from "@/components/ArtifactsPanel";
+import { MarkdownContent } from "@/components/MarkdownContent";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -361,9 +362,15 @@ export default function MeetingDetailPage() {
                         </Badge>
                       )}
                     </div>
-                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                      {msg.content}
-                    </p>
+                    {msg.role === "user" ? (
+                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                        {msg.content}
+                      </p>
+                    ) : (
+                      <div className="text-sm text-muted-foreground">
+                        <MarkdownContent content={msg.content} />
+                      </div>
+                    )}
                   </div>
                 ))
               )}
