@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   Wand2,
   MessageSquare,
+  Search,
 } from "lucide-react";
 import {
   Tooltip,
@@ -27,6 +28,7 @@ const navItems = [
   { key: "dashboard", href: "/", icon: LayoutDashboard },
   { key: "teams", href: "/teams", icon: Users },
   { key: "meetings", href: "/meetings", icon: MessageSquare },
+  { key: "search", href: "/search", icon: Search },
   { key: "settings", href: "/settings", icon: Settings },
 ] as const;
 

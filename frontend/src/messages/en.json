@@ -24,6 +24,7 @@
     "onboarding": "New Project",
     "teams": "Teams",
     "meetings": "Meetings",
+    "search": "Search",
     "settings": "Settings",
     "profile": "Profile"
   },
@@ -61,7 +62,12 @@
     "description": "Description (optional)",
     "noTeams": "No teams yet. Create one to get started.",
     "deleteConfirm": "Delete this team and all its agents?",
-    "createTeam": "Create Team"
+    "createTeam": "Create Team",
+    "importTeam": "Import Team",
+    "importFile": "Select JSON file",
+    "importPreview": "{name} — {count} agents",
+    "importConfirm": "Import",
+    "importError": "Invalid team file"
   },
   "teamDetail": {
     "backToTeams": "Back to Teams",
@@ -109,7 +115,15 @@
     "agentMetrics": {
       "messages": "{count} messages",
       "meetings": "{count} meetings"
-    }
+    },
+    "cloneAgent": "Clone",
+    "cloneSuccess": "Agent cloned",
+    "selectAgents": "Select",
+    "selectAll": "Select All",
+    "deselectAll": "Deselect All",
+    "batchDelete": "Delete Selected ({count})",
+    "batchDeleteConfirm": "Delete {count} selected agents?",
+    "exportTeam": "Export"
   },
   "meeting": {
     "backToTeam": "Back to Team",
@@ -326,7 +340,7 @@
     "compareButton": "Compare Meetings",
     "noCompletedMeetings": "No completed meetings to compare."
   },
-  "teamDetail": {
+  "profile": {
     "title": "Profile",
     "email": "Email",
     "username": "Username",
@@ -339,5 +353,15 @@
     "update": "Save Changes",
     "saving": "Saving...",
     "updated": "Profile updated. Refresh to see changes."
+  },
+  "search": {
+    "title": "Search",
+    "placeholder": "Search teams and agents...",
+    "typeToSearch": "Type to search teams and agents",
+    "noResults": "No results for \"{query}\"",
+    "teamsSection": "Teams",
+    "agentsSection": "Agents",
+    "inTeam": "in {team}",
+    "shortcut": "Press {key} to search"
   }
 }

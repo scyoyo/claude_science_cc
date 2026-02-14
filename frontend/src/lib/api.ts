@@ -68,6 +68,12 @@ export const teamsAPI = {
   delete: (id: string) =>
     fetchAPI<void>(`/teams/${id}`, { method: "DELETE" }),
   stats: (id: string) => fetchAPI<TeamStats>(`/teams/${id}/stats`),
+  exportTeam: async (id: string): Promise<Blob> => {
+    const res = await fetchRaw(`/teams/${id}/export`);
+    return res.blob();
+  },
+  importTeam: (data: Record<string, unknown>) =>
+    fetchAPI<TeamWithAgents>("/teams/import", { method: "POST", body: JSON.stringify(data) }),
 };
 
 // Agents
@@ -84,6 +90,16 @@ export const agentsAPI = {
   delete: (id: string) =>
     fetchAPI<void>(`/agents/${id}`, { method: "DELETE" }),
   metrics: (id: string) => fetchAPI<AgentMetrics>(`/agents/${id}/metrics`),
+  clone: (id: string, teamId?: string) =>
+    fetchAPI<Agent>(`/agents/${id}/clone`, {
+      method: "POST",
+      body: JSON.stringify(teamId ? { team_id: teamId } : {}),
+    }),
+  batchDelete: (ids: string[]) =>
+    fetchAPI<void>("/agents/batch", {
+      method: "DELETE",
+      body: JSON.stringify({ agent_ids: ids }),
+    }),
 };
 
 async function fetchRaw(path: string, options?: RequestInit): Promise<Response> {
@@ -236,6 +252,17 @@ export const templatesAPI = {
     fetchAPI<Agent>(`/templates/apply?template_id=${templateId}&team_id=${teamId}`, {
       method: "POST",
     }),
+};
+
+// Search
+export const searchAPI = {
+  teams: (q: string, skip = 0, limit = 20) =>
+    fetchAPI<PaginatedResponse<Team>>(`/search/teams?q=${encodeURIComponent(q)}&skip=${skip}&limit=${limit}`),
+  agents: (q: string, teamId?: string, skip = 0, limit = 20) => {
+    const params = new URLSearchParams({ q, skip: String(skip), limit: String(limit) });
+    if (teamId) params.set("team_id", teamId);
+    return fetchAPI<PaginatedResponse<Agent>>(`/search/agents?${params}`);
+  },
 };
 
 // Webhooks

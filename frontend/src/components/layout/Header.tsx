@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
 import { usePathname } from "@/i18n/navigation";
+import { useRouter } from "@/i18n/navigation";
 import { useTranslations } from "next-intl";
 import { ThemeToggle } from "./ThemeToggle";
 import { LocaleSwitcher } from "./LocaleSwitcher";
@@ -15,7 +17,7 @@ function useBreadcrumb() {
 
   if (pathname === "/") return t("dashboard");
   const segment = pathname.split("/").filter(Boolean)[0];
-  const validSegments = ["teams", "settings", "profile", "onboarding", "meetings"] as const;
+  const validSegments = ["teams", "settings", "profile", "onboarding", "meetings", "search"] as const;
   if (segment && validSegments.includes(segment as typeof validSegments[number])) {
     return t(segment as typeof validSegments[number]);
   }
@@ -24,7 +26,19 @@ function useBreadcrumb() {
 
 export function Header() {
   const breadcrumb = useBreadcrumb();
+  const router = useRouter();
   const { isMobile, toggleSidebar } = useMobileGesture();
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        router.push("/search");
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [router]);
 
   return (
     <header className="flex h-12 shrink-0 items-center border-b border-border/50 px-3 sm:px-4">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { teamsAPI } from "@/lib/api";
@@ -17,7 +17,7 @@ import {
   DialogFooter,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Trash2, Users } from "lucide-react";
+import { Plus, Trash2, Users, Upload } from "lucide-react";
 
 export default function TeamsPage() {
   const router = useRouter();
@@ -29,6 +29,13 @@ export default function TeamsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [newTeamName, setNewTeamName] = useState("");
   const [newTeamDesc, setNewTeamDesc] = useState("");
+
+  // Import state
+  const [showImport, setShowImport] = useState(false);
+  const [importData, setImportData] = useState<Record<string, unknown> | null>(null);
+  const [importPreview, setImportPreview] = useState<{ name: string; agentCount: number } | null>(null);
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadTeams = async () => {
     try {
@@ -71,42 +78,120 @@ export default function TeamsPage() {
     }
   };
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const json = JSON.parse(ev.target?.result as string);
+        if (!json.name) throw new Error("Missing name");
+        setImportData(json);
+        setImportPreview({
+          name: json.name,
+          agentCount: Array.isArray(json.agents) ? json.agents.length : 0,
+        });
+      } catch {
+        setError(t("importError"));
+        setImportData(null);
+        setImportPreview(null);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleImport = async () => {
+    if (!importData) return;
+    setImporting(true);
+    try {
+      const result = await teamsAPI.importTeam(importData);
+      setShowImport(false);
+      setImportData(null);
+      setImportPreview(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      router.push(`/teams/${result.id}`);
+    } catch (err) {
+      setError(getErrorMessage(err, "Failed to import team"));
+    } finally {
+      setImporting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">{t("title")}</h1>
-        <Dialog open={showCreate} onOpenChange={setShowCreate}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-1" />
-              {t("create")}
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{t("createTeam")}</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleCreate} className="space-y-4">
-              <Input
-                value={newTeamName}
-                onChange={(e) => setNewTeamName(e.target.value)}
-                placeholder={t("name")}
-                autoFocus
-              />
-              <Input
-                value={newTeamDesc}
-                onChange={(e) => setNewTeamDesc(e.target.value)}
-                placeholder={t("description")}
-              />
+        <div className="flex gap-2">
+          <Dialog open={showImport} onOpenChange={(open) => {
+            setShowImport(open);
+            if (!open) { setImportData(null); setImportPreview(null); }
+          }}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Upload className="h-4 w-4 mr-1" />
+                {t("importTeam")}
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{t("importTeam")}</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <Input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".json"
+                  onChange={handleFileSelect}
+                />
+                {importPreview && (
+                  <div className="p-3 rounded-md bg-muted text-sm">
+                    {t("importPreview", { name: importPreview.name, count: importPreview.agentCount })}
+                  </div>
+                )}
+              </div>
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setShowCreate(false)}>
+                <Button variant="outline" onClick={() => setShowImport(false)}>
                   {tc("cancel")}
                 </Button>
-                <Button type="submit">{t("createTeam")}</Button>
+                <Button onClick={handleImport} disabled={!importData || importing}>
+                  {t("importConfirm")}
+                </Button>
               </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
+          <Dialog open={showCreate} onOpenChange={setShowCreate}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-1" />
+                {t("create")}
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{t("createTeam")}</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleCreate} className="space-y-4">
+                <Input
+                  value={newTeamName}
+                  onChange={(e) => setNewTeamName(e.target.value)}
+                  placeholder={t("name")}
+                  autoFocus
+                />
+                <Input
+                  value={newTeamDesc}
+                  onChange={(e) => setNewTeamDesc(e.target.value)}
+                  placeholder={t("description")}
+                />
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setShowCreate(false)}>
+                    {tc("cancel")}
+                  </Button>
+                  <Button type="submit">{t("createTeam")}</Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {error && (

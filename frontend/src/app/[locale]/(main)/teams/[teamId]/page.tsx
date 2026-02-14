@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { teamsAPI, agentsAPI, meetingsAPI } from "@/lib/api";
-import { getErrorMessage } from "@/lib/utils";
+import { getErrorMessage, downloadBlob } from "@/lib/utils";
 import type { TeamWithAgents, Meeting, TeamStats, AgentMetrics } from "@/types";
 import TemplatesBrowser from "@/components/TemplatesBrowser";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardAction } from "@/components/ui/card";
@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Plus, Trash2, Pencil, Workflow, MessageSquare, Bot, Loader2, LayoutTemplate } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Pencil, Workflow, MessageSquare, Bot, Loader2, LayoutTemplate, Copy, CheckSquare, Download } from "lucide-react";
 import type { Agent } from "@/types";
 import { MODEL_OPTIONS } from "@/lib/models";
 
@@ -68,6 +68,10 @@ export default function TeamDetailPage() {
   const [showTemplates, setShowTemplates] = useState(false);
   const [teamStats, setTeamStats] = useState<TeamStats | null>(null);
   const [agentMetricsMap, setAgentMetricsMap] = useState<Record<string, AgentMetrics>>({});
+
+  // Select mode state
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const loadData = async () => {
     try {
@@ -128,7 +132,58 @@ export default function TeamDetailPage() {
     }
   };
 
+  const handleCloneAgent = async (agentId: string) => {
+    try {
+      await agentsAPI.clone(agentId);
+      await loadData();
+    } catch (err) {
+      setError(getErrorMessage(err, "Failed to clone agent"));
+    }
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(t("batchDeleteConfirm", { count: selectedIds.size }))) return;
+    try {
+      await agentsAPI.batchDelete([...selectedIds]);
+      setSelectedIds(new Set());
+      setSelectMode(false);
+      await loadData();
+    } catch (err) {
+      setError(getErrorMessage(err, "Failed to delete agents"));
+    }
+  };
+
+  const handleExportTeam = async () => {
+    try {
+      const blob = await teamsAPI.exportTeam(teamId);
+      downloadBlob(blob, `${team?.name || "team"}.json`);
+    } catch (err) {
+      setError(getErrorMessage(err, "Failed to export team"));
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAll = () => {
+    if (!team) return;
+    setSelectedIds(new Set(team.agents.map((a) => a.id)));
+  };
+
+  const deselectAll = () => setSelectedIds(new Set());
+
   const openEditAgent = (agent: Agent) => {
+    if (selectMode) {
+      toggleSelect(agent.id);
+      return;
+    }
     setEditAgentForm({
       name: agent.name,
       title: agent.title,
@@ -225,6 +280,10 @@ export default function TeamDetailPage() {
               {t("visualEditor")}
             </Link>
           </Button>
+          <Button size="sm" variant="outline" onClick={handleExportTeam}>
+            <Download className="h-4 w-4 mr-1" />
+            {t("exportTeam")}
+          </Button>
         </div>
         {team.description && (
           <p className="mt-1 text-muted-foreground">{team.description}</p>
@@ -260,6 +319,16 @@ export default function TeamDetailPage() {
             {t("agents")} ({team.agents.length})
           </h2>
           <div className="flex gap-2">
+            {team.agents.length > 0 && (
+              <Button
+                size="sm"
+                variant={selectMode ? "default" : "outline"}
+                onClick={() => { setSelectMode(!selectMode); setSelectedIds(new Set()); }}
+              >
+                <CheckSquare className="h-4 w-4 mr-1" />
+                {t("selectAgents")}
+              </Button>
+            )}
             <Dialog open={showTemplates} onOpenChange={setShowTemplates}>
               <DialogTrigger asChild>
                 <Button size="sm" variant="outline">
@@ -348,14 +417,42 @@ export default function TeamDetailPage() {
           </div>
         </div>
 
+        {/* Batch action bar */}
+        {selectMode && team.agents.length > 0 && (
+          <div className="flex items-center gap-2 mb-4 p-2 rounded-md bg-muted">
+            <Button size="sm" variant="outline" onClick={selectedIds.size === team.agents.length ? deselectAll : selectAll}>
+              {selectedIds.size === team.agents.length ? t("deselectAll") : t("selectAll")}
+            </Button>
+            {selectedIds.size > 0 && (
+              <Button size="sm" variant="destructive" onClick={handleBatchDelete}>
+                <Trash2 className="h-4 w-4 mr-1" />
+                {t("batchDelete", { count: selectedIds.size })}
+              </Button>
+            )}
+          </div>
+        )}
+
         {team.agents.length === 0 ? (
           <p className="text-muted-foreground text-sm">{t("noAgents")}</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {team.agents.map((agent) => (
-              <Card key={agent.id} className="cursor-pointer hover:border-primary/50 transition-colors overflow-hidden" onClick={() => openEditAgent(agent)}>
+              <Card
+                key={agent.id}
+                className={`cursor-pointer hover:border-primary/50 transition-colors overflow-hidden ${selectMode && selectedIds.has(agent.id) ? "border-primary ring-1 ring-primary" : ""}`}
+                onClick={() => openEditAgent(agent)}
+              >
                 <CardHeader>
                   <div className="flex items-start gap-2 min-w-0">
+                    {selectMode && (
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(agent.id)}
+                        onChange={() => toggleSelect(agent.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="mt-0.5 rounded"
+                      />
+                    )}
                     <Bot className="h-4 w-4 shrink-0 text-muted-foreground" />
                     <div className="min-w-0">
                       <CardTitle className="text-base flex items-center gap-2 overflow-hidden">
@@ -387,6 +484,15 @@ export default function TeamDetailPage() {
                       )}
                     </div>
                     <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={(e) => { e.stopPropagation(); handleCloneAgent(agent.id); }}
+                        title={t("cloneAgent")}
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                      </Button>
                       <span className="text-muted-foreground/60 p-1" aria-hidden>
                         <Pencil className="h-3.5 w-3.5" />
                       </span>

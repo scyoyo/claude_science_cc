@@ -24,6 +24,7 @@
     "onboarding": "新建项目",
     "teams": "团队",
     "meetings": "会议",
+    "search": "搜索",
     "settings": "设置",
     "profile": "个人资料"
   },
@@ -61,7 +62,12 @@
     "description": "描述（可选）",
     "noTeams": "暂无团队，创建一个开始吧。",
     "deleteConfirm": "确定删除此团队及其所有智能体吗？",
-    "createTeam": "创建团队"
+    "createTeam": "创建团队",
+    "importTeam": "导入团队",
+    "importFile": "选择 JSON 文件",
+    "importPreview": "{name} — {count} 个智能体",
+    "importConfirm": "导入",
+    "importError": "无效的团队文件"
   },
   "teamDetail": {
     "backToTeams": "返回团队列表",
@@ -109,7 +115,15 @@
     "agentMetrics": {
       "messages": "{count} 条消息",
       "meetings": "{count} 场会议"
-    }
+    },
+    "cloneAgent": "克隆",
+    "cloneSuccess": "智能体已克隆",
+    "selectAgents": "选择",
+    "selectAll": "全选",
+    "deselectAll": "取消全选",
+    "batchDelete": "删除选中 ({count})",
+    "batchDeleteConfirm": "确定删除 {count} 个选中的智能体吗？",
+    "exportTeam": "导出"
   },
   "meeting": {
     "backToTeam": "返回团队",
@@ -326,7 +340,7 @@
     "compareButton": "对比会议",
     "noCompletedMeetings": "暂无已完成的会议可供对比。"
   },
-  "teamDetail": {
+  "profile": {
     "title": "个人资料",
     "email": "邮箱",
     "username": "用户名",
@@ -339,5 +353,15 @@
     "update": "保存更改",
     "saving": "保存中...",
     "updated": "资料已更新。刷新页面查看更改。"
+  },
+  "search": {
+    "title": "搜索",
+    "placeholder": "搜索团队和智能体...",
+    "typeToSearch": "输入关键词搜索团队和智能体",
+    "noResults": "未找到 \"{query}\" 的结果",
+    "teamsSection": "团队",
+    "agentsSection": "智能体",
+    "inTeam": "所属 {team}",
+    "shortcut": "按 {key} 搜索"
   }
 }
