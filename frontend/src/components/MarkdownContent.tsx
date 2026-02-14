@@ -11,6 +11,7 @@ export function MarkdownContent({ content, className = "" }: MarkdownContentProp
   return (
     <div className={`max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 ${className}`}>
       <ReactMarkdown
+        children={content}
         components={{
           p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
           strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
