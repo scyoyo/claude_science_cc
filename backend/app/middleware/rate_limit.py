@@ -2,6 +2,7 @@
 
 Uses user ID (authenticated) or client IP as the rate limit key.
 Applies per-endpoint limits and adds X-RateLimit headers to responses.
+Limits are configurable via settings (RATE_LIMIT_*).
 """
 
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -9,11 +10,15 @@ from starlette.requests import Request
 from starlette.responses import Response, JSONResponse
 
 from app.core.rate_limiter import RateLimiter
+from app.config import settings
 
-# Separate limiters for different endpoint types
-_api_limiter = RateLimiter(max_requests=120, window_seconds=60)
-_llm_limiter = RateLimiter(max_requests=30, window_seconds=60)
-_auth_limiter = RateLimiter(max_requests=20, window_seconds=60)
+# Limiters use config (env: RATE_LIMIT_API_MAX_REQUESTS, etc.)
+_api_limiter = RateLimiter(
+    max_requests=settings.RATE_LIMIT_API_MAX_REQUESTS,
+    window_seconds=settings.RATE_LIMIT_API_WINDOW_SECONDS,
+)
+_llm_limiter = RateLimiter(max_requests=settings.RATE_LIMIT_LLM_MAX_REQUESTS, window_seconds=60)
+_auth_limiter = RateLimiter(max_requests=settings.RATE_LIMIT_AUTH_MAX_REQUESTS, window_seconds=60)
 
 
 def _get_client_key(request: Request) -> str:

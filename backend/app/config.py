@@ -48,5 +48,11 @@ class Settings(BaseSettings):
     # CORS
     CORS_ORIGINS: list[str] = ["http://localhost:3000"]
 
+    # Rate limiting (per client: user ID or IP)
+    RATE_LIMIT_API_MAX_REQUESTS: int = 120   # General API: max requests per window
+    RATE_LIMIT_API_WINDOW_SECONDS: int = 60  # Window in seconds
+    RATE_LIMIT_LLM_MAX_REQUESTS: int = 30   # /api/llm/chat
+    RATE_LIMIT_AUTH_MAX_REQUESTS: int = 20   # login/register
+
 
 settings = Settings()

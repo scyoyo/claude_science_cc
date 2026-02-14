@@ -491,7 +491,7 @@ export default function TeamDetailPage() {
                   <span className="whitespace-nowrap">{t("batchDelete", { count: selectedIds.size })}</span>
                 </Button>
                 {team.agents.some((a) => selectedIds.has(a.id) && !a.is_mirror) && (
-                  <Button size="sm" variant="secondary" onClick={handleAddMirrorForSelected} disabled={addingMirrors} className="shrink-0">
+                  <Button size="sm" variant="outline" onClick={handleAddMirrorForSelected} disabled={addingMirrors} className="shrink-0 border-border bg-background hover:bg-muted">
                     {addingMirrors ? <Loader2 className="h-4 w-4 animate-spin mr-1 shrink-0" /> : <CopyPlus className="h-4 w-4 mr-1 shrink-0" />}
                     <span className="whitespace-nowrap">{t("addMirrorAgentSelected", { count: team.agents.filter((a) => selectedIds.has(a.id) && !a.is_mirror).length })}</span>
                   </Button>
