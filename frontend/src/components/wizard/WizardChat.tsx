@@ -13,15 +13,7 @@ import { getErrorMessage } from "@/lib/utils";
 import { MarkdownContent } from "@/components/MarkdownContent";
 import { useMobileGesture } from "@/contexts/MobileGestureContext";
 import { useSwipeGesture } from "@/hooks/useSwipeGesture";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { EditAgentDialog } from "@/components/EditAgentDialog";
 import type {
   OnboardingStage,
   OnboardingChatMessage,
@@ -165,11 +157,12 @@ export function WizardChat() {
       }
       setContext(newContext);
 
-      // Build the assistant message
+      // Build the assistant message — only attach agent cards when this response returns a new team_suggestion (show cards once)
+      const newTeamFromResponse = (response.data?.team_suggestion as TeamSuggestion)?.agents;
       const assistantMsg: ChatMessage = {
         role: "assistant",
         content: response.message,
-        proposedTeam: teamSuggestion?.agents || (response.data?.team_suggestion as TeamSuggestion)?.agents,
+        proposedTeam: newTeamFromResponse ?? undefined,
         isComplete: response.next_stage === null,
       };
       setMessages((prev) => [...prev, assistantMsg]);
@@ -498,9 +491,9 @@ function MessageBubble({
     setEditingIndex(null);
     setEditForm(null);
   };
-  const saveEdit = () => {
-    if (editingIndex !== null && editForm) {
-      onEditAgent(editingIndex, editForm);
+  const handleSaveEdit = (data: { name: string; title: string; expertise: string; goal: string; role: string; model: string }) => {
+    if (editingIndex !== null) {
+      onEditAgent(editingIndex, data);
       closeEdit();
     }
   };
@@ -583,72 +576,14 @@ function MessageBubble({
         )}
       </div>
 
-      {/* Edit agent dialog */}
-      <Dialog open={editingIndex !== null} onOpenChange={(open) => !open && closeEdit()}>
-        <DialogContent className="sm:max-w-md" showCloseButton>
-          <DialogHeader>
-            <DialogTitle>{t("editAgent")}</DialogTitle>
-          </DialogHeader>
-          {editForm && (
-            <div className="grid gap-3 py-2">
-              <div className="grid gap-2">
-                <Label htmlFor="edit-name">{t("agentName")}</Label>
-                <Input
-                  id="edit-name"
-                  value={editForm.name}
-                  onChange={(e) => setEditForm((f) => (f ? { ...f, name: e.target.value } : null))}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="edit-title">{t("agentTitle")}</Label>
-                <Input
-                  id="edit-title"
-                  value={editForm.title}
-                  onChange={(e) => setEditForm((f) => (f ? { ...f, title: e.target.value } : null))}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="edit-expertise">{t("agentExpertise")}</Label>
-                <Input
-                  id="edit-expertise"
-                  value={editForm.expertise}
-                  onChange={(e) => setEditForm((f) => (f ? { ...f, expertise: e.target.value } : null))}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="edit-goal">{t("agentGoal")}</Label>
-                <Input
-                  id="edit-goal"
-                  value={editForm.goal}
-                  onChange={(e) => setEditForm((f) => (f ? { ...f, goal: e.target.value } : null))}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="edit-role">{t("agentRole")}</Label>
-                <Input
-                  id="edit-role"
-                  value={editForm.role}
-                  onChange={(e) => setEditForm((f) => (f ? { ...f, role: e.target.value } : null))}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="edit-model">{t("agentModel")}</Label>
-                <Input
-                  id="edit-model"
-                  value={editForm.model}
-                  onChange={(e) => setEditForm((f) => (f ? { ...f, model: e.target.value } : null))}
-                />
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={closeEdit}>
-              {t("cancel")}
-            </Button>
-            <Button onClick={saveEdit}>{t("save")}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Edit agent — same dialog as team page */}
+      <EditAgentDialog
+        open={editingIndex !== null}
+        onOpenChange={(open) => !open && closeEdit()}
+        agent={editForm}
+        variant="suggestion"
+        onSave={handleSaveEdit}
+      />
     </div>
   );
 }

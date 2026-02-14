@@ -105,6 +105,11 @@ export const agentsAPI = {
       method: "DELETE",
       body: JSON.stringify(ids),
     }),
+  createMirrors: (primaryAgentIds: string[], mirrorModel: string = "deepseek-chat") =>
+    fetchAPI<Agent[]>("/agents/create-mirrors", {
+      method: "POST",
+      body: JSON.stringify({ primary_agent_ids: primaryAgentIds, mirror_model: mirrorModel }),
+    }),
 };
 
 async function fetchRaw(path: string, options?: RequestInit): Promise<Response> {

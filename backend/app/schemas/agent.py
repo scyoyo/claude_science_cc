@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 
 class AgentBase(BaseModel):
@@ -29,6 +29,11 @@ class AgentUpdate(BaseModel):
     model_params: Optional[Dict] = None
     position_x: Optional[float] = None
     position_y: Optional[float] = None
+
+
+class CreateMirrorsRequest(BaseModel):
+    primary_agent_ids: List[str] = Field(..., min_length=1, max_length=50)
+    mirror_model: str = Field("deepseek-chat", min_length=1)
 
 
 class AgentResponse(AgentBase):

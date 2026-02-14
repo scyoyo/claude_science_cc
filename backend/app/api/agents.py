@@ -6,7 +6,7 @@ from sqlalchemy import func
 from app.database import get_db
 from app.models import Agent, Team, MeetingMessage
 from sqlalchemy import update
-from app.schemas.agent import AgentCreate, AgentUpdate, AgentResponse
+from app.schemas.agent import AgentCreate, AgentUpdate, AgentResponse, CreateMirrorsRequest
 from app.schemas.pagination import PaginatedResponse
 from app.core.prompt import generate_system_prompt
 from app.api.deps import pagination_params, build_paginated_response
@@ -155,6 +155,45 @@ def get_agent_metrics(agent_id: str, db: Session = Depends(get_db)):
         "avg_message_length": avg_length,
         "most_active_round": most_active_round,
     }
+
+
+@router.post("/create-mirrors", response_model=List[AgentResponse], status_code=status.HTTP_201_CREATED)
+def create_mirror_agents(
+    body: CreateMirrorsRequest,
+    db: Session = Depends(get_db),
+):
+    """Create mirror agents for the given primary (non-mirror) agents. One mirror per primary."""
+    created = []
+    for agent_id in body.primary_agent_ids:
+        primary = db.query(Agent).filter(Agent.id == agent_id).first()
+        if not primary:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Agent not found: {agent_id}",
+            )
+        if primary.is_mirror:
+            continue
+        mirror = Agent(
+            team_id=primary.team_id,
+            name=f"{primary.name} (Mirror)",
+            title=primary.title,
+            expertise=primary.expertise,
+            goal=primary.goal,
+            role=f"mirror role - {primary.role}",
+            model=body.mirror_model,
+            model_params=primary.model_params or {},
+            position_x=primary.position_x + 50,
+            position_y=primary.position_y + 50,
+            is_mirror=True,
+            primary_agent_id=primary.id,
+        )
+        mirror.system_prompt = generate_system_prompt(mirror)
+        db.add(mirror)
+        created.append(mirror)
+    db.commit()
+    for m in created:
+        db.refresh(m)
+    return created
 
 
 @router.post("/{agent_id}/clone", response_model=AgentResponse, status_code=status.HTTP_201_CREATED)

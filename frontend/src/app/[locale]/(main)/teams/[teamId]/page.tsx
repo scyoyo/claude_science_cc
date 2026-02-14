@@ -29,10 +29,11 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Plus, Trash2, Pencil, Workflow, MessageSquare, Bot, Loader2, LayoutTemplate, Copy, CheckSquare, Download, PlayCircle } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Pencil, Workflow, MessageSquare, Bot, Loader2, LayoutTemplate, Copy, CheckSquare, Download, PlayCircle, CopyPlus } from "lucide-react";
 import { SHOW_VISUAL_EDITOR, SHOW_EXPORT_TEAM } from "@/lib/feature-flags";
 import type { Agent } from "@/types";
 import { MODEL_OPTIONS } from "@/lib/models";
+import { EditAgentDialog, type EditAgentFormData } from "@/components/EditAgentDialog";
 
 export default function TeamDetailPage() {
   const params = useParams();
@@ -48,9 +49,6 @@ export default function TeamDetailPage() {
   const [showAddAgent, setShowAddAgent] = useState(false);
   const [showNewMeeting, setShowNewMeeting] = useState(false);
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
-  const [editAgentForm, setEditAgentForm] = useState({
-    name: "", title: "", expertise: "", goal: "", role: "", model: "gpt-4", system_prompt: "",
-  });
 
   const [agentForm, setAgentForm] = useState({
     name: "",
@@ -158,6 +156,24 @@ export default function TeamDetailPage() {
     }
   };
 
+  const [addingMirrors, setAddingMirrors] = useState(false);
+  const handleAddMirrorForSelected = async () => {
+    if (!team) return;
+    const primaryIds = team.agents
+      .filter((a) => selectedIds.has(a.id) && !a.is_mirror)
+      .map((a) => a.id);
+    if (primaryIds.length === 0) return;
+    try {
+      setAddingMirrors(true);
+      await agentsAPI.createMirrors(primaryIds);
+      await loadData();
+    } catch (err) {
+      setError(getErrorMessage(err, "Failed to add mirror agents"));
+    } finally {
+      setAddingMirrors(false);
+    }
+  };
+
   const handleExportTeam = async () => {
     try {
       const blob = await teamsAPI.exportTeam(teamId);
@@ -188,23 +204,13 @@ export default function TeamDetailPage() {
       toggleSelect(agent.id);
       return;
     }
-    setEditAgentForm({
-      name: agent.name,
-      title: agent.title,
-      expertise: agent.expertise,
-      goal: agent.goal,
-      role: agent.role,
-      model: agent.model,
-      system_prompt: agent.system_prompt,
-    });
     setEditingAgent(agent);
   };
 
-  const handleEditAgent = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleEditAgentSave = async (data: EditAgentFormData) => {
     if (!editingAgent) return;
     try {
-      await agentsAPI.update(editingAgent.id, editAgentForm as Record<string, unknown>);
+      await agentsAPI.update(editingAgent.id, data as Record<string, unknown>);
       setEditingAgent(null);
       await loadData();
     } catch (err) {
@@ -468,22 +474,28 @@ export default function TeamDetailPage() {
           </div>
         </div>
 
-        {/* Batch action bar */}
+        {/* Batch action bar — wraps on mobile to avoid overflow */}
         {selectMode && team.agents.length > 0 && (
-          <div className="flex items-center gap-2 mb-4 p-2 rounded-md bg-muted">
-            <Button size="sm" variant="outline" onClick={selectedIds.size === team.agents.length ? deselectAll : selectAll}>
+          <div className="flex flex-wrap items-center gap-2 mb-4 p-2 rounded-md bg-muted min-w-0 max-w-full">
+            <Button size="sm" variant="outline" onClick={selectedIds.size === team.agents.length ? deselectAll : selectAll} className="shrink-0">
               {selectedIds.size === team.agents.length ? t("deselectAll") : t("selectAll")}
             </Button>
             {selectedIds.size > 0 && (
               <>
-                <Button size="sm" variant="default" onClick={openNewMeetingWithSelectedAgents}>
-                  <PlayCircle className="h-4 w-4 mr-1" />
-                  {t("startMeetingWithSelected", { count: selectedIds.size })}
+                <Button size="sm" variant="default" onClick={openNewMeetingWithSelectedAgents} className="shrink-0">
+                  <PlayCircle className="h-4 w-4 mr-1 shrink-0" />
+                  <span className="whitespace-nowrap">{t("startMeetingWithSelected", { count: selectedIds.size })}</span>
                 </Button>
-                <Button size="sm" variant="destructive" onClick={handleBatchDelete}>
-                  <Trash2 className="h-4 w-4 mr-1" />
-                  {t("batchDelete", { count: selectedIds.size })}
+                <Button size="sm" variant="destructive" onClick={handleBatchDelete} className="shrink-0">
+                  <Trash2 className="h-4 w-4 mr-1 shrink-0" />
+                  <span className="whitespace-nowrap">{t("batchDelete", { count: selectedIds.size })}</span>
                 </Button>
+                {team.agents.some((a) => selectedIds.has(a.id) && !a.is_mirror) && (
+                  <Button size="sm" variant="secondary" onClick={handleAddMirrorForSelected} disabled={addingMirrors} className="shrink-0">
+                    {addingMirrors ? <Loader2 className="h-4 w-4 animate-spin mr-1 shrink-0" /> : <CopyPlus className="h-4 w-4 mr-1 shrink-0" />}
+                    <span className="whitespace-nowrap">{t("addMirrorAgentSelected", { count: team.agents.filter((a) => selectedIds.has(a.id) && !a.is_mirror).length })}</span>
+                  </Button>
+                )}
               </>
             )}
           </div>
@@ -754,91 +766,14 @@ export default function TeamDetailPage() {
         )}
       </section>
 
-      {/* Edit Agent Dialog */}
-      <Dialog open={!!editingAgent} onOpenChange={(open) => !open && setEditingAgent(null)}>
-        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{t("editAgent")}</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleEditAgent} className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>{t("agentName")}</Label>
-                <Input
-                  value={editAgentForm.name}
-                  onChange={(e) => setEditAgentForm({ ...editAgentForm, name: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>{t("agentTitle")}</Label>
-                <Input
-                  value={editAgentForm.title}
-                  onChange={(e) => setEditAgentForm({ ...editAgentForm, title: e.target.value })}
-                  required
-                />
-              </div>
-            </div>
-            <div className="space-y-1">
-              <Label>{t("expertise")}</Label>
-              <Input
-                value={editAgentForm.expertise}
-                onChange={(e) => setEditAgentForm({ ...editAgentForm, expertise: e.target.value })}
-                required
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>{t("goal")}</Label>
-              <Input
-                value={editAgentForm.goal}
-                onChange={(e) => setEditAgentForm({ ...editAgentForm, goal: e.target.value })}
-                required
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>{t("role")}</Label>
-              <Input
-                value={editAgentForm.role}
-                onChange={(e) => setEditAgentForm({ ...editAgentForm, role: e.target.value })}
-                required
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>{t("model")}</Label>
-              <Select
-                value={editAgentForm.model}
-                onValueChange={(v) => setEditAgentForm({ ...editAgentForm, model: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {MODEL_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label>{t("systemPrompt")}</Label>
-              <Textarea
-                value={editAgentForm.system_prompt}
-                onChange={(e) => setEditAgentForm({ ...editAgentForm, system_prompt: e.target.value })}
-                rows={6}
-                className="font-mono text-xs"
-              />
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setEditingAgent(null)}>
-                {tc("cancel")}
-              </Button>
-              <Button type="submit">{tc("save")}</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {/* Edit Agent Dialog — shared with onboarding */}
+      <EditAgentDialog
+        open={!!editingAgent}
+        onOpenChange={(open) => !open && setEditingAgent(null)}
+        agent={editingAgent}
+        variant="full"
+        onSave={handleEditAgentSave}
+      />
     </div>
   );
 }

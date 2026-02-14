@@ -164,3 +164,32 @@ def test_cascade_delete_agents_with_team(client, sample_team):
     response = client.get(f"/api/agents/team/{sample_team['id']}")
     assert response.status_code == 200
     assert response.json()["total"] == 0
+
+
+def test_create_mirror_agents(client, sample_team):
+    """Test creating mirror agents from selected primary agents"""
+    create_response = client.post("/api/agents/", json={
+        "team_id": sample_team["id"],
+        "name": "Primary",
+        "title": "Researcher",
+        "expertise": "ML",
+        "goal": "Research",
+        "role": "Lead",
+        "model": "gpt-4",
+    })
+    assert create_response.status_code == 201
+    primary_id = create_response.json()["id"]
+
+    response = client.post("/api/agents/create-mirrors", json={
+        "primary_agent_ids": [primary_id],
+        "mirror_model": "deepseek-chat",
+    })
+    assert response.status_code == 201
+    created = response.json()
+    assert len(created) == 1
+    mirror = created[0]
+    assert mirror["is_mirror"] is True
+    assert mirror["primary_agent_id"] == primary_id
+    assert mirror["name"] == "Primary (Mirror)"
+    assert mirror["model"] == "deepseek-chat"
+    assert "mirror role" in mirror["role"]
