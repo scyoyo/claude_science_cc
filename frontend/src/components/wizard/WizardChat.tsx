@@ -330,7 +330,7 @@ export function WizardChat() {
         </div>
       </ScrollArea>
 
-      {/* Input area - sticky at bottom */}
+      {/* Input area - sticky at bottom, height animates so messages + input = viewport */}
       <div className="shrink-0 border-t border-border/50 bg-background overflow-hidden pb-[env(safe-area-inset-bottom)]">
         {/* Swipe-up bar when input hidden (mobile only) */}
         {showInputBar && (
@@ -344,42 +344,44 @@ export function WizardChat() {
           </div>
         )}
 
-        {/* Main input panel */}
+        {/* Main input panel - collapses when hidden so messages area expands */}
         <div
-          className={`px-4 py-3 transition-[transform,opacity] duration-300 ease-out ${
+          className={`overflow-hidden transition-[max-height,opacity] duration-300 ease-out ${
             isMobile && !isComplete && !inputVisible
-              ? "translate-y-full opacity-0 pointer-events-none"
-              : "translate-y-0 opacity-100"
+              ? "max-h-0 opacity-0 pointer-events-none"
+              : "max-h-[220px] opacity-100"
           }`}
           {...(isMobile && !isComplete && inputVisible ? inputSwipeDown : {})}
         >
-          <div className="mx-auto max-w-2xl">
-            {inputContent}
+          <div className="px-4 py-3">
+            <div className="mx-auto max-w-2xl">
+              {inputContent}
 
-            {!isComplete && messages.length === 0 && (
-              <div className="mt-2 text-center">
-                <Link
-                  href="/teams"
-                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  {t("skipToManual")} &rarr;
-                </Link>
-              </div>
-            )}
+              {!isComplete && messages.length === 0 && (
+                <div className="mt-2 text-center">
+                  <Link
+                    href="/teams"
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {t("skipToManual")} &rarr;
+                  </Link>
+                </div>
+              )}
 
-            {!isComplete && messages.length > 0 && (
-              <div className="mt-2 flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">
-                  {t(`stage.${stage}`)}
-                </span>
-                <button
-                  onClick={handleReset}
-                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  {t("startOver")}
-                </button>
-              </div>
-            )}
+              {!isComplete && messages.length > 0 && (
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">
+                    {t(`stage.${stage}`)}
+                  </span>
+                  <button
+                    onClick={handleReset}
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {t("startOver")}
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
