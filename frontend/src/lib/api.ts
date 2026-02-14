@@ -23,11 +23,9 @@ interface PaginatedResponse<T> {
   limit: number;
 }
 
-// In browser: use relative path (proxied by Next.js rewrites)
-// In SSR/server: use full URL to backend
-const API_BASE = typeof window !== "undefined"
-  ? "/api"
-  : (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api");
+// In browser: use NEXT_PUBLIC_API_URL when set (e.g. Vercel → Railway), else /api (local rewrites)
+// In SSR: use full URL to backend
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || (typeof window !== "undefined" ? "/api" : "http://localhost:8000/api");
 
 async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {

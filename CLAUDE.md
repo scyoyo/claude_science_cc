@@ -264,6 +264,9 @@ cd local && npm run dev
 # Local Docker (SQLite, no auth)
 cd local && docker compose up -d
 
+# Simple cloud (no Docker): Backend on Railway, Frontend on Vercel
+# See docs/DEPLOY.md for step-by-step env vars and root directories.
+
 # Production (Nginx + PostgreSQL + Redis + JWT auth)
 cd cloud && cp .env.example .env && docker compose up -d
 

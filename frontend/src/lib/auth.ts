@@ -3,11 +3,8 @@ import type { TokenResponse, User, LoginRequest, RegisterRequest } from "@/types
 const TOKEN_KEY = "vlab_access_token";
 const REFRESH_KEY = "vlab_refresh_token";
 
-// In browser: relative path; in SSR: full URL
-const API_BASE =
-  typeof window !== "undefined"
-    ? "/api"
-    : process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+// Use NEXT_PUBLIC_API_URL when set (e.g. Vercel → Railway), else /api (local)
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "/api";
 
 export function getAccessToken(): string | null {
   if (typeof window === "undefined") return null;

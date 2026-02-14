@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 
-const API_BASE = "/api";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "/api";
 
 export default function ProfilePage() {
   const router = useRouter();
