@@ -1,5 +1,6 @@
 "use client";
 
+import { cn } from "@/lib/utils";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -25,22 +26,17 @@ export function MainLayoutClient({
       {...(isMobile ? contentSwipe : {})}
     >
       <Sidebar />
-      <div className="flex flex-1 flex-col overflow-hidden min-w-0">
+      <div
+        className={cn(
+          "flex flex-1 flex-col overflow-hidden min-w-0 transition-[margin] duration-300 ease-out",
+          isMobile && sidebarOpen && "ml-14"
+        )}
+      >
         <Header />
         <main className="flex-1 overflow-auto p-3 sm:p-6 min-h-0">
           <ErrorBoundary>{children}</ErrorBoundary>
         </main>
       </div>
-      {/* Mobile sidebar backdrop */}
-      {isMobile && (
-        <div
-          className={`fixed inset-0 z-40 bg-black/40 transition-opacity duration-300 md:hidden ${
-            sidebarOpen ? "opacity-100" : "opacity-0 pointer-events-none"
-          }`}
-          onClick={() => setSidebarOpen(false)}
-          aria-hidden
-        />
-      )}
     </div>
   );
 }
