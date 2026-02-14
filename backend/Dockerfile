@@ -17,7 +17,9 @@ COPY . .
 # Create data directory (for SQLite mode)
 RUN mkdir -p /app/data
 
-EXPOSE 8000
+# PORT set by Railway; defaults to 8000 for local
+ENV PORT=${PORT:-8000}
+EXPOSE ${PORT}
 
 # Use entrypoint script (runs migrations for PostgreSQL, then starts uvicorn)
 ENTRYPOINT ["bash", "entrypoint.sh"]

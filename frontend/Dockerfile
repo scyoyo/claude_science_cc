@@ -30,8 +30,9 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 
-EXPOSE 3000
-ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
+# PORT is set by Railway (usually 8080); defaults to 3000 for local
+ENV PORT=${PORT:-3000}
+EXPOSE ${PORT}
 
 CMD ["node", "server.js"]

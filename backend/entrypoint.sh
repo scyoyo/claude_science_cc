@@ -7,5 +7,5 @@ if [[ "$DATABASE_URL" == postgresql* ]]; then
     alembic upgrade head
 fi
 
-# Start the application
-exec uvicorn app.main:app --host 0.0.0.0 --port 8000 "$@"
+# Start the application (PORT set by Railway, defaults to 8000)
+exec uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-8000}" "$@"
