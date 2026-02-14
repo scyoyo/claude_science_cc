@@ -499,7 +499,7 @@ class TestOnboardingChatAPI:
         assert response.status_code == 200
         data = response.json()
         assert data["stage"] == "mirror_config"
-        assert data["next_stage"] == "complete"
+        assert data["next_stage"] is None
 
     def test_complete_stage(self, client):
         """POST /api/onboarding/chat with complete stage."""
@@ -551,7 +551,7 @@ class TestOnboardingChatAPI:
             "context": {"team_suggestion": team_suggestion, "mirror_config": {"enabled": False}},
         })
         assert r4.status_code == 200
-        assert r4.json()["next_stage"] == "complete"
+        assert r4.json()["next_stage"] is None
 
     def test_team_suggestion_reject_template(self, client):
         """Rejecting team in template mode returns re-ask message."""
@@ -860,7 +860,7 @@ class TestOnboardingChatLLMMode:
                     },
                 })
                 assert r4.status_code == 200
-                assert r4.json()["next_stage"] == "complete"
+                assert r4.json()["next_stage"] is None
         finally:
             app.dependency_overrides.pop(get_team_builder, None)
 

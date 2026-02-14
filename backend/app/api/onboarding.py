@@ -337,11 +337,9 @@ def _handle_mirror_config_stage(
 
     return OnboardingChatResponse(
         stage=OnboardingStage.mirror_config,
-        next_stage=OnboardingStage.complete,
+        next_stage=None,
         message=(
-            "Your team configuration is ready!\n\n"
-            "Use the `/api/onboarding/generate-team` endpoint to create "
-            "the team and agents in the database."
+            "Your team configuration is ready! Creating your team now..."
         ),
         data=data,
     )
