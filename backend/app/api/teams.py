@@ -11,18 +11,19 @@ from app.schemas.user import TeamRoleAssign, TeamRoleResponse
 from app.schemas.pagination import PaginatedResponse
 from app.core.auth import get_current_user
 from app.core.permissions import check_team_access
+from app.api.deps import pagination_params, build_paginated_response
 
 router = APIRouter(prefix="/teams", tags=["teams"])
 
 
 @router.get("/", response_model=PaginatedResponse[TeamResponse])
 def list_teams(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500),
+    pagination: tuple[int, int] = Depends(pagination_params),
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user),
 ):
     """List teams with pagination. When auth enabled, shows user's teams + public teams."""
+    skip, limit = pagination
     if current_user is None:
         query = db.query(Team)
     else:
@@ -35,10 +36,7 @@ def list_teams(
             | (Team.id.in_(user_team_ids) if user_team_ids else False)
             | (Team.is_public == True)
         )
-
-    total = query.count()
-    items = query.offset(skip).limit(limit).all()
-    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
+    return build_paginated_response(query, skip, limit)
 
 
 @router.post("/", response_model=TeamResponse, status_code=status.HTTP_201_CREATED)

@@ -10,6 +10,7 @@ from app.schemas.agent import AgentResponse
 from app.schemas.pagination import PaginatedResponse
 from app.core.auth import get_current_user
 from app.models.user import User, UserTeamRole
+from app.api.deps import search_pagination_params, build_paginated_response
 
 router = APIRouter(prefix="/search", tags=["search"])
 
@@ -17,12 +18,12 @@ router = APIRouter(prefix="/search", tags=["search"])
 @router.get("/teams", response_model=PaginatedResponse[TeamResponse])
 def search_teams(
     q: str = Query(..., min_length=1, max_length=200),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
+    pagination: tuple[int, int] = Depends(search_pagination_params),
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user),
 ):
     """Search teams by name or description."""
+    skip, limit = pagination
     pattern = f"%{q}%"
     query = db.query(Team).filter(
         or_(
@@ -42,21 +43,18 @@ def search_teams(
             | (Team.id.in_(user_team_ids) if user_team_ids else False)
             | (Team.is_public == True)
         )
-
-    total = query.count()
-    items = query.offset(skip).limit(limit).all()
-    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
+    return build_paginated_response(query, skip, limit)
 
 
 @router.get("/agents", response_model=PaginatedResponse[AgentResponse])
 def search_agents(
     q: str = Query(..., min_length=1, max_length=200),
     team_id: Optional[str] = Query(None),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
+    pagination: tuple[int, int] = Depends(search_pagination_params),
     db: Session = Depends(get_db),
 ):
     """Search agents by name, title, expertise, or goal. Optionally filter by team."""
+    skip, limit = pagination
     pattern = f"%{q}%"
     query = db.query(Agent).filter(
         or_(
@@ -68,7 +66,4 @@ def search_agents(
     )
     if team_id:
         query = query.filter(Agent.team_id == team_id)
-
-    total = query.count()
-    items = query.offset(skip).limit(limit).all()
-    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
+    return build_paginated_response(query, skip, limit)

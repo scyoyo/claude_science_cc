@@ -8,6 +8,7 @@ from app.models import Agent, Team, MeetingMessage
 from app.schemas.agent import AgentCreate, AgentUpdate, AgentResponse
 from app.schemas.pagination import PaginatedResponse
 from app.core.prompt import generate_system_prompt
+from app.api.deps import pagination_params, build_paginated_response
 
 router = APIRouter(prefix="/agents", tags=["agents"])
 
@@ -94,15 +95,13 @@ def batch_delete_agents(
 @router.get("/team/{team_id}", response_model=PaginatedResponse[AgentResponse])
 def list_team_agents(
     team_id: str,
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500),
+    pagination: tuple[int, int] = Depends(pagination_params),
     db: Session = Depends(get_db),
 ):
     """List all agents in a team with pagination"""
+    skip, limit = pagination
     query = db.query(Agent).filter(Agent.team_id == team_id)
-    total = query.count()
-    items = query.offset(skip).limit(limit).all()
-    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
+    return build_paginated_response(query, skip, limit)
 
 
 @router.get("/{agent_id}", response_model=AgentResponse)

@@ -21,6 +21,7 @@ from app.core.background_runner import start_background_run, is_running
 from app.schemas.onboarding import ChatMessage
 from app.schemas.pagination import PaginatedResponse
 from app.database import SessionLocal
+from app.api.deps import pagination_params, build_paginated_response
 
 router = APIRouter(prefix="/meetings", tags=["meetings"])
 
@@ -73,15 +74,13 @@ def compare_meetings(
 
 @router.get("/", response_model=PaginatedResponse[MeetingResponse])
 def list_meetings(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500),
+    pagination: tuple[int, int] = Depends(pagination_params),
     db: Session = Depends(get_db),
 ):
     """List all meetings across all teams with pagination."""
+    skip, limit = pagination
     query = db.query(Meeting).order_by(Meeting.updated_at.desc())
-    total = query.count()
-    items = query.offset(skip).limit(limit).all()
-    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
+    return build_paginated_response(query, skip, limit)
 
 
 @router.post("/", response_model=MeetingResponse, status_code=status.HTTP_201_CREATED)
@@ -272,15 +271,13 @@ def get_meeting_transcript(meeting_id: str, db: Session = Depends(get_db)):
 @router.get("/team/{team_id}", response_model=PaginatedResponse[MeetingResponse])
 def list_team_meetings(
     team_id: str,
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500),
+    pagination: tuple[int, int] = Depends(pagination_params),
     db: Session = Depends(get_db),
 ):
     """List all meetings for a team with pagination."""
+    skip, limit = pagination
     query = db.query(Meeting).filter(Meeting.team_id == team_id)
-    total = query.count()
-    items = query.offset(skip).limit(limit).all()
-    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
+    return build_paginated_response(query, skip, limit)
 
 
 @router.put("/{meeting_id}", response_model=MeetingResponse)
