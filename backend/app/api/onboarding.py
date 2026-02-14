@@ -425,8 +425,8 @@ def generate_team(
     team_builder: TeamBuilder = Depends(get_team_builder),
 ):
     """Create a team and its agents from the onboarding configuration."""
-    # Create team
-    team = Team(name=request.team_name, description=request.team_description)
+    # Create team with language preference
+    team = Team(name=request.team_name, description=request.team_description, language=request.language)
     db.add(team)
     db.commit()
     db.refresh(team)
@@ -445,7 +445,7 @@ def generate_team(
             model=agent_data.model,
             system_prompt="",  # Placeholder, will be set below
         )
-        agent.system_prompt = generate_system_prompt(agent)
+        agent.system_prompt = generate_system_prompt(agent, language=request.language)
         db.add(agent)
         db.commit()
         db.refresh(agent)
@@ -478,7 +478,7 @@ def generate_team(
                     is_mirror=True,
                     primary_agent_id=primary_id,
                 )
-                mirror.system_prompt = generate_system_prompt(mirror)
+                mirror.system_prompt = generate_system_prompt(mirror, language=request.language)
                 db.add(mirror)
                 db.commit()
                 db.refresh(mirror)

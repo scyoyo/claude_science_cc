@@ -36,6 +36,7 @@ def start_background_run(
     rounds: int = 1,
     topic: Optional[str] = None,
     llm_call_override: Optional[Callable] = None,
+    locale: Optional[str] = None,
 ) -> bool:
     """Start a background meeting run. Returns True if started, False if already running."""
     with _lock:
@@ -45,7 +46,7 @@ def start_background_run(
 
         t = threading.Thread(
             target=_run_meeting_thread,
-            args=(meeting_id, session_factory, rounds, topic, llm_call_override),
+            args=(meeting_id, session_factory, rounds, topic, llm_call_override, locale),
             daemon=True,
         )
         _running[meeting_id] = t
@@ -59,6 +60,7 @@ def _run_meeting_thread(
     rounds: int,
     topic: Optional[str],
     llm_call_override: Optional[Callable],
+    locale: Optional[str] = None,
 ) -> None:
     """Background thread that runs meeting rounds one at a time, committing after each."""
     db: Session = session_factory()
@@ -124,8 +126,11 @@ def _run_meeting_thread(
 
         use_structured = bool(meeting.agenda)
         from app.core.lang_detect import meeting_preferred_lang
+        from app.models import Team as TeamModel
+        team_obj = db.query(TeamModel).filter(TeamModel.id == meeting.team_id).first()
+        team_language = getattr(team_obj, "language", None) if team_obj else None
         preferred_lang = meeting_preferred_lang(
-            existing_messages, topic, None
+            existing_messages, topic, locale, team_language=team_language
         )
 
         # Run round by round, committing after each
@@ -147,7 +152,10 @@ def _run_meeting_thread(
                 )
             else:
                 round_topic = topic if round_idx == 0 else None
-                round_messages = engine.run_round(agent_dicts, conversation_history, round_topic)
+                round_messages = engine.run_round(
+                    agent_dicts, conversation_history, round_topic,
+                    preferred_lang=preferred_lang if round_idx == 0 else None,
+                )
 
             round_number = meeting.current_round + 1
             for msg_data in round_messages:

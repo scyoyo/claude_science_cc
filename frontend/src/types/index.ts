@@ -32,6 +32,7 @@ export interface Team {
   name: string;
   description: string;
   is_public: boolean;
+  language: string;
   created_at: string;
   updated_at: string;
 }
@@ -226,6 +227,7 @@ export interface GenerateTeamRequest {
   team_description: string;
   agents: AgentSuggestion[];
   mirror_config?: MirrorConfig;
+  language?: string;
 }
 
 // Dashboard

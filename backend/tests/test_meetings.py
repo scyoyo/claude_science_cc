@@ -89,6 +89,130 @@ class TestMeetingEngine:
         assert received_messages[1] == 2
 
 
+class TestMeetingEngineLanguage:
+    """Tests for language support in legacy meeting mode."""
+
+    def test_run_round_with_preferred_lang_zh(self):
+        """Legacy run_round should inject Chinese language instruction."""
+        received = []
+
+        def tracking_llm(system_prompt, messages):
+            received.append([m.content for m in messages])
+            return "OK"
+
+        engine = MeetingEngine(llm_call=tracking_llm)
+        agents = [
+            {"id": "a1", "name": "Agent A", "system_prompt": "You are A", "model": "gpt-4"},
+        ]
+        engine.run_round(agents, [], topic="Test topic", preferred_lang="zh")
+        # Should have topic + language instruction
+        assert any("中文" in c for c in received[0])
+
+    def test_run_round_no_lang_when_history_exists(self):
+        """Language instruction should not be injected when conversation_history is non-empty."""
+        received = []
+
+        def tracking_llm(system_prompt, messages):
+            received.append([m.content for m in messages])
+            return "OK"
+
+        engine = MeetingEngine(llm_call=tracking_llm)
+        agents = [
+            {"id": "a1", "name": "Agent A", "system_prompt": "You are A", "model": "gpt-4"},
+        ]
+        history = [ChatMessage(role="user", content="Previous message")]
+        engine.run_round(agents, history, preferred_lang="zh")
+        # Should NOT inject language instruction because history already exists
+        assert not any("中文" in c for c in received[0])
+
+    def test_run_meeting_legacy_with_preferred_lang(self):
+        """Legacy run_meeting passes preferred_lang to first round only."""
+        received = []
+
+        def tracking_llm(system_prompt, messages):
+            received.append([m.content for m in messages])
+            return "OK"
+
+        engine = MeetingEngine(llm_call=tracking_llm)
+        agents = [
+            {"id": "a1", "name": "Agent A", "system_prompt": "You are A", "model": "gpt-4"},
+        ]
+        engine.run_meeting(agents, [], rounds=2, topic="Test", preferred_lang="zh")
+        # First round: should have lang instruction
+        assert any("中文" in c for c in received[0])
+        # Second round: should NOT have lang instruction (history exists now)
+        assert not any("中文" in c for c in received[1])
+
+
+class TestLangDetectAndPrompt:
+    """Tests for lang_detect and prompt generation."""
+
+    def test_meeting_preferred_lang_team_language_fallback(self):
+        """team_language should be used as fallback when other signals are absent."""
+        from app.core.lang_detect import meeting_preferred_lang
+        result = meeting_preferred_lang([], None, None, team_language="zh")
+        assert result == "zh"
+
+    def test_meeting_preferred_lang_locale_over_team(self):
+        """locale should take priority over team_language."""
+        from app.core.lang_detect import meeting_preferred_lang
+        result = meeting_preferred_lang([], None, "en", team_language="zh")
+        assert result == "en"
+
+    def test_meeting_preferred_lang_message_over_all(self):
+        """Existing user messages should take highest priority."""
+        from app.core.lang_detect import meeting_preferred_lang
+
+        class FakeMsg:
+            def __init__(self, role, content):
+                self.role = role
+                self.content = content
+
+        msgs = [FakeMsg("user", "我想研究基因编辑")]
+        result = meeting_preferred_lang(msgs, None, "en", team_language="en")
+        assert result == "zh"
+
+    def test_generate_system_prompt_with_language_zh(self):
+        """System prompt should include Chinese instruction."""
+        from app.core.prompt import generate_system_prompt
+
+        class FakeAgent:
+            title = "Researcher"
+            expertise = "biology"
+            goal = "study genes"
+            role = "lead researcher"
+
+        prompt = generate_system_prompt(FakeAgent(), language="zh")
+        assert "Chinese" in prompt
+        assert "中文" in prompt
+
+    def test_generate_system_prompt_without_language(self):
+        """System prompt without language should not have language instruction."""
+        from app.core.prompt import generate_system_prompt
+
+        class FakeAgent:
+            title = "Researcher"
+            expertise = "biology"
+            goal = "study genes"
+            role = "lead researcher"
+
+        prompt = generate_system_prompt(FakeAgent())
+        assert "IMPORTANT" not in prompt
+
+    def test_generate_system_prompt_en_no_instruction(self):
+        """English is the default — no explicit instruction appended."""
+        from app.core.prompt import generate_system_prompt
+
+        class FakeAgent:
+            title = "Researcher"
+            expertise = "biology"
+            goal = "study genes"
+            role = "lead researcher"
+
+        prompt = generate_system_prompt(FakeAgent(), language="en")
+        assert "IMPORTANT" not in prompt
+
+
 class TestStructuredMeetingEngine:
     """Tests for MeetingEngine structured mode."""
 

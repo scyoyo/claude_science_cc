@@ -368,6 +368,7 @@ def run_meeting_background(
         session_factory=SessionLocal,
         rounds=rounds_to_run,
         topic=request.topic,
+        locale=getattr(request, "locale", None),
     )
     if not started:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Meeting is already running in background")
@@ -757,8 +758,11 @@ def run_meeting(
                 db, meeting.context_meeting_ids, keywords=keywords or None
             )
 
+        team = db.query(Team).filter(Team.id == meeting.team_id).first()
+        team_language = getattr(team, "language", None) if team else None
         preferred_lang = meeting_preferred_lang(
-            existing_messages, getattr(request, "topic", None), getattr(request, "locale", None)
+            existing_messages, getattr(request, "topic", None), getattr(request, "locale", None),
+            team_language=team_language,
         )
 
         if meeting_type == "individual":
@@ -822,6 +826,7 @@ def run_meeting(
                 conversation_history=conversation_history,
                 rounds=rounds_to_run,
                 topic=request.topic,
+                preferred_lang=preferred_lang,
             )
 
         # Store messages

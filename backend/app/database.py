@@ -45,8 +45,11 @@ def _ensure_meetings_columns_sqlite(engine):
 
 
 def _ensure_teams_columns_sqlite(engine):
-    """Add owner_id for V2 auth (nullable); dashboard/stats need teams table to match model."""
-    _ensure_table_columns_sqlite(engine, "teams", [("owner_id", "VARCHAR(36)")])
+    """Add owner_id for V2 auth (nullable); language for team-wide preference."""
+    _ensure_table_columns_sqlite(engine, "teams", [
+        ("owner_id", "VARCHAR(36)"),
+        ("language", "VARCHAR(10) DEFAULT 'en'"),
+    ])
 
 
 def _create_engine():

@@ -185,6 +185,7 @@ export function WizardChat() {
               team_description: ts.team_description,
               agents: ts.agents,
               mirror_config: mc || undefined,
+              language: (context.response_lang as string) || "en",
             });
             setCreatedTeamId(team.id);
           } catch (err) {

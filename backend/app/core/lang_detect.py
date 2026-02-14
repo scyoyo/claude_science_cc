@@ -40,8 +40,12 @@ def meeting_preferred_lang(
     existing_messages: list,
     topic: str | None,
     locale: str | None,
+    team_language: str | None = None,
 ) -> str:
-    """Agent language for meetings: first user message in meeting, else topic, else locale. Returns 'zh' or 'en'."""
+    """Agent language for meetings.
+
+    Priority: existing user messages > topic > locale > team_language > "en".
+    """
     for msg in existing_messages:
         if getattr(msg, "role", None) == "user" and getattr(msg, "content", None):
             return detect_language(msg.content)
@@ -49,4 +53,6 @@ def meeting_preferred_lang(
         return detect_language(topic)
     if locale in ("zh", "en"):
         return locale
+    if team_language in ("zh", "en"):
+        return team_language
     return "en"

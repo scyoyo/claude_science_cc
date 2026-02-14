@@ -77,3 +77,4 @@ class GenerateTeamRequest(BaseModel):
     team_description: str = ""
     agents: List[AgentSuggestion]
     mirror_config: Optional[MirrorConfig] = None
+    language: str = "en"  # Team language preference ("zh", "en")

@@ -154,7 +154,10 @@ async def _handle_start_round(websocket: WebSocket, db: Session, meeting: Meetin
 
     use_structured = bool(meeting.agenda)
     locale = data.get("locale")
-    preferred_lang = meeting_preferred_lang(existing, topic, locale)
+    from app.models import Team as TeamModel
+    team_obj = db.query(TeamModel).filter(TeamModel.id == meeting.team_id).first()
+    team_language = getattr(team_obj, "language", None) if team_obj else None
+    preferred_lang = meeting_preferred_lang(existing, topic, locale, team_language=team_language)
 
     try:
         engine = MeetingEngine(llm_call=llm_call)
@@ -175,7 +178,10 @@ async def _handle_start_round(websocket: WebSocket, db: Session, meeting: Meetin
                     preferred_lang=preferred_lang,
                 )
             else:
-                round_messages = engine.run_round(agent_dicts, history, topic=topic)
+                round_messages = engine.run_round(
+                    agent_dicts, history, topic=topic,
+                    preferred_lang=preferred_lang if round_idx == 0 else None,
+                )
 
             for msg_data in round_messages:
                 # Notify client agent is speaking

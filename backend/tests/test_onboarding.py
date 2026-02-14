@@ -1185,3 +1185,50 @@ class TestGenerateTeamAPI:
         assert team_response.status_code == 200
         assert team_response.json()["name"] == "Persistent Team"
         assert len(team_response.json()["agents"]) == 1
+
+    def test_generate_team_with_language_zh(self, client):
+        """Generate a team with Chinese language preference."""
+        response = client.post("/api/onboarding/generate-team", json={
+            "team_name": "中文团队",
+            "team_description": "一个中文研究团队",
+            "agents": [
+                {
+                    "name": "研究员",
+                    "title": "高级研究员",
+                    "expertise": "分子生物学",
+                    "goal": "领导研究",
+                    "role": "首席研究员",
+                    "model": "gpt-4",
+                },
+            ],
+            "language": "zh",
+        })
+        assert response.status_code == 201
+        data = response.json()
+        assert data["language"] == "zh"
+        # System prompt should contain Chinese language instruction
+        agent = data["agents"][0]
+        assert "Chinese" in agent["system_prompt"] or "中文" in agent["system_prompt"]
+
+    def test_generate_team_default_language_en(self, client):
+        """Generate a team without language defaults to English."""
+        response = client.post("/api/onboarding/generate-team", json={
+            "team_name": "Default Lang Team",
+            "team_description": "Test",
+            "agents": [
+                {
+                    "name": "Agent",
+                    "title": "Researcher",
+                    "expertise": "testing",
+                    "goal": "test",
+                    "role": "tester",
+                    "model": "gpt-4",
+                },
+            ],
+        })
+        assert response.status_code == 201
+        data = response.json()
+        assert data["language"] == "en"
+        # English default should NOT have language instruction appended
+        agent = data["agents"][0]
+        assert "IMPORTANT: Always respond" not in agent["system_prompt"]

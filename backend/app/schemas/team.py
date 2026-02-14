@@ -7,6 +7,7 @@ class TeamBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = None
     is_public: bool = False
+    language: str = "en"
 
 
 class TeamCreate(TeamBase):
@@ -17,6 +18,7 @@ class TeamUpdate(TeamBase):
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     description: Optional[str] = None
     is_public: Optional[bool] = None
+    language: Optional[str] = None
 
 
 class TeamResponse(TeamBase):

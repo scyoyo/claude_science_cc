@@ -13,6 +13,7 @@ class Team(Base):
     name = Column(String(255), nullable=False)
     description = Column(Text)
     is_public = Column(Boolean, default=False)
+    language = Column(String(10), default="en")  # "zh" / "en" — team-wide language preference
     owner_id = Column(String(36), ForeignKey("users.id"), nullable=True)  # Nullable for V1 compat
     created_at = Column(DateTime, default=lambda: datetime.now(UTC))
     updated_at = Column(DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))

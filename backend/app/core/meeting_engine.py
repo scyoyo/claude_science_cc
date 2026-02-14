@@ -49,6 +49,7 @@ class MeetingEngine:
         agents: List[Dict],
         conversation_history: List[ChatMessage],
         topic: Optional[str] = None,
+        preferred_lang: Optional[str] = None,
     ) -> List[Dict]:
         """Run one round of discussion where each agent speaks once (legacy mode).
 
@@ -56,6 +57,7 @@ class MeetingEngine:
             agents: List of agent dicts with keys: id, name, system_prompt, model.
             conversation_history: Previous messages in the meeting.
             topic: Optional topic to focus the discussion.
+            preferred_lang: Optional language code ("zh", "en") for response language.
 
         Returns:
             List of new messages generated in this round.
@@ -72,6 +74,14 @@ class MeetingEngine:
                 messages.append(ChatMessage(
                     role="user",
                     content=f"Discussion topic: {topic}",
+                ))
+
+            # Inject language instruction for first round when no prior messages
+            if preferred_lang and not conversation_history:
+                from app.core.lang_detect import language_instruction
+                messages.append(ChatMessage(
+                    role="user",
+                    content=f"IMPORTANT: {language_instruction(preferred_lang)}",
                 ))
 
             # Add new messages from this round so far
@@ -102,6 +112,7 @@ class MeetingEngine:
         conversation_history: List[ChatMessage],
         rounds: int = 1,
         topic: Optional[str] = None,
+        preferred_lang: Optional[str] = None,
     ) -> List[List[Dict]]:
         """Run multiple rounds of discussion (legacy mode).
 
@@ -110,6 +121,7 @@ class MeetingEngine:
             conversation_history: Previous messages.
             rounds: Number of rounds to run.
             topic: Optional discussion topic.
+            preferred_lang: Optional language code ("zh", "en") for response language.
 
         Returns:
             List of rounds, each containing a list of messages.
@@ -118,7 +130,11 @@ class MeetingEngine:
         current_history = list(conversation_history)
 
         for round_num in range(rounds):
-            round_messages = self.run_round(agents, current_history, topic if round_num == 0 else None)
+            round_messages = self.run_round(
+                agents, current_history,
+                topic if round_num == 0 else None,
+                preferred_lang=preferred_lang if round_num == 0 else None,
+            )
             all_rounds.append(round_messages)
 
             # Add this round's messages to history for next round
