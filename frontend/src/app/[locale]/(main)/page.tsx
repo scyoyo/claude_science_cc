@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Link } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import { dashboardAPI } from "@/lib/api";
+import { useMobileGesture } from "@/contexts/MobileGestureContext";
 import type { DashboardStats } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -90,13 +91,21 @@ export default function Home() {
   const t = useTranslations("home");
   const td = useTranslations("dashboard");
   const tc = useTranslations("common");
+  const router = useRouter();
+  const { isMobile } = useMobileGesture();
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [error, setError] = useState(false);
 
   useEffect(() => {
+    if (isMobile) {
+      router.replace("/onboarding");
+      return;
+    }
     dashboardAPI.stats().then(setStats).catch(() => setError(true));
-  }, []);
+  }, [isMobile, router]);
+
+  if (isMobile) return null;
 
   const statusVariant = (status: string) => {
     switch (status) {

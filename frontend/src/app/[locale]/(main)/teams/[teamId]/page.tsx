@@ -272,18 +272,20 @@ export default function TeamDetailPage() {
           <ArrowLeft className="h-3.5 w-3.5" />
           {t("backToTeams")}
         </Link>
-        <div className="mt-2 flex items-center gap-3">
+        <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-3">
           <h1 className="text-2xl font-bold">{team.name}</h1>
-          <Button asChild size="sm" variant="outline">
-            <Link href={`/teams/${teamId}/editor`}>
-              <Workflow className="h-4 w-4 mr-1" />
-              {t("visualEditor")}
-            </Link>
-          </Button>
-          <Button size="sm" variant="outline" onClick={handleExportTeam}>
-            <Download className="h-4 w-4 mr-1" />
-            {t("exportTeam")}
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button asChild size="sm" variant="outline">
+              <Link href={`/teams/${teamId}/editor`}>
+                <Workflow className="h-4 w-4 mr-1" />
+                {t("visualEditor")}
+              </Link>
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleExportTeam}>
+              <Download className="h-4 w-4 mr-1" />
+              {t("exportTeam")}
+            </Button>
+          </div>
         </div>
         {team.description && (
           <p className="mt-1 text-muted-foreground">{team.description}</p>
@@ -314,11 +316,11 @@ export default function TeamDetailPage() {
 
       {/* Agents Section */}
       <section>
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
           <h2 className="text-xl font-semibold">
             {t("agents")} ({team.agents.length})
           </h2>
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             {team.agents.length > 0 && (
               <Button
                 size="sm"
@@ -515,7 +517,7 @@ export default function TeamDetailPage() {
 
       {/* Meetings Section */}
       <section>
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
           <h2 className="text-xl font-semibold">
             {t("meetings")} ({meetings.length})
           </h2>
@@ -663,12 +665,12 @@ export default function TeamDetailPage() {
               >
                 <Card className="hover:border-primary/50 transition-colors cursor-pointer">
                   <CardHeader className="py-4">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <CardTitle className="text-base flex items-center gap-2">
-                        <MessageSquare className="h-4 w-4" />
+                        <MessageSquare className="h-4 w-4 shrink-0" />
                         {meeting.title}
                       </CardTitle>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <Badge variant={statusVariant(meeting.status)}>
                           {meeting.status}
                         </Badge>
