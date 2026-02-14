@@ -118,35 +118,39 @@ export default function TeamsPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {teams.map((team) => (
-            <Card key={team.id} className="hover:border-primary/50 transition-colors">
-              <CardHeader>
-                <Link href={`/teams/${team.id}`}>
-                  <CardTitle className="hover:text-primary cursor-pointer flex items-center gap-2">
+            <Link key={team.id} href={`/teams/${team.id}`} className="block">
+              <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
                     <Users className="h-4 w-4" />
                     {team.name}
                   </CardTitle>
-                </Link>
-                {team.description && (
-                  <CardDescription className="line-clamp-2">
-                    {team.description}
-                  </CardDescription>
-                )}
-                <CardAction>
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    onClick={() => handleDelete(team.id)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                  </Button>
-                </CardAction>
-              </CardHeader>
-              <div className="px-6 pb-4">
-                <span className="text-xs text-muted-foreground">
-                  {new Date(team.created_at).toLocaleDateString()}
-                </span>
-              </div>
-            </Card>
+                  {team.description && (
+                    <CardDescription className="line-clamp-2">
+                      {team.description}
+                    </CardDescription>
+                  )}
+                  <CardAction>
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleDelete(team.id);
+                      }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                    </Button>
+                  </CardAction>
+                </CardHeader>
+                <div className="px-6 pb-4">
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(team.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+              </Card>
+            </Link>
           ))}
         </div>
       )}

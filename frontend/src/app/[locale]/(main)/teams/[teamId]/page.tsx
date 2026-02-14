@@ -271,21 +271,30 @@ export default function TeamDetailPage() {
             {team.agents.map((agent) => (
               <Card key={agent.id} className="cursor-pointer hover:border-primary/50 transition-colors overflow-hidden" onClick={() => openEditAgent(agent)}>
                 <CardHeader>
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Bot className="h-4 w-4 shrink-0 text-muted-foreground" />
-                      <div className="min-w-0">
-                        <CardTitle className="text-base flex items-center gap-2 overflow-hidden">
-                          <span className="truncate">{agent.name}</span>
-                          {agent.is_mirror && (
-                            <Badge variant="secondary" className="shrink-0">{t("mirror")}</Badge>
-                          )}
-                        </CardTitle>
-                        <CardDescription className="truncate">{agent.title}</CardDescription>
-                      </div>
+                  <div className="flex items-start gap-2 min-w-0">
+                    <Bot className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <div className="min-w-0">
+                      <CardTitle className="text-base flex items-center gap-2 overflow-hidden">
+                        <span className="truncate">{agent.name}</span>
+                        {agent.is_mirror && (
+                          <Badge variant="secondary" className="shrink-0">{t("mirror")}</Badge>
+                        )}
+                      </CardTitle>
+                      <CardDescription className="truncate">{agent.title}</CardDescription>
                     </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <Badge variant="outline" className="text-xs max-w-[80px] truncate">{agent.model}</Badge>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-1 text-sm text-muted-foreground">
+                    <p className="line-clamp-2"><span className="font-medium text-foreground">{t("expertise")}:</span> {agent.expertise}</p>
+                    <p className="line-clamp-2"><span className="font-medium text-foreground">{t("goal")}:</span> {agent.goal}</p>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">{agent.model}</span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-muted-foreground/60 p-1" aria-hidden>
+                        <Pencil className="h-3.5 w-3.5" />
+                      </span>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -296,13 +305,6 @@ export default function TeamDetailPage() {
                       </Button>
                     </div>
                   </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-1 text-sm text-muted-foreground">
-                    <p className="line-clamp-2"><span className="font-medium text-foreground">{t("expertise")}:</span> {agent.expertise}</p>
-                    <p className="line-clamp-2"><span className="font-medium text-foreground">{t("goal")}:</span> {agent.goal}</p>
-                  </div>
-                  <p className="mt-2 text-xs text-muted-foreground/60">{t("editAgent")}</p>
                 </CardContent>
               </Card>
             ))}
