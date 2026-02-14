@@ -75,6 +75,7 @@ export function WizardChat() {
 
   const [messages, setMessages] = useState<ChatMessage[]>(saved.current.messages || []);
   const [input, setInput] = useState("");
+  const [isInputFocused, setIsInputFocused] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isComplete, setIsComplete] = useState(saved.current.isComplete || false);
   const [createdTeamId, setCreatedTeamId] = useState<string | null>(saved.current.createdTeamId || null);
@@ -255,25 +256,49 @@ export function WizardChat() {
     </div>
   ) : (
     <div className="flex gap-2">
-      <Textarea
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder={
-          stage === "problem"
-            ? t("placeholder")
-            : stage === "clarification"
-              ? t("placeholderClarify")
-              : stage === "team_suggestion"
-                ? t("placeholderReview")
-                : stage === "mirror_config"
-                  ? t("placeholderMirror")
-                  : t("placeholder")
-        }
-        className="min-h-[52px] max-h-[120px] resize-none text-sm py-2.5"
-        rows={1}
-        disabled={isLoading}
-      />
+      <div className="relative flex-1 min-w-0">
+        <Textarea
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onFocus={() => setIsInputFocused(true)}
+          onBlur={() => setIsInputFocused(false)}
+          placeholder=""
+          aria-label={
+            stage === "problem"
+              ? t("placeholder")
+              : stage === "clarification"
+                ? t("placeholderClarify")
+                : stage === "team_suggestion"
+                  ? t("placeholderReview")
+                  : stage === "mirror_config"
+                    ? t("placeholderMirror")
+                    : t("placeholder")
+          }
+          className="min-h-[52px] max-h-[120px] resize-none text-sm py-2.5"
+          rows={1}
+          disabled={isLoading}
+        />
+        {/* Custom placeholder: 2-line max, vertically centered, ellipsis when overflow */}
+        {!input.trim() && !isInputFocused && (
+          <div
+            className="absolute inset-0 flex items-center px-3 py-2.5 pointer-events-none rounded-md border border-transparent"
+            aria-hidden
+          >
+            <span className="text-sm text-muted-foreground line-clamp-2 overflow-hidden text-ellipsis break-words">
+              {stage === "problem"
+                ? t("placeholder")
+                : stage === "clarification"
+                  ? t("placeholderClarify")
+                  : stage === "team_suggestion"
+                    ? t("placeholderReview")
+                    : stage === "mirror_config"
+                      ? t("placeholderMirror")
+                      : t("placeholder")}
+            </span>
+          </div>
+        )}
+      </div>
       <Button
         size="icon"
         className="h-[52px] w-[52px] shrink-0 self-end"
