@@ -362,16 +362,19 @@ def _handle_team_suggestion_stage(
     # Accept (or unclear → default to accept and proceed)
     response_lang = _response_lang(request)
     if team_builder.llm_func:
-        history = list(request.conversation_history)
-        mirror_explanation = team_builder.explain_mirrors(
-            history, preferred_lang=response_lang
-        )
-        return OnboardingChatResponse(
-            stage=OnboardingStage.team_suggestion,
-            next_stage=OnboardingStage.mirror_config,
-            message=mirror_explanation,
-            data={"team_suggestion": request.context.get("team_suggestion", {})},
-        )
+        try:
+            history = list(request.conversation_history)
+            mirror_explanation = team_builder.explain_mirrors(
+                history, preferred_lang=response_lang
+            )
+            return OnboardingChatResponse(
+                stage=OnboardingStage.team_suggestion,
+                next_stage=OnboardingStage.mirror_config,
+                message=mirror_explanation,
+                data={"team_suggestion": request.context.get("team_suggestion", {})},
+            )
+        except Exception:
+            pass  # Fallback to static message below on timeout / LLM error
 
     return OnboardingChatResponse(
         stage=OnboardingStage.team_suggestion,
