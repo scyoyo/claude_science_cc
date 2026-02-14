@@ -1,17 +1,37 @@
-FROM node:20-slim
+FROM node:20-slim AS base
 
+# --- Dependencies stage ---
+FROM base AS deps
 WORKDIR /app
-
-# Install dependencies
 COPY package.json package-lock.json* ./
 RUN npm ci
 
-# Copy application code
+# --- Build stage ---
+FROM base AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Build
+# BACKEND_URL baked into rewrites at build time
+# Local docker-compose: http://backend:8000
+# Railway: http://<service>.railway.internal:8000
+ARG BACKEND_URL=http://localhost:8000
+ENV BACKEND_URL=$BACKEND_URL
+
 RUN npm run build
 
-EXPOSE 3000
+# --- Production stage ---
+FROM base AS runner
+WORKDIR /app
+ENV NODE_ENV=production
 
-CMD ["npm", "start"]
+# Standalone output: minimal footprint (~100MB vs ~500MB)
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/public ./public
+
+EXPOSE 3000
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+CMD ["node", "server.js"]
