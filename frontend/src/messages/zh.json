@@ -214,6 +214,7 @@
     "placeholderMirror": "配置镜像智能体：输入「是」启用或「否」跳过...",
     "thinking": "正在分析你的研究问题...",
     "skipToManual": "跳过，手动配置",
+    "showInput": "向上滑出输入框",
     "viewTeam": "查看团队",
     "startOver": "重新开始",
     "teamReady": "团队已就绪！",

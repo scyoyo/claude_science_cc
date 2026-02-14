@@ -214,6 +214,7 @@
     "placeholderMirror": "Configure mirror agents: type 'yes' to enable or 'no' to skip...",
     "thinking": "Analyzing your research question...",
     "skipToManual": "Skip to manual configuration",
+    "showInput": "Swipe up to show input",
     "viewTeam": "View Team",
     "startOver": "Start Over",
     "teamReady": "Your team is ready!",
