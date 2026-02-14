@@ -25,7 +25,7 @@ const MobileGestureContext = createContext<MobileGestureContextValue | null>(nul
 
 export function MobileGestureProvider({ children }: { children: ReactNode }) {
   const [isMobile, setIsMobile] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [inputVisible, setInputVisible] = useState(true);
 
   useEffect(() => {
