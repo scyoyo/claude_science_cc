@@ -18,6 +18,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Plus, Trash2, Users, Upload } from "lucide-react";
+import { SHOW_IMPORT_TEAM } from "@/lib/feature-flags";
 
 export default function TeamsPage() {
   const router = useRouter();
@@ -122,43 +123,45 @@ export default function TeamsPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold">{t("title")}</h1>
         <div className="flex flex-col sm:flex-row gap-2">
-          <Dialog open={showImport} onOpenChange={(open) => {
-            setShowImport(open);
-            if (!open) { setImportData(null); setImportPreview(null); }
-          }}>
-            <DialogTrigger asChild>
-              <Button variant="outline">
-                <Upload className="h-4 w-4 mr-1" />
-                {t("importTeam")}
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>{t("importTeam")}</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <Input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".json"
-                  onChange={handleFileSelect}
-                />
-                {importPreview && (
-                  <div className="p-3 rounded-md bg-muted text-sm">
-                    {t("importPreview", { name: importPreview.name, count: importPreview.agentCount })}
-                  </div>
-                )}
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setShowImport(false)}>
-                  {tc("cancel")}
+          {SHOW_IMPORT_TEAM && (
+            <Dialog open={showImport} onOpenChange={(open) => {
+              setShowImport(open);
+              if (!open) { setImportData(null); setImportPreview(null); }
+            }}>
+              <DialogTrigger asChild>
+                <Button variant="outline">
+                  <Upload className="h-4 w-4 mr-1" />
+                  {t("importTeam")}
                 </Button>
-                <Button onClick={handleImport} disabled={!importData || importing}>
-                  {t("importConfirm")}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>{t("importTeam")}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <Input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".json"
+                    onChange={handleFileSelect}
+                  />
+                  {importPreview && (
+                    <div className="p-3 rounded-md bg-muted text-sm">
+                      {t("importPreview", { name: importPreview.name, count: importPreview.agentCount })}
+                    </div>
+                  )}
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowImport(false)}>
+                    {tc("cancel")}
+                  </Button>
+                  <Button onClick={handleImport} disabled={!importData || importing}>
+                    {t("importConfirm")}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
           <Dialog open={showCreate} onOpenChange={setShowCreate}>
             <DialogTrigger asChild>
               <Button>

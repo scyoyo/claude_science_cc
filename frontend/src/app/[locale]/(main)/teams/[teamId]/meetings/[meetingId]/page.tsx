@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { meetingsAPI } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
@@ -54,6 +54,7 @@ import {
 export default function MeetingDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const locale = useLocale();
   const teamId = params.teamId as string;
   const meetingId = params.meetingId as string;
   const t = useTranslations("meeting");
@@ -145,7 +146,7 @@ export default function MeetingDetailPage() {
     if (!connected) return;
     setRunning(true);
     setError(null);
-    startRound(1, topic || undefined);
+    startRound(1, topic || undefined, locale === "zh" || locale === "en" ? locale : undefined);
     setTopic("");
   };
 
@@ -153,7 +154,12 @@ export default function MeetingDetailPage() {
     try {
       setRunning(true);
       setError(null);
-      const data = await meetingsAPI.run(meetingId, 1, topic || undefined);
+      const data = await meetingsAPI.run(
+        meetingId,
+        1,
+        topic || undefined,
+        locale === "zh" || locale === "en" ? locale : undefined
+      );
       setMeeting(data);
       setLiveMessages([]);
       setTopic("");
@@ -168,7 +174,12 @@ export default function MeetingDetailPage() {
     try {
       setError(null);
       const rounds = Math.max(1, (meeting?.max_rounds ?? 5) - (meeting?.current_round ?? 0));
-      await meetingsAPI.runBackground(meetingId, rounds, topic || undefined);
+      await meetingsAPI.runBackground(
+        meetingId,
+        rounds,
+        topic || undefined,
+        locale === "zh" || locale === "en" ? locale : undefined
+      );
       setBackgroundRunning(true);
       setTopic("");
     } catch (err) {

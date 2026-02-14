@@ -87,6 +87,7 @@ def meeting_start_prompt(
     agenda_questions: List[str],
     agenda_rules: List[str],
     num_rounds: int,
+    preferred_lang: Optional[str] = None,
 ) -> str:
     """Generate the meeting start context prompt injected as the first user message."""
     parts = [
@@ -113,6 +114,13 @@ def meeting_start_prompt(
         parts.append(f"## Rules")
         for rule in agenda_rules:
             parts.append(f"- {rule}")
+
+    if preferred_lang:
+        parts.append(f"")
+        parts.append(
+            "## Language\nRespond in Chinese (中文)." if preferred_lang == "zh"
+            else "## Language\nRespond in English."
+        )
 
     return "\n".join(parts)
 

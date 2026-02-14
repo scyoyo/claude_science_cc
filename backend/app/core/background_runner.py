@@ -119,6 +119,10 @@ def _run_meeting_thread(
                 )
 
         use_structured = bool(meeting.agenda)
+        from app.core.lang_detect import meeting_preferred_lang
+        preferred_lang = meeting_preferred_lang(
+            existing_messages, topic, None
+        )
 
         # Run round by round, committing after each
         for round_idx in range(rounds_to_run):
@@ -135,6 +139,7 @@ def _run_meeting_thread(
                     agenda_questions=meeting.agenda_questions or [],
                     agenda_rules=meeting.agenda_rules or [],
                     output_type=meeting.output_type or "code",
+                    preferred_lang=preferred_lang,
                 )
             else:
                 round_topic = topic if round_idx == 0 else None

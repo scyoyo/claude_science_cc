@@ -18,6 +18,7 @@ from app.schemas.meeting import (
 )
 from app.core.meeting_engine import MeetingEngine
 from app.core.llm_client import create_provider, detect_provider, resolve_llm_call
+from app.core.lang_detect import meeting_preferred_lang
 from app.core.background_runner import start_background_run, is_running
 from app.schemas.onboarding import ChatMessage
 from app.schemas.pagination import PaginatedResponse
@@ -461,6 +462,9 @@ def run_meeting(
         if meeting.context_meeting_ids:
             context_summaries = _load_context_summaries(db, meeting.context_meeting_ids)
 
+        preferred_lang = meeting_preferred_lang(
+            existing_messages, getattr(request, "topic", None), getattr(request, "locale", None)
+        )
         if use_structured:
             all_rounds = engine.run_structured_meeting(
                 agents=agent_dicts,
@@ -472,6 +476,7 @@ def run_meeting(
                 output_type=meeting.output_type or "code",
                 start_round=meeting.current_round + 1,
                 context_summaries=context_summaries,
+                preferred_lang=preferred_lang,
             )
         else:
             all_rounds = engine.run_meeting(

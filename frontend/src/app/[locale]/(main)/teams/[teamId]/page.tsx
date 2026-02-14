@@ -30,6 +30,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, Plus, Trash2, Pencil, Workflow, MessageSquare, Bot, Loader2, LayoutTemplate, Copy, CheckSquare, Download } from "lucide-react";
+import { SHOW_VISUAL_EDITOR, SHOW_EXPORT_TEAM } from "@/lib/feature-flags";
 import type { Agent } from "@/types";
 import { MODEL_OPTIONS } from "@/lib/models";
 
@@ -274,18 +275,24 @@ export default function TeamDetailPage() {
         </Link>
         <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-3">
           <h1 className="text-2xl font-bold">{team.name}</h1>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <Button asChild size="sm" variant="outline">
-              <Link href={`/teams/${teamId}/editor`}>
-                <Workflow className="h-4 w-4 mr-1" />
-                {t("visualEditor")}
-              </Link>
-            </Button>
-            <Button size="sm" variant="outline" onClick={handleExportTeam}>
-              <Download className="h-4 w-4 mr-1" />
-              {t("exportTeam")}
-            </Button>
-          </div>
+          {(SHOW_VISUAL_EDITOR || SHOW_EXPORT_TEAM) && (
+            <div className="flex flex-col sm:flex-row gap-2">
+              {SHOW_VISUAL_EDITOR && (
+                <Button asChild size="sm" variant="outline">
+                  <Link href={`/teams/${teamId}/editor`}>
+                    <Workflow className="h-4 w-4 mr-1" />
+                    {t("visualEditor")}
+                  </Link>
+                </Button>
+              )}
+              {SHOW_EXPORT_TEAM && (
+                <Button size="sm" variant="outline" onClick={handleExportTeam}>
+                  <Download className="h-4 w-4 mr-1" />
+                  {t("exportTeam")}
+                </Button>
+              )}
+            </div>
+          )}
         </div>
         {team.description && (
           <p className="mt-1 text-muted-foreground">{team.description}</p>

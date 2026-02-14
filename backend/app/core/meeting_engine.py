@@ -138,6 +138,7 @@ class MeetingEngine:
         agenda_rules: Optional[List[str]] = None,
         output_type: str = "code",
         context_summaries: Optional[List[Dict]] = None,
+        preferred_lang: Optional[str] = None,
     ) -> List[Dict]:
         """Run one structured round with phase-aware prompts.
 
@@ -187,6 +188,7 @@ class MeetingEngine:
                 agenda_questions=questions,
                 agenda_rules=rules,
                 num_rounds=num_rounds,
+                preferred_lang=preferred_lang,
             )
             conversation_history.append(ChatMessage(
                 role="user",
@@ -267,6 +269,7 @@ class MeetingEngine:
         output_type: str = "code",
         start_round: int = 1,
         context_summaries: Optional[List[Dict]] = None,
+        preferred_lang: Optional[str] = None,
     ) -> List[List[Dict]]:
         """Run a full structured meeting across multiple rounds.
 
@@ -299,6 +302,7 @@ class MeetingEngine:
                 agenda_rules=agenda_rules,
                 output_type=output_type,
                 context_summaries=context_summaries if current_round == start_round else None,
+                preferred_lang=preferred_lang,
             )
             all_rounds.append(round_messages)
 

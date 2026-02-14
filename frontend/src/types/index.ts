@@ -171,6 +171,8 @@ export interface OnboardingChatRequest {
   message: string;
   conversation_history: OnboardingChatMessage[];
   context: Record<string, unknown>;
+  /** System locale fallback for agent response language (e.g. "en", "zh"). */
+  locale?: string;
 }
 
 export interface OnboardingChatResponse {

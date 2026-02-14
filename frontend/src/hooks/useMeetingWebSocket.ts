@@ -92,10 +92,15 @@ export function useMeetingWebSocket({
     wsRef.current.send(JSON.stringify({ type: "user_message", content }));
   }, []);
 
-  const startRound = useCallback((rounds: number = 1, topic?: string) => {
+  const startRound = useCallback((rounds: number = 1, topic?: string, locale?: string) => {
     if (wsRef.current?.readyState !== WebSocket.OPEN) return;
     wsRef.current.send(
-      JSON.stringify({ type: "start_round", rounds, ...(topic ? { topic } : {}) })
+      JSON.stringify({
+        type: "start_round",
+        rounds,
+        ...(topic ? { topic } : {}),
+        ...(locale === "zh" || locale === "en" ? { locale } : {}),
+      })
     );
   }, []);
 

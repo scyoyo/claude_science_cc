@@ -147,15 +147,15 @@ export const meetingsAPI = {
       method: "POST",
       body: JSON.stringify({ content }),
     }),
-  run: (meetingId: string, rounds: number = 1, topic?: string) =>
+  run: (meetingId: string, rounds: number = 1, topic?: string, locale?: string) =>
     fetchAPI<MeetingWithMessages>(`/meetings/${meetingId}/run`, {
       method: "POST",
-      body: JSON.stringify({ rounds, topic }),
+      body: JSON.stringify({ rounds, topic, locale }),
     }),
-  runBackground: (meetingId: string, rounds: number = 1, topic?: string) =>
+  runBackground: (meetingId: string, rounds: number = 1, topic?: string, locale?: string) =>
     fetchAPI<{ meeting_id: string; status: string; rounds: number }>(`/meetings/${meetingId}/run-background`, {
       method: "POST",
-      body: JSON.stringify({ rounds, topic }),
+      body: JSON.stringify({ rounds, topic, locale }),
     }),
   status: (meetingId: string) =>
     fetchAPI<{

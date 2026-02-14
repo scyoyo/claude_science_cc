@@ -10,6 +10,7 @@ from app.models import Team, Agent
 from app.core.prompt import generate_system_prompt
 from app.core.team_builder import TeamBuilder
 from app.core.llm_client import create_provider
+from app.core.lang_detect import detect_language
 from app.schemas.onboarding import (
     AgentSuggestion,
     ChatMessage,
@@ -21,6 +22,22 @@ from app.schemas.onboarding import (
     TeamSuggestion,
 )
 from app.schemas.team import TeamWithAgents
+
+
+def _response_lang(request: OnboardingChatRequest) -> str:
+    """Agent language: first from user's first input, then from context, then locale. Returns 'zh' or 'en'."""
+    ctx = request.context or {}
+    # Already decided in a previous turn
+    if ctx.get("response_lang") in ("zh", "en"):
+        return ctx["response_lang"]
+    # First user message: detect from current message
+    if not request.conversation_history and request.message:
+        detected = detect_language(request.message)
+        return detected
+    # Fallback: request locale (system/browser)
+    if getattr(request, "locale", None) in ("zh", "en"):
+        return request.locale
+    return "en"
 
 router = APIRouter(prefix="/onboarding", tags=["onboarding"])
 
@@ -177,10 +194,11 @@ def _handle_problem_stage(
     so the user can discuss multiple rounds before moving to clarification.
     Template mode: Return domain analysis with structured prompts.
     """
+    response_lang = _response_lang(request)
     if team_builder.llm_func:
         # LLM mode: generate clarifying response
         response_text = team_builder.generate_clarifying_response(
-            request.message, request.conversation_history
+            request.message, request.conversation_history, preferred_lang=response_lang
         )
         user_message_count = sum(
             1 for m in (request.conversation_history or [])
@@ -198,7 +216,7 @@ def _handle_problem_stage(
             stage=OnboardingStage.problem,
             next_stage=next_stage,
             message=response_text,
-            data={},
+            data={"response_lang": response_lang},
         )
 
     # Template mode: keyword-based analysis
@@ -215,7 +233,7 @@ def _handle_problem_stage(
             "- Any specific model preference (e.g., gpt-4, claude-3-opus)?\n"
             "- Any particular focus area?"
         ),
-        data={"analysis": analysis.model_dump()},
+        data={"analysis": analysis.model_dump(), "response_lang": response_lang},
     )
 
 
@@ -228,13 +246,16 @@ def _handle_clarification_stage(
     LLM mode: LLM proposes full team as JSON based on conversation history.
     Template mode: Parse preferences + use template team composition.
     """
+    response_lang = _response_lang(request)
     if team_builder.llm_func:
         # LLM mode: propose team from full conversation history
         history = list(request.conversation_history)
         if request.message:
             history.append(ChatMessage(role="user", content=request.message))
 
-        suggestion, raw_text = team_builder.propose_team_with_text(history)
+        suggestion, raw_text = team_builder.propose_team_with_text(
+            history, preferred_lang=response_lang
+        )
         if suggestion:
             # Strip JSON block from LLM text - team cards are rendered by frontend
             display_text = _strip_json_block(raw_text) if raw_text else (
@@ -247,6 +268,7 @@ def _handle_clarification_stage(
                 data={
                     "team_suggestion": suggestion.model_dump(),
                     "proposed_team": [a.model_dump() for a in suggestion.agents],
+                    "response_lang": response_lang,
                 },
             )
         # LLM failed to produce valid JSON — ask user for more detail instead of crashing
@@ -338,9 +360,12 @@ def _handle_team_suggestion_stage(
         )
 
     # Accept (or unclear → default to accept and proceed)
+    response_lang = _response_lang(request)
     if team_builder.llm_func:
         history = list(request.conversation_history)
-        mirror_explanation = team_builder.explain_mirrors(history)
+        mirror_explanation = team_builder.explain_mirrors(
+            history, preferred_lang=response_lang
+        )
         return OnboardingChatResponse(
             stage=OnboardingStage.team_suggestion,
             next_stage=OnboardingStage.mirror_config,

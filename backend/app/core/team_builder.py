@@ -17,6 +17,7 @@ from app.schemas.onboarding import (
     MirrorConfig,
     TeamSuggestion,
 )
+from app.core.lang_detect import language_instruction
 
 # ==================== System Prompts ====================
 
@@ -241,11 +242,13 @@ class TeamBuilder:
         self,
         message: str,
         history: List[ChatMessage],
+        preferred_lang: Optional[str] = None,
     ) -> str:
         """Use LLM to analyze the problem and ask clarifying questions.
 
         Returns natural language response (not JSON).
         Falls back to template analysis message if no llm_func.
+        preferred_lang: 'zh' or 'en' to instruct response language.
         """
         if not self.llm_func:
             analysis = self.analyze_problem(message)
@@ -258,8 +261,11 @@ class TeamBuilder:
                 "- Any specific model preference (e.g., gpt-4, claude-3-opus)?\n"
                 "- Any particular focus area?"
             )
-        messages = self._build_messages(ANALYZER_PROMPT, history, message)
-        return self.llm_func(ANALYZER_PROMPT, messages[1:])  # pass history+user, system as prompt
+        prompt = ANALYZER_PROMPT
+        if preferred_lang:
+            prompt = prompt + "\n\n" + language_instruction(preferred_lang)
+        messages = self._build_messages(prompt, history, message)
+        return self.llm_func(prompt, messages[1:])
 
     def propose_team(
         self,
@@ -297,10 +303,12 @@ class TeamBuilder:
         self,
         history: List[ChatMessage],
         feedback: Optional[str] = None,
+        preferred_lang: Optional[str] = None,
     ) -> tuple[Optional[TeamSuggestion], str]:
         """Like propose_team but also returns the raw LLM response text.
 
         Returns (TeamSuggestion or None, raw_response_text).
+        preferred_lang: 'zh' or 'en' for response language.
         """
         if not self.llm_func:
             return None, ""
@@ -309,7 +317,10 @@ class TeamBuilder:
         if feedback:
             messages.append(ChatMessage(role="user", content=feedback))
 
-        response = self.llm_func(TEAM_PROPOSER_PROMPT, messages)
+        prompt = TEAM_PROPOSER_PROMPT
+        if preferred_lang:
+            prompt = prompt + "\n\n" + language_instruction(preferred_lang)
+        response = self.llm_func(prompt, messages)
         data = self._parse_team_json(response)
         if not data:
             return None, response
@@ -325,7 +336,7 @@ class TeamBuilder:
         except Exception:
             return None, response
 
-    def explain_mirrors(self, history: List[ChatMessage]) -> str:
+    def explain_mirrors(self, history: List[ChatMessage], preferred_lang: Optional[str] = None) -> str:
         """Use LLM to explain mirror agents and ask if user wants them.
 
         Falls back to static message if no llm_func.
@@ -337,7 +348,10 @@ class TeamBuilder:
                 "the primary agents' outputs, helping catch errors and biases.\n\n"
                 "If yes, which model should mirrors use? (e.g., claude-3-opus, gpt-4)"
             )
-        return self.llm_func(MIRROR_ADVISOR_PROMPT, history)
+        prompt = MIRROR_ADVISOR_PROMPT
+        if preferred_lang:
+            prompt = prompt + "\n\n" + language_instruction(preferred_lang)
+        return self.llm_func(prompt, history)
 
     # ==================== Template-Based Methods (Fallback) ====================
 

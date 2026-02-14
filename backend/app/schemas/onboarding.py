@@ -25,6 +25,7 @@ class OnboardingChatRequest(BaseModel):
     message: str
     conversation_history: List[ChatMessage] = []
     context: Dict = {}  # Stage-specific context (e.g., analysis results, preferences)
+    locale: Optional[str] = None  # System locale fallback for agent language (e.g. "en", "zh")
 
 
 class OnboardingChatResponse(BaseModel):

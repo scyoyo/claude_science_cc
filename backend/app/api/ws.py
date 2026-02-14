@@ -21,6 +21,7 @@ from app.database import get_db, SessionLocal
 from app.models import Meeting, Agent, MeetingMessage, MeetingStatus, CodeArtifact
 from app.schemas.onboarding import ChatMessage
 from app.core.meeting_engine import MeetingEngine
+from app.core.lang_detect import meeting_preferred_lang
 from app.core.llm_client import resolve_llm_call
 from app.core.code_extractor import extract_from_meeting_messages
 
@@ -148,6 +149,8 @@ async def _handle_start_round(websocket: WebSocket, db: Session, meeting: Meetin
     db.commit()
 
     use_structured = bool(meeting.agenda)
+    locale = data.get("locale")
+    preferred_lang = meeting_preferred_lang(existing, topic, locale)
 
     try:
         engine = MeetingEngine(llm_call=llm_call)
@@ -165,6 +168,7 @@ async def _handle_start_round(websocket: WebSocket, db: Session, meeting: Meetin
                     agenda_questions=meeting.agenda_questions or [],
                     agenda_rules=meeting.agenda_rules or [],
                     output_type=meeting.output_type or "code",
+                    preferred_lang=preferred_lang,
                 )
             else:
                 round_messages = engine.run_round(agent_dicts, history, topic=topic)

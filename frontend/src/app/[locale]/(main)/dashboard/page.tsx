@@ -18,6 +18,7 @@ import {
   Settings,
   Workflow,
 } from "lucide-react";
+import { SHOW_VISUAL_EDITOR } from "@/lib/feature-flags";
 
 function StatCard({
   label,
@@ -95,19 +96,21 @@ function FallbackCards({ t }: { t: ReturnType<typeof useTranslations<"home">> })
           </CardHeader>
         </Card>
       </Link>
-      <Link href="/teams">
-        <Card className="hover:border-primary/50 hover:shadow-md transition-all cursor-pointer h-full opacity-90">
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <Workflow className="h-5 w-5 text-muted-foreground" />
-              <div>
-                <CardTitle>{t("editorCard.title")}</CardTitle>
-                <CardDescription className="mt-1">{t("editorCard.description")}</CardDescription>
+      {SHOW_VISUAL_EDITOR && (
+        <Link href="/teams">
+          <Card className="hover:border-primary/50 hover:shadow-md transition-all cursor-pointer h-full opacity-90">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <Workflow className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <CardTitle>{t("editorCard.title")}</CardTitle>
+                  <CardDescription className="mt-1">{t("editorCard.description")}</CardDescription>
+                </div>
               </div>
-            </div>
-          </CardHeader>
-        </Card>
-      </Link>
+            </CardHeader>
+          </Card>
+        </Link>
+      )}
     </div>
   );
 }

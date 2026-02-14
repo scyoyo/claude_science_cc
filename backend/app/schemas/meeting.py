@@ -66,6 +66,7 @@ class MeetingRunRequest(BaseModel):
     """Request to run a meeting round or full meeting."""
     rounds: int = Field(default=1, ge=1, le=20)
     topic: Optional[str] = None  # Optional discussion topic for this run
+    locale: Optional[str] = None  # System locale fallback for agent response language ("en", "zh")
 
 
 class UserMessageRequest(BaseModel):

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { Send, Loader2, FlaskConical, User, CheckCircle2, Users, ChevronUp, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -73,6 +73,7 @@ function saveWizardState(state: WizardState) {
 
 export function WizardChat() {
   const t = useTranslations("wizard");
+  const locale = useLocale();
   const saved = useRef(loadWizardState());
   const { isMobile, inputVisible, setInputVisible } = useMobileGesture();
 
@@ -132,6 +133,7 @@ export function WizardChat() {
         message: msg,
         conversation_history: newHistory,
         context,
+        locale: locale === "zh" || locale === "en" ? locale : undefined,
       });
 
       // Update history
@@ -144,6 +146,9 @@ export function WizardChat() {
       // Update context with response data
       const newContext = { ...context };
       if (response.data) {
+        if (response.data.response_lang !== undefined) {
+          newContext.response_lang = response.data.response_lang;
+        }
         if (stage === "problem" && response.data.analysis) {
           newContext.analysis = response.data.analysis;
         }
