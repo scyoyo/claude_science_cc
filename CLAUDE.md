@@ -243,6 +243,7 @@ GET    /api/export/meeting/{id}/github     # Get GitHub-ready files
 - `backend/app/api/onboarding.py` ✅ - POST `/api/onboarding/chat` + POST `/api/onboarding/generate-team`
 - `backend/tests/test_onboarding.py` ✅ - 27 tests covering all components
 - LLM calls mockable via injectable `llm_func` callable
+- **Flow improvements:** Semantic stage (backend infers stage from context when client omits it; multi-turn at problem/clarification). Editable agent cards in chat (steps 3–4). See [docs/ONBOARDING_FLOW.md](docs/ONBOARDING_FLOW.md).
 
 ### Step 1.4: LLM API Client (DONE)
 - `backend/app/core/llm_client.py` ✅ - Abstract LLMProvider + OpenAI/Anthropic/DeepSeek implementations

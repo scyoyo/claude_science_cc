@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useTranslations } from "next-intl";
-import { Send, Loader2, FlaskConical, User, CheckCircle2, Users, ChevronUp } from "lucide-react";
+import { Send, Loader2, FlaskConical, User, CheckCircle2, Users, ChevronUp, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -13,6 +13,15 @@ import { getErrorMessage } from "@/lib/utils";
 import { MarkdownContent } from "@/components/MarkdownContent";
 import { useMobileGesture } from "@/contexts/MobileGestureContext";
 import { useSwipeGesture } from "@/hooks/useSwipeGesture";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import type {
   OnboardingStage,
   OnboardingChatMessage,
@@ -120,7 +129,6 @@ export function WizardChat() {
 
     try {
       const response: OnboardingChatResponse = await onboardingAPI.chat({
-        stage,
         message: msg,
         conversation_history: newHistory,
         context,
@@ -161,10 +169,8 @@ export function WizardChat() {
       };
       setMessages((prev) => [...prev, assistantMsg]);
 
-      // Advance stage
-      if (response.next_stage) {
-        setStage(response.next_stage);
-      }
+      // Update stage from backend (semantic: backend infers from context)
+      setStage(response.next_stage ?? response.stage);
 
       // If complete, generate the team automatically
       if (
@@ -210,6 +216,36 @@ export function WizardChat() {
     } finally {
       setIsLoading(false);
     }
+  }
+
+  function handleEditAgent(agentIndex: number, updatedAgent: AgentSuggestion) {
+    const lastProposalIndex = messages.reduce(
+      (last, m, idx) => (m.proposedTeam ? idx : last),
+      -1
+    );
+    if (lastProposalIndex < 0 || !teamSuggestion) return;
+    setTeamSuggestion((prev) =>
+      prev
+        ? {
+            ...prev,
+            agents: prev.agents.map((a, j) =>
+              j === agentIndex ? updatedAgent : a
+            ),
+          }
+        : null
+    );
+    setMessages((prev) =>
+      prev.map((m, i) =>
+        i === lastProposalIndex && m.proposedTeam
+          ? {
+              ...m,
+              proposedTeam: m.proposedTeam.map((a, j) =>
+                j === agentIndex ? updatedAgent : a
+              ),
+            }
+          : m
+      )
+    );
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -336,9 +372,22 @@ export function WizardChat() {
             </div>
           )}
 
-          {messages.map((msg, i) => (
-            <MessageBubble key={i} message={msg} />
-          ))}
+          {(() => {
+            const lastProposalIndex = messages.reduce(
+              (last, m, idx) => (m.proposedTeam ? idx : last),
+              -1
+            );
+            return messages.map((msg, i) => (
+              <MessageBubble
+                key={i}
+                message={msg}
+                messageIndex={i}
+                isEditable={i === lastProposalIndex && !!msg.proposedTeam?.length}
+                onEditAgent={handleEditAgent}
+                teamSuggestion={teamSuggestion}
+              />
+            ));
+          })()}
 
           {isLoading && (
             <div className="flex items-start gap-3">
@@ -415,10 +464,41 @@ export function WizardChat() {
   );
 }
 
-/** Single message bubble */
-function MessageBubble({ message }: { message: ChatMessage }) {
+interface MessageBubbleProps {
+  message: ChatMessage;
+  messageIndex: number;
+  isEditable: boolean;
+  onEditAgent: (agentIndex: number, updated: AgentSuggestion) => void;
+  teamSuggestion: TeamSuggestion | null;
+}
+
+/** Single message bubble; agent cards in the latest proposal are editable. */
+function MessageBubble({
+  message,
+  messageIndex,
+  isEditable,
+  onEditAgent,
+  teamSuggestion,
+}: MessageBubbleProps) {
   const t = useTranslations("wizard");
   const isUser = message.role === "user";
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState<AgentSuggestion | null>(null);
+
+  const openEdit = (agent: AgentSuggestion, index: number) => {
+    setEditForm({ ...agent });
+    setEditingIndex(index);
+  };
+  const closeEdit = () => {
+    setEditingIndex(null);
+    setEditForm(null);
+  };
+  const saveEdit = () => {
+    if (editingIndex !== null && editForm) {
+      onEditAgent(editingIndex, editForm);
+      closeEdit();
+    }
+  };
 
   return (
     <div className={`flex items-start gap-3 ${isUser ? "flex-row-reverse" : ""}`}>
@@ -460,16 +540,26 @@ function MessageBubble({ message }: { message: ChatMessage }) {
             {message.proposedTeam.map((agent, i) => (
               <div
                 key={i}
-                className="rounded-lg border border-border/50 bg-background p-3"
+                className={`rounded-lg border border-border/50 bg-background p-3 ${
+                  isEditable ? "cursor-pointer hover:border-border transition-colors" : ""
+                }`}
+                onClick={() => isEditable && openEdit(agent, i)}
+                role={isEditable ? "button" : undefined}
+                aria-label={isEditable ? t("editAgent") : undefined}
               >
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs text-muted-foreground">
-                    {String(i + 1).padStart(2, "0")}
-                  </span>
-                  <span className="text-sm font-medium">{agent.name}</span>
-                  <Badge variant="secondary" className="text-[10px]">
-                    {agent.title}
-                  </Badge>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="font-mono text-xs text-muted-foreground shrink-0">
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <span className="text-sm font-medium">{agent.name}</span>
+                    <Badge variant="secondary" className="text-[10px] shrink-0">
+                      {agent.title}
+                    </Badge>
+                  </div>
+                  {isEditable && (
+                    <Pencil className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  )}
                 </div>
                 <p className="mt-1.5 text-xs text-muted-foreground">
                   {agent.goal}
@@ -487,6 +577,73 @@ function MessageBubble({ message }: { message: ChatMessage }) {
           </div>
         )}
       </div>
+
+      {/* Edit agent dialog */}
+      <Dialog open={editingIndex !== null} onOpenChange={(open) => !open && closeEdit()}>
+        <DialogContent className="sm:max-w-md" showCloseButton>
+          <DialogHeader>
+            <DialogTitle>{t("editAgent")}</DialogTitle>
+          </DialogHeader>
+          {editForm && (
+            <div className="grid gap-3 py-2">
+              <div className="grid gap-2">
+                <Label htmlFor="edit-name">{t("agentName")}</Label>
+                <Input
+                  id="edit-name"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm((f) => (f ? { ...f, name: e.target.value } : null))}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-title">{t("agentTitle")}</Label>
+                <Input
+                  id="edit-title"
+                  value={editForm.title}
+                  onChange={(e) => setEditForm((f) => (f ? { ...f, title: e.target.value } : null))}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-expertise">{t("agentExpertise")}</Label>
+                <Input
+                  id="edit-expertise"
+                  value={editForm.expertise}
+                  onChange={(e) => setEditForm((f) => (f ? { ...f, expertise: e.target.value } : null))}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-goal">{t("agentGoal")}</Label>
+                <Input
+                  id="edit-goal"
+                  value={editForm.goal}
+                  onChange={(e) => setEditForm((f) => (f ? { ...f, goal: e.target.value } : null))}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-role">{t("agentRole")}</Label>
+                <Input
+                  id="edit-role"
+                  value={editForm.role}
+                  onChange={(e) => setEditForm((f) => (f ? { ...f, role: e.target.value } : null))}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-model">{t("agentModel")}</Label>
+                <Input
+                  id="edit-model"
+                  value={editForm.model}
+                  onChange={(e) => setEditForm((f) => (f ? { ...f, model: e.target.value } : null))}
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={closeEdit}>
+              {t("cancel")}
+            </Button>
+            <Button onClick={saveEdit}>{t("save")}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

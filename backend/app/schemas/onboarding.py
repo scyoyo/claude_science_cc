@@ -20,7 +20,8 @@ class ChatMessage(BaseModel):
 
 
 class OnboardingChatRequest(BaseModel):
-    stage: OnboardingStage
+    """stage is optional: when omitted, backend infers from context + conversation (semantic flow)."""
+    stage: Optional[OnboardingStage] = None
     message: str
     conversation_history: List[ChatMessage] = []
     context: Dict = {}  # Stage-specific context (e.g., analysis results, preferences)

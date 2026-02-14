@@ -565,6 +565,60 @@ class TestOnboardingChatAPI:
         assert data["next_stage"] == "team_suggestion"  # loops back
         assert "modify" in data["message"].lower() or "change" in data["message"].lower()
 
+    def test_chat_omits_stage_infers_problem(self, client):
+        """When stage is omitted, backend infers problem from empty context."""
+        response = client.post("/api/onboarding/chat", json={
+            "message": "I study RNA sequencing",
+            "context": {},
+        })
+        assert response.status_code == 200
+        data = response.json()
+        assert data["stage"] == "problem"
+        assert data["next_stage"] == "clarification"
+
+    def test_chat_omits_stage_infers_clarification(self, client):
+        """When stage is omitted, backend infers clarification from analysis in context."""
+        response = client.post("/api/onboarding/chat", json={
+            "message": "Team of 3 with gpt-4",
+            "context": {
+                "analysis": {
+                    "domain": "biology",
+                    "sub_domains": ["genetics"],
+                    "key_challenges": ["data"],
+                    "suggested_approaches": [],
+                },
+            },
+        })
+        assert response.status_code == 200
+        data = response.json()
+        assert data["stage"] == "clarification"
+        assert data["next_stage"] == "team_suggestion"
+
+    def test_chat_omits_stage_infers_team_suggestion(self, client):
+        """When stage is omitted, backend infers team_suggestion from context."""
+        response = client.post("/api/onboarding/chat", json={
+            "message": "Accept",
+            "context": {"team_suggestion": {"team_name": "Test", "agents": []}},
+        })
+        assert response.status_code == 200
+        data = response.json()
+        assert data["stage"] == "team_suggestion"
+        assert data["next_stage"] == "mirror_config"
+
+    def test_chat_omits_stage_infers_mirror_config(self, client):
+        """When stage is omitted, backend infers mirror_config from context."""
+        response = client.post("/api/onboarding/chat", json={
+            "message": "Yes, enable mirrors with claude",
+            "context": {
+                "team_suggestion": {"team_name": "T", "agents": []},
+                "mirror_config": {"enabled": True, "mirror_model": "claude-3-opus"},
+            },
+        })
+        assert response.status_code == 200
+        data = response.json()
+        assert data["stage"] == "mirror_config"
+        assert data["next_stage"] is None
+
 
 # ==================== Accept/Reject Detection Tests ====================
 
@@ -664,8 +718,8 @@ class TestOnboardingChatLLMMode:
             yield c
         app.dependency_overrides.pop(get_team_builder, None)
 
-    def test_problem_stage_llm(self, client_with_llm):
-        """LLM mode: problem stage returns clarifying questions, no analysis data."""
+    def test_problem_stage_llm_first_message_stays(self, client_with_llm):
+        """LLM mode: first user message stays in problem so user can discuss more (multi-turn)."""
         response = client_with_llm.post("/api/onboarding/chat", json={
             "stage": "problem",
             "message": "I want to study gene expression using RNA sequencing",
@@ -673,10 +727,30 @@ class TestOnboardingChatLLMMode:
         assert response.status_code == 200
         data = response.json()
         assert data["stage"] == "problem"
-        assert data["next_stage"] == "clarification"
-        # LLM mode: no analysis in data, natural language response
+        assert data["next_stage"] == "problem"  # stay until 2+ user messages
         assert "analysis" not in data["data"]
         assert "clarify" in data["message"].lower()
+
+    def test_problem_stage_llm_second_message_advances(self, client_with_llm):
+        """LLM mode: after 2 user messages, next_stage moves to clarification."""
+        # First message: stay in problem
+        client_with_llm.post("/api/onboarding/chat", json={
+            "stage": "problem",
+            "message": "I want to study gene expression",
+        })
+        # Second message: advance to clarification
+        response = client_with_llm.post("/api/onboarding/chat", json={
+            "stage": "problem",
+            "message": "We use human cell lines and bulk RNA-seq",
+            "conversation_history": [
+                {"role": "user", "content": "I want to study gene expression"},
+                {"role": "assistant", "content": "What organisms?"},
+            ],
+        })
+        assert response.status_code == 200
+        data = response.json()
+        assert data["stage"] == "problem"
+        assert data["next_stage"] == "clarification"
 
     def test_clarification_stage_llm(self):
         """LLM mode: clarification stage proposes team as JSON."""
@@ -796,6 +870,7 @@ class TestOnboardingChatLLMMode:
         call_idx = [0]
         responses = [
             "Interesting! Let me clarify:\n1. What scale?\n2. What tools?",
+            "Thanks. A few more details:\n1. What organisms?\n2. Bulk or single-cell?",
             team_json_response,
             "Mirror agents cross-validate outputs. Enable them?",
         ]
@@ -813,22 +888,36 @@ class TestOnboardingChatLLMMode:
         app.dependency_overrides[get_team_builder] = override
         try:
             with TestClient(app) as client:
-                # Stage 1: Problem → clarifying questions
+                # Stage 1: Problem (first message stays in problem for multi-turn)
                 r1 = client.post("/api/onboarding/chat", json={
                     "stage": "problem",
                     "message": "Study gene expression in cancer",
                 })
                 assert r1.status_code == 200
-                assert r1.json()["next_stage"] == "clarification"
+                assert r1.json()["next_stage"] == "problem"
                 assert "analysis" not in r1.json()["data"]
 
-                # Stage 2: Clarification → team proposal
-                r2 = client.post("/api/onboarding/chat", json={
-                    "stage": "clarification",
+                # Second problem message → advance to clarification
+                r1b = client.post("/api/onboarding/chat", json={
+                    "stage": "problem",
                     "message": "Human cancer cells, single-cell RNA-seq",
                     "conversation_history": [
                         {"role": "user", "content": "Study gene expression in cancer"},
                         {"role": "assistant", "content": r1.json()["message"]},
+                    ],
+                })
+                assert r1b.status_code == 200
+                assert r1b.json()["next_stage"] == "clarification"
+
+                # Stage 2: Clarification → team proposal
+                r2 = client.post("/api/onboarding/chat", json={
+                    "stage": "clarification",
+                    "message": "Sounds good",
+                    "conversation_history": [
+                        {"role": "user", "content": "Study gene expression in cancer"},
+                        {"role": "assistant", "content": r1.json()["message"]},
+                        {"role": "user", "content": "Human cancer cells, single-cell RNA-seq"},
+                        {"role": "assistant", "content": r1b.json()["message"]},
                     ],
                 })
                 assert r2.status_code == 200

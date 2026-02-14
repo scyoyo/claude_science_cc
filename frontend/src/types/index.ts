@@ -166,7 +166,8 @@ export interface OnboardingChatMessage {
 }
 
 export interface OnboardingChatRequest {
-  stage: OnboardingStage;
+  /** Optional: when omitted, backend infers stage from context + conversation (semantic flow). */
+  stage?: OnboardingStage;
   message: string;
   conversation_history: OnboardingChatMessage[];
   context: Record<string, unknown>;

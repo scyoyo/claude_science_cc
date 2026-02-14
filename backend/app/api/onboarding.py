@@ -116,12 +116,31 @@ def _detect_accept_reject(message: str) -> str:
     return "unclear"
 
 
+def _infer_stage(request: OnboardingChatRequest) -> OnboardingStage:
+    """Infer current stage from context and conversation (semantic flow).
+
+    Allows multi-turn discussion at any stage; client can omit stage and backend decides.
+    """
+    ctx = request.context or {}
+    history = request.conversation_history or []
+    if ctx.get("mirror_config") is not None and ctx.get("team_suggestion"):
+        return OnboardingStage.mirror_config
+    if ctx.get("team_suggestion"):
+        return OnboardingStage.team_suggestion
+    if ctx.get("analysis") or len(history) >= 2:
+        return OnboardingStage.clarification
+    return OnboardingStage.problem
+
+
 @router.post("/chat", response_model=OnboardingChatResponse)
 def onboarding_chat(
     request: OnboardingChatRequest,
     team_builder: TeamBuilder = Depends(get_team_builder),
 ):
     """Multi-stage onboarding conversation.
+
+    Stage is optional: when omitted, backend infers from context + conversation so users
+    can have multiple rounds at any step (e.g. discuss the problem longer before moving on).
 
     Stages:
     - problem: User describes research problem → LLM asks clarifying questions
@@ -130,20 +149,21 @@ def onboarding_chat(
     - mirror_config: LLM explains mirrors → final config
     - complete: Final summary
     """
-    if request.stage == OnboardingStage.problem:
+    stage = request.stage if request.stage is not None else _infer_stage(request)
+    if stage == OnboardingStage.problem:
         return _handle_problem_stage(request, team_builder)
-    elif request.stage == OnboardingStage.clarification:
+    elif stage == OnboardingStage.clarification:
         return _handle_clarification_stage(request, team_builder)
-    elif request.stage == OnboardingStage.team_suggestion:
+    elif stage == OnboardingStage.team_suggestion:
         return _handle_team_suggestion_stage(request, team_builder)
-    elif request.stage == OnboardingStage.mirror_config:
+    elif stage == OnboardingStage.mirror_config:
         return _handle_mirror_config_stage(request, team_builder)
-    elif request.stage == OnboardingStage.complete:
+    elif stage == OnboardingStage.complete:
         return _handle_complete_stage(request)
     else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unknown stage: {request.stage}",
+            detail=f"Unknown stage: {stage}",
         )
 
 
@@ -153,7 +173,8 @@ def _handle_problem_stage(
 ) -> OnboardingChatResponse:
     """Analyze the user's research problem.
 
-    LLM mode: Ask 2-3 clarifying questions as natural text.
+    LLM mode: Ask clarifying questions; stay in problem until we have 2+ user messages
+    so the user can discuss multiple rounds before moving to clarification.
     Template mode: Return domain analysis with structured prompts.
     """
     if team_builder.llm_func:
@@ -161,9 +182,21 @@ def _handle_problem_stage(
         response_text = team_builder.generate_clarifying_response(
             request.message, request.conversation_history
         )
+        user_message_count = sum(
+            1 for m in (request.conversation_history or [])
+            if m.role == "user"
+        )
+        if request.message:
+            user_message_count += 1
+        # Stay in problem for first exchange so user can discuss more; then move to clarification
+        next_stage = (
+            OnboardingStage.clarification
+            if user_message_count >= 2
+            else OnboardingStage.problem
+        )
         return OnboardingChatResponse(
             stage=OnboardingStage.problem,
-            next_stage=OnboardingStage.clarification,
+            next_stage=next_stage,
             message=response_text,
             data={},
         )
