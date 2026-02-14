@@ -302,13 +302,13 @@ export function WizardChat() {
                           ? t("placeholderMirror")
                           : t("placeholder")
                 }
-                className="min-h-[44px] max-h-[120px] resize-none text-sm"
+                className="min-h-[52px] max-h-[120px] resize-none text-sm py-2.5"
                 rows={1}
                 disabled={isLoading}
               />
               <Button
                 size="icon"
-                className="h-[44px] w-[44px] shrink-0"
+                className="h-[52px] w-[52px] shrink-0 self-end"
                 onClick={handleSend}
                 disabled={!input.trim() || isLoading}
               >
