@@ -206,6 +206,7 @@ export interface AgentSuggestion {
   goal: string;
   role: string;
   model: string;
+  model_reason?: string;
 }
 
 export interface TeamSuggestion {

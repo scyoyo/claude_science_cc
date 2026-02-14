@@ -52,7 +52,8 @@ class AgentSuggestion(BaseModel):
     expertise: str
     goal: str
     role: str
-    model: str = "gpt-4"
+    model: str = "gpt-4.1"
+    model_reason: str = ""
 
 
 class TeamSuggestion(BaseModel):

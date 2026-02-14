@@ -570,6 +570,11 @@ function MessageBubble({
                     {agent.model}
                   </Badge>
                 </div>
+                {agent.model_reason && (
+                  <p className="mt-1 text-[10px] text-muted-foreground/70 italic">
+                    {agent.model_reason}
+                  </p>
+                )}
               </div>
             ))}
           </div>

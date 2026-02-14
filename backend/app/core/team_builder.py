@@ -37,7 +37,7 @@ TEAM_PROPOSER_PROMPT = """You are a scientific research advisor helping to assem
 Based on the conversation so far, propose a team of 3-5 specialists. Return your response
 in the following format:
 
-1. A brief summary paragraph explaining your team composition rationale.
+1. A brief summary paragraph explaining your team composition rationale, including WHY you chose each model.
 2. Then a JSON block with the team details:
 
 ```json
@@ -51,13 +51,37 @@ in the following format:
       "expertise": "area of expertise",
       "goal": "what this agent aims to accomplish",
       "role": "specific role in the team",
-      "model": "gpt-4"
+      "model": "model-id",
+      "model_reason": "Brief explanation of why this model fits this agent's task"
     }
   ]
 }
 ```
 
-Use "gpt-4" as the default model for all agents unless the user specified a preference."""
+## Model Selection Guide — choose the BEST model for each agent's specific task:
+
+### Flagship / High-capability models
+| Model ID | Best For | Cost |
+|---|---|---|
+| gpt-5.2 | Most capable OpenAI model, complex multi-domain research, strategic planning | Very High |
+| claude-opus-4-5-20250929 | Deepest analysis, nuanced scientific writing, team leadership, synthesis | Very High |
+| o1 | Complex multi-step reasoning, mathematical proofs, formal logic | High |
+
+### Strong / Balanced models (recommended for most agents)
+| Model ID | Best For | Cost |
+|---|---|---|
+| gpt-4.1 | Strong general-purpose, multimodal (vision/image), quantitative analysis | Medium |
+| claude-sonnet-4-5-20250929 | Excellent code generation, technical writing, detailed implementation | Medium |
+| deepseek-reasoner | Deep reasoning, critical review, complex logic, validation | Low |
+
+### Cost-effective models (for high-volume or simpler tasks)
+| Model ID | Best For | Cost |
+|---|---|---|
+| gpt-4.1-mini | Fast and cheap, data processing, summarization, simple tasks | Low |
+| deepseek-chat | Cheapest option, literature review, repetitive tasks, data collection | Very Low |
+
+IMPORTANT: Do NOT use the same model for every agent. Match models to each agent's specific task requirements.
+For example: a coding agent should use claude-sonnet-4-5-20250929, a vision/image agent should use gpt-4.1, a research lead should use claude-opus-4-5-20250929, a critic should use deepseek-reasoner, a data collection agent should use gpt-4.1-mini or deepseek-chat."""
 
 MIRROR_ADVISOR_PROMPT = """You are a scientific research advisor explaining the concept of mirror agents.
 
@@ -70,6 +94,55 @@ Briefly explain how mirror agents would benefit this team and ask the user:
 2. If yes, which model should the mirrors use (suggest an alternative to the primary model)
 
 Keep your explanation concise (2-3 sentences about the benefit, then the questions)."""
+
+# Role keyword → (model, reason) for template-based model assignment
+ROLE_MODEL_MAP: Dict[str, dict] = {
+    "vision": {"model": "gpt-4.1", "reason": "GPT-4.1: latest multimodal model with strong vision/image analysis"},
+    "image": {"model": "gpt-4.1", "reason": "GPT-4.1: latest multimodal model for image understanding"},
+    "multimodal": {"model": "gpt-4.1", "reason": "GPT-4.1: best-in-class multimodal understanding"},
+    "coding": {"model": "claude-sonnet-4-5-20250929", "reason": "Claude Sonnet 4.5: excellent code generation and engineering"},
+    "code": {"model": "claude-sonnet-4-5-20250929", "reason": "Claude Sonnet 4.5: strong code generation and debugging"},
+    "engineering": {"model": "claude-sonnet-4-5-20250929", "reason": "Claude Sonnet 4.5: strong software engineering skills"},
+    "pipeline": {"model": "claude-sonnet-4-5-20250929", "reason": "Claude Sonnet 4.5: reliable code for data pipelines"},
+    "reasoning": {"model": "deepseek-reasoner", "reason": "DeepSeek R1: specialized deep reasoning for complex logic"},
+    "critic": {"model": "deepseek-reasoner", "reason": "DeepSeek R1: deep reasoning ideal for critical review"},
+    "review": {"model": "deepseek-reasoner", "reason": "DeepSeek R1: strong logical reasoning for peer review"},
+    "math": {"model": "deepseek-reasoner", "reason": "DeepSeek R1: specialized in mathematical reasoning and proofs"},
+    "proof": {"model": "deepseek-reasoner", "reason": "DeepSeek R1: excels at formal proofs and logical deductions"},
+    "writing": {"model": "claude-opus-4-5-20250929", "reason": "Claude Opus 4.5: superior scientific writing and synthesis"},
+    "synthesis": {"model": "claude-opus-4-5-20250929", "reason": "Claude Opus 4.5: strong at synthesizing complex information"},
+    "literature": {"model": "deepseek-chat", "reason": "DeepSeek Chat: cost-effective for literature review and summarization"},
+    "summary": {"model": "gpt-4.1-mini", "reason": "GPT-4.1 Mini: fast and cost-effective for summarization"},
+    "data": {"model": "gpt-4.1", "reason": "GPT-4.1: versatile with strong quantitative analysis skills"},
+    "statistics": {"model": "gpt-4.1", "reason": "GPT-4.1: strong quantitative and statistical analysis"},
+    "simulation": {"model": "gpt-4.1", "reason": "GPT-4.1: versatile model for computational simulation tasks"},
+    "lead": {"model": "claude-opus-4-5-20250929", "reason": "Claude Opus 4.5: deep analytical and synthesis capabilities for leadership"},
+    "general": {"model": "gpt-4.1", "reason": "GPT-4.1: strong latest-gen general-purpose model"},
+}
+
+
+def _assign_model_for_role(role: str, expertise: str, goal: str) -> dict:
+    """Pick the best model based on agent role/expertise/goal keywords.
+
+    Returns {"model": ..., "model_reason": ...}.
+    """
+    text = f"{role} {expertise} {goal}".lower()
+    # Check keywords in priority order (specific → general)
+    priority_keywords = [
+        "vision", "image", "multimodal",
+        "coding", "code", "engineering", "pipeline",
+        "reasoning", "critic", "review", "math", "proof",
+        "writing", "synthesis",
+        "literature", "summary",
+        "data", "statistics", "simulation",
+        "lead",
+    ]
+    for keyword in priority_keywords:
+        if keyword in text:
+            entry = ROLE_MODEL_MAP[keyword]
+            return {"model": entry["model"], "model_reason": entry["reason"]}
+    return {"model": "gpt-4.1", "model_reason": "GPT-4.1: strong latest-gen general-purpose model"}
+
 
 # Domain keyword → (sub_domains, challenges, approaches, agent templates)
 DOMAIN_TEMPLATES: Dict[str, dict] = {
@@ -84,7 +157,8 @@ DOMAIN_TEMPLATES: Dict[str, dict] = {
                 expertise="experimental biology and research methodology",
                 goal="design rigorous experiments and oversee research direction",
                 role="lead the research team, define hypotheses, and ensure scientific rigor",
-                model="gpt-4",
+                model="claude-opus-4-5-20250929",
+                model_reason="Claude Opus 4.5: deep analytical and synthesis capabilities for team leadership",
             ),
             AgentSuggestion(
                 name="Computational Biologist",
@@ -92,7 +166,8 @@ DOMAIN_TEMPLATES: Dict[str, dict] = {
                 expertise="computational biology, data analysis, and statistical modeling",
                 goal="analyze biological data and build predictive models",
                 role="process experimental data, run statistical analyses, and generate visualizations",
-                model="gpt-4",
+                model="gpt-4.1",
+                model_reason="GPT-4.1: latest versatile model with strong quantitative analysis",
             ),
         ],
     },
@@ -107,7 +182,8 @@ DOMAIN_TEMPLATES: Dict[str, dict] = {
                 expertise="deep learning architectures and optimization",
                 goal="design and evaluate novel ML approaches",
                 role="lead model design, define evaluation metrics, and analyze results",
-                model="gpt-4",
+                model="claude-sonnet-4-5-20250929",
+                model_reason="Claude Sonnet 4.5: excellent code generation and detailed technical analysis",
             ),
             AgentSuggestion(
                 name="Data Engineer",
@@ -115,7 +191,8 @@ DOMAIN_TEMPLATES: Dict[str, dict] = {
                 expertise="data preprocessing, feature engineering, and pipeline design",
                 goal="build robust data pipelines for model training",
                 role="prepare datasets, implement data augmentation, and ensure data quality",
-                model="gpt-4",
+                model="gpt-4.1-mini",
+                model_reason="GPT-4.1 Mini: cost-effective for high-volume data processing tasks",
             ),
         ],
     },
@@ -130,7 +207,8 @@ DOMAIN_TEMPLATES: Dict[str, dict] = {
                 expertise="molecular modeling and simulation",
                 goal="design and optimize molecular structures",
                 role="lead molecular design, run simulations, and interpret results",
-                model="gpt-4",
+                model="gpt-4.1",
+                model_reason="GPT-4.1: versatile latest-gen model for computational simulation",
             ),
             AgentSuggestion(
                 name="Materials Scientist",
@@ -138,7 +216,8 @@ DOMAIN_TEMPLATES: Dict[str, dict] = {
                 expertise="materials properties and characterization",
                 goal="predict and validate material properties",
                 role="analyze material candidates, model properties, and suggest optimizations",
-                model="gpt-4",
+                model="deepseek-reasoner",
+                model_reason="DeepSeek R1: deep reasoning for complex property prediction and analysis",
             ),
         ],
     },
@@ -153,7 +232,8 @@ DOMAIN_TEMPLATES: Dict[str, dict] = {
                 expertise="research methodology and critical analysis",
                 goal="guide the research process and ensure quality",
                 role="define research questions, coordinate team efforts, and synthesize findings",
-                model="gpt-4",
+                model="claude-opus-4-5-20250929",
+                model_reason="Claude Opus 4.5: deep analytical and synthesis capabilities for leadership",
             ),
             AgentSuggestion(
                 name="Data Analyst",
@@ -161,7 +241,8 @@ DOMAIN_TEMPLATES: Dict[str, dict] = {
                 expertise="statistical analysis and data visualization",
                 goal="extract insights from data through rigorous analysis",
                 role="perform statistical tests, create visualizations, and validate findings",
-                model="gpt-4",
+                model="gpt-4.1",
+                model_reason="GPT-4.1: latest versatile model with strong quantitative analysis",
             ),
         ],
     },
@@ -423,14 +504,15 @@ class TeamBuilder:
                 expertise="critical analysis, methodology review, and scientific writing",
                 goal="ensure research quality through rigorous review",
                 role="review proposals and findings, identify weaknesses, and suggest improvements",
-                model="gpt-4",
+                model="deepseek-reasoner",
+                model_reason="Deep reasoning model ideal for critical review and validation",
             ))
 
-        # Respect model preference
+        # Respect model preference (overrides role-based selection)
         preferred_model = preferences.get("model")
         if preferred_model:
             agents = [
-                AgentSuggestion(**{**a.model_dump(), "model": preferred_model})
+                AgentSuggestion(**{**a.model_dump(), "model": preferred_model, "model_reason": "User-specified model preference"})
                 for a in agents
             ]
 
@@ -446,7 +528,7 @@ class TeamBuilder:
     def create_mirror_agents(
         self,
         primary_agents: List[AgentSuggestion],
-        mirror_model: str = "gpt-4",
+        mirror_model: str = "deepseek-chat",
     ) -> List[AgentSuggestion]:
         """Create mirror agents for the given primary agents.
 
