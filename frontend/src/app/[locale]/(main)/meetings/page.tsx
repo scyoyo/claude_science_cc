@@ -151,9 +151,9 @@ export default function MeetingsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold">{t("title")}</h1>
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
           <Button asChild size="sm" variant="outline">
             <Link href="/meetings/compare">
               <ArrowLeftRight className="h-4 w-4 mr-1" />
@@ -324,7 +324,7 @@ export default function MeetingsPage() {
             className="pl-9"
           />
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {filterButtons.map((fb) => (
             <Button
               key={fb.key}
@@ -359,12 +359,12 @@ export default function MeetingsPage() {
             >
               <Card className="hover:border-primary/50 transition-colors cursor-pointer">
                 <CardHeader className="py-4">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <CardTitle className="text-base flex items-center gap-2">
-                      <MessageSquare className="h-4 w-4" />
+                      <MessageSquare className="h-4 w-4 shrink-0" />
                       {meeting.title}
                     </CardTitle>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <Badge variant={statusVariant(meeting.status)}>
                         {t(`status.${meeting.status}`)}
                       </Badge>

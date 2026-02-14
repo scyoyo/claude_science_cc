@@ -15,9 +15,9 @@ function useBreadcrumb() {
   const pathname = usePathname();
   const t = useTranslations("nav");
 
-  if (pathname === "/") return t("dashboard");
+  if (pathname === "/" || pathname === "/dashboard") return t("dashboard");
   const segment = pathname.split("/").filter(Boolean)[0];
-  const validSegments = ["teams", "settings", "profile", "onboarding", "meetings", "search"] as const;
+  const validSegments = ["teams", "settings", "profile", "onboarding", "meetings", "search", "dashboard"] as const;
   if (segment && validSegments.includes(segment as typeof validSegments[number])) {
     return t(segment as typeof validSegments[number]);
   }

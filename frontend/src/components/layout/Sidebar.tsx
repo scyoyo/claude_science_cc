@@ -25,7 +25,7 @@ import { useCallback } from "react";
 
 const navItems = [
   { key: "onboarding", href: "/onboarding", icon: Wand2 },
-  { key: "dashboard", href: "/", icon: LayoutDashboard },
+  { key: "dashboard", href: "/dashboard", icon: LayoutDashboard },
   { key: "teams", href: "/teams", icon: Users },
   { key: "meetings", href: "/meetings", icon: MessageSquare },
   { key: "search", href: "/search", icon: Search },

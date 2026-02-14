@@ -96,9 +96,9 @@ export const agentsAPI = {
       body: JSON.stringify(teamId ? { team_id: teamId } : {}),
     }),
   batchDelete: (ids: string[]) =>
-    fetchAPI<void>("/agents/batch", {
+    fetchAPI<{ deleted: number }>("/agents/batch", {
       method: "DELETE",
-      body: JSON.stringify({ agent_ids: ids }),
+      body: JSON.stringify(ids),
     }),
 };
 

@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
+from sqlalchemy import update
 from typing import List, Optional
 
 from app.database import get_db
@@ -222,6 +223,16 @@ def delete_team(
         )
     check_team_access(db, current_user, team, min_role="owner")
 
+    # Null out agent_id in meeting_messages for all agents in this team
+    # (avoids FK constraint when cascade-deleting agents)
+    agent_ids = [a.id for a in db.query(Agent).filter(Agent.team_id == team_id).all()]
+    if agent_ids:
+        db.execute(
+            update(MeetingMessage).where(MeetingMessage.agent_id.in_(agent_ids)).values(agent_id=None)
+        )
+        db.execute(
+            update(Agent).where(Agent.primary_agent_id.in_(agent_ids)).values(primary_agent_id=None)
+        )
     db.delete(team)
     db.commit()
     return None
