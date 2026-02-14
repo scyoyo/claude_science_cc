@@ -108,6 +108,7 @@ def create_meeting(data: MeetingCreate, db: Session = Depends(get_db)):
         agenda_rules=rules,
         output_type=data.output_type,
         context_meeting_ids=data.context_meeting_ids,
+        participant_agent_ids=data.participant_agent_ids or [],
         max_rounds=data.max_rounds,
     )
     db.add(meeting)
@@ -131,6 +132,8 @@ def clone_meeting(meeting_id: str, db: Session = Depends(get_db)):
         agenda_questions=original.agenda_questions,
         agenda_rules=original.agenda_rules,
         output_type=original.output_type,
+        context_meeting_ids=getattr(original, "context_meeting_ids", None) or [],
+        participant_agent_ids=getattr(original, "participant_agent_ids", None) or [],
         max_rounds=original.max_rounds,
     )
     db.add(clone)
@@ -394,11 +397,15 @@ def run_meeting(
             detail="Meeting is already completed",
         )
 
-    # Get team agents
+    # Get team agents (optionally restricted to participant_agent_ids)
     agents = db.query(Agent).filter(
         Agent.team_id == meeting.team_id,
         Agent.is_mirror == False,
     ).all()
+    participant_ids = getattr(meeting, "participant_agent_ids", None) or []
+    if participant_ids:
+        id_set = set(str(aid) for aid in participant_ids)
+        agents = [a for a in agents if str(a.id) in id_set]
 
     if not agents:
         raise HTTPException(

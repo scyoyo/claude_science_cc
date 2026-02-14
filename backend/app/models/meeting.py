@@ -26,6 +26,7 @@ class Meeting(Base):
     agenda_rules = Column(JSON, default=list)
     output_type = Column(String(20), default="code")
     context_meeting_ids = Column(JSON, default=list)  # IDs of previous meetings to load context from
+    participant_agent_ids = Column(JSON, default=list)  # If non-empty, only these agents join the meeting
     status = Column(String(20), default=MeetingStatus.pending.value)
     max_rounds = Column(Integer, default=5)
     current_round = Column(Integer, default=0)

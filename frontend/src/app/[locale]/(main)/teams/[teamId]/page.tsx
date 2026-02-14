@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Link } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import { teamsAPI, agentsAPI, meetingsAPI } from "@/lib/api";
 import { getErrorMessage, downloadBlob } from "@/lib/utils";
 import type { TeamWithAgents, Meeting, TeamStats, AgentMetrics } from "@/types";
@@ -29,13 +29,14 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Plus, Trash2, Pencil, Workflow, MessageSquare, Bot, Loader2, LayoutTemplate, Copy, CheckSquare, Download } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Pencil, Workflow, MessageSquare, Bot, Loader2, LayoutTemplate, Copy, CheckSquare, Download, PlayCircle } from "lucide-react";
 import { SHOW_VISUAL_EDITOR, SHOW_EXPORT_TEAM } from "@/lib/feature-flags";
 import type { Agent } from "@/types";
 import { MODEL_OPTIONS } from "@/lib/models";
 
 export default function TeamDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const teamId = params.teamId as string;
   const t = useTranslations("teamDetail");
   const tc = useTranslations("common");
@@ -73,6 +74,8 @@ export default function TeamDetailPage() {
   // Select mode state
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  /** When set, new meeting will be created with only these agents as participants. */
+  const [participantIdsForNewMeeting, setParticipantIdsForNewMeeting] = useState<string[] | null>(null);
 
   const loadData = async () => {
     try {
@@ -217,7 +220,7 @@ export default function TeamDetailPage() {
     const rounds = parseInt(meetingForm.max_rounds) || 5;
     setCreatingMeeting(true);
     try {
-      await meetingsAPI.create({
+      const created = await meetingsAPI.create({
         team_id: teamId,
         title,
         description: description || undefined,
@@ -225,17 +228,36 @@ export default function TeamDetailPage() {
         agenda_questions: meetingForm.agenda_questions.length > 0 ? meetingForm.agenda_questions : undefined,
         output_type: meetingForm.output_type,
         context_meeting_ids: meetingForm.context_meeting_ids.length > 0 ? meetingForm.context_meeting_ids : undefined,
+        participant_agent_ids: participantIdsForNewMeeting && participantIdsForNewMeeting.length > 0 ? participantIdsForNewMeeting : undefined,
         max_rounds: Math.max(1, Math.min(20, rounds)),
       });
       setMeetingForm({ title: "", description: "", max_rounds: "5", agenda: "", output_type: "code", agenda_questions: [], context_meeting_ids: [] });
       setNewQuestion("");
       setShowNewMeeting(false);
+      setParticipantIdsForNewMeeting(null);
+      setSelectedIds(new Set());
+      setSelectMode(false);
       await loadData();
+      router.push(`/teams/${teamId}/meetings/${created.id}`);
     } catch (err) {
       setError(getErrorMessage(err, "Failed to create meeting"));
     } finally {
       setCreatingMeeting(false);
     }
+  };
+
+  const openNewMeetingWithSelectedAgents = () => {
+    if (selectedIds.size === 0) return;
+    const ids = [...selectedIds];
+    setParticipantIdsForNewMeeting(ids);
+    const names = ids
+      .map((id) => team.agents.find((a) => a.id === id)?.name)
+      .filter(Boolean) as string[];
+    setMeetingForm((f) => ({
+      ...f,
+      title: names.length > 0 ? `${t("meetingWith")} ${names.join(", ")}` : f.title,
+    }));
+    setShowNewMeeting(true);
   };
 
   const addQuestion = () => {
@@ -433,10 +455,16 @@ export default function TeamDetailPage() {
               {selectedIds.size === team.agents.length ? t("deselectAll") : t("selectAll")}
             </Button>
             {selectedIds.size > 0 && (
-              <Button size="sm" variant="destructive" onClick={handleBatchDelete}>
-                <Trash2 className="h-4 w-4 mr-1" />
-                {t("batchDelete", { count: selectedIds.size })}
-              </Button>
+              <>
+                <Button size="sm" variant="default" onClick={openNewMeetingWithSelectedAgents}>
+                  <PlayCircle className="h-4 w-4 mr-1" />
+                  {t("startMeetingWithSelected", { count: selectedIds.size })}
+                </Button>
+                <Button size="sm" variant="destructive" onClick={handleBatchDelete}>
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  {t("batchDelete", { count: selectedIds.size })}
+                </Button>
+              </>
             )}
           </div>
         )}
@@ -528,7 +556,13 @@ export default function TeamDetailPage() {
           <h2 className="text-xl font-semibold">
             {t("meetings")} ({meetings.length})
           </h2>
-          <Dialog open={showNewMeeting} onOpenChange={setShowNewMeeting}>
+          <Dialog
+            open={showNewMeeting}
+            onOpenChange={(open) => {
+              setShowNewMeeting(open);
+              if (!open) setParticipantIdsForNewMeeting(null);
+            }}
+          >
             <DialogTrigger asChild>
               <Button size="sm" variant="outline">
                 <Plus className="h-4 w-4 mr-1" />

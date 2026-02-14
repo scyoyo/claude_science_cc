@@ -12,6 +12,7 @@ class MeetingCreate(BaseModel):
     agenda_rules: List[str] = []
     output_type: str = "code"
     context_meeting_ids: List[str] = []
+    participant_agent_ids: List[str] = []  # If non-empty, only these agents participate
     max_rounds: int = Field(default=5, ge=1, le=20)
 
 
@@ -23,6 +24,7 @@ class MeetingUpdate(BaseModel):
     agenda_rules: Optional[List[str]] = None
     output_type: Optional[str] = None
     context_meeting_ids: Optional[List[str]] = None
+    participant_agent_ids: Optional[List[str]] = None
     max_rounds: Optional[int] = Field(None, ge=1, le=20)
 
 
@@ -51,6 +53,7 @@ class MeetingResponse(BaseModel):
     agenda_rules: Optional[list] = []
     output_type: Optional[str] = "code"
     context_meeting_ids: Optional[list] = []
+    participant_agent_ids: Optional[list] = []
     status: str
     max_rounds: int
     current_round: int

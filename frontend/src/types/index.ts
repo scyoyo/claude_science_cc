@@ -86,6 +86,7 @@ export interface Meeting {
   agenda_rules: string[];
   output_type: string;
   context_meeting_ids: string[];
+  participant_agent_ids?: string[];
   status: "pending" | "running" | "completed" | "failed";
   max_rounds: number;
   current_round: number;
@@ -117,6 +118,7 @@ export interface MeetingCreate {
   agenda_rules?: string[];
   output_type?: string;
   context_meeting_ids?: string[];
+  participant_agent_ids?: string[];
   max_rounds?: number;
 }
 

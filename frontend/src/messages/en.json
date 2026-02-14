@@ -123,6 +123,8 @@
     "deselectAll": "Deselect All",
     "batchDelete": "Delete Selected ({count})",
     "batchDeleteConfirm": "Delete {count} selected agents?",
+    "startMeetingWithSelected": "Start meeting ({count} selected)",
+    "meetingWith": "Meeting with",
     "exportTeam": "Export"
   },
   "meeting": {

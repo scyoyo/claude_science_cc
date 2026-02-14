@@ -110,11 +110,15 @@ async def _handle_start_round(websocket: WebSocket, db: Session, meeting: Meetin
         await websocket.send_json({"type": "error", "detail": "Max rounds reached"})
         return
 
-    # Get agents
+    # Get agents (optionally restricted to participant_agent_ids)
     agents = db.query(Agent).filter(
         Agent.team_id == meeting.team_id,
         Agent.is_mirror == False,
     ).all()
+    participant_ids = getattr(meeting, "participant_agent_ids", None) or []
+    if participant_ids:
+        id_set = set(str(aid) for aid in participant_ids)
+        agents = [a for a in agents if str(a.id) in id_set]
 
     if not agents:
         await websocket.send_json({"type": "error", "detail": "No agents in team"})

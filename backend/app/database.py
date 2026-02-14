@@ -33,6 +33,7 @@ def _ensure_meetings_columns_sqlite(engine):
             ("agenda_rules", "TEXT"),
             ("output_type", "VARCHAR(20) DEFAULT 'code'"),
             ("context_meeting_ids", "TEXT"),
+            ("participant_agent_ids", "TEXT"),
         ],
     )
 
