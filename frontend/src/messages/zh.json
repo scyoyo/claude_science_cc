@@ -158,7 +158,13 @@
     "filterCompleted": "已完成",
     "filterFailed": "失败",
     "searchPlaceholder": "搜索会议...",
-    "deleteConfirm": "确定删除此会议吗？"
+    "deleteConfirm": "确定删除此会议吗？",
+    "create": "新建会议",
+    "newMeeting": "新建会议",
+    "selectTeam": "选择团队",
+    "meetingTitle": "会议标题",
+    "meetingDescription": "描述（可选）",
+    "meetingMaxRounds": "最大轮次"
   },
   "editor": {
     "title": "可视化编辑器",

@@ -26,7 +26,7 @@ class CodeArtifactResponse(BaseModel):
     filename: str
     language: str
     content: str
-    description: str
+    description: Optional[str] = ""
     version: int
     created_at: datetime
     updated_at: datetime

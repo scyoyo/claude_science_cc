@@ -158,7 +158,13 @@
     "filterCompleted": "Completed",
     "filterFailed": "Failed",
     "searchPlaceholder": "Search meetings...",
-    "deleteConfirm": "Delete this meeting?"
+    "deleteConfirm": "Delete this meeting?",
+    "create": "New Meeting",
+    "newMeeting": "New Meeting",
+    "selectTeam": "Select team",
+    "meetingTitle": "Meeting title",
+    "meetingDescription": "Description (optional)",
+    "meetingMaxRounds": "Max rounds"
   },
   "editor": {
     "title": "Visual Editor",

@@ -3,13 +3,30 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
-import { meetingsAPI } from "@/lib/api";
-import type { Meeting } from "@/types";
+import { meetingsAPI, teamsAPI } from "@/lib/api";
+import type { Meeting, Team } from "@/types";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MessageSquare, Search, Trash2 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { MessageSquare, Search, Trash2, Plus, Loader2 } from "lucide-react";
 
 type StatusFilter = "all" | "pending" | "completed" | "failed";
 
@@ -17,16 +34,29 @@ export default function MeetingsPage() {
   const t = useTranslations("meetings");
   const tc = useTranslations("common");
   const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [showCreate, setShowCreate] = useState(false);
+  const [creatingMeeting, setCreatingMeeting] = useState(false);
+  const [meetingForm, setMeetingForm] = useState({
+    team_id: "",
+    title: "",
+    description: "",
+    max_rounds: 5,
+  });
 
   const loadMeetings = async () => {
     try {
       setLoading(true);
-      const data = await meetingsAPI.list();
-      setMeetings(data);
+      const [meetingsData, teamsData] = await Promise.all([
+        meetingsAPI.list(),
+        teamsAPI.list(),
+      ]);
+      setMeetings(meetingsData);
+      setTeams(teamsData);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load meetings");
@@ -38,6 +68,21 @@ export default function MeetingsPage() {
   useEffect(() => {
     loadMeetings();
   }, []);
+
+  const handleCreateMeeting = async () => {
+    if (!meetingForm.team_id || !meetingForm.title.trim()) return;
+    try {
+      setCreatingMeeting(true);
+      await meetingsAPI.create(meetingForm);
+      setShowCreate(false);
+      setMeetingForm({ team_id: "", title: "", description: "", max_rounds: 5 });
+      await loadMeetings();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create meeting");
+    } finally {
+      setCreatingMeeting(false);
+    }
+  };
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.preventDefault();
@@ -75,7 +120,81 @@ export default function MeetingsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">{t("title")}</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">{t("title")}</h1>
+        <Dialog open={showCreate} onOpenChange={setShowCreate}>
+          <DialogTrigger asChild>
+            <Button size="sm">
+              <Plus className="h-4 w-4 mr-1" />
+              {t("create")}
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{t("newMeeting")}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label>{t("selectTeam")}</Label>
+                <Select
+                  value={meetingForm.team_id}
+                  onValueChange={(v) => setMeetingForm((f) => ({ ...f, team_id: v }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={t("selectTeam")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {teams.map((team) => (
+                      <SelectItem key={team.id} value={team.id}>
+                        {team.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>{t("meetingTitle")}</Label>
+                <Input
+                  value={meetingForm.title}
+                  onChange={(e) => setMeetingForm((f) => ({ ...f, title: e.target.value }))}
+                  placeholder={t("meetingTitle")}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>{t("meetingDescription")}</Label>
+                <Textarea
+                  value={meetingForm.description}
+                  onChange={(e) => setMeetingForm((f) => ({ ...f, description: e.target.value }))}
+                  placeholder={t("meetingDescription")}
+                  rows={3}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>{t("meetingMaxRounds")}</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={meetingForm.max_rounds}
+                  onChange={(e) => setMeetingForm((f) => ({ ...f, max_rounds: Number(e.target.value) }))}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowCreate(false)}>
+                {tc("cancel")}
+              </Button>
+              <Button
+                onClick={handleCreateMeeting}
+                disabled={creatingMeeting || !meetingForm.team_id || !meetingForm.title.trim()}
+              >
+                {creatingMeeting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                {tc("create")}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
 
       {error && (
         <div className="p-3 bg-destructive/10 text-destructive rounded-lg text-sm">{error}</div>

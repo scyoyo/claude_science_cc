@@ -35,7 +35,7 @@ class MeetingResponse(BaseModel):
     id: str
     team_id: str
     title: str
-    description: str
+    description: Optional[str] = ""
     status: str
     max_rounds: int
     current_round: int
