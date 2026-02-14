@@ -108,7 +108,7 @@ def list_team_agents(
 ):
     """List all agents in a team with pagination"""
     skip, limit = pagination
-    query = db.query(Agent).filter(Agent.team_id == team_id)
+    query = db.query(Agent).filter(Agent.team_id == team_id).order_by(Agent.created_at)
     return build_paginated_response(query, skip, limit)
 
 

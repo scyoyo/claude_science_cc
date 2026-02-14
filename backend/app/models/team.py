@@ -18,7 +18,7 @@ class Team(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
 
     # Relationships
-    agents = relationship("Agent", back_populates="team", cascade="all, delete-orphan")
+    agents = relationship("Agent", back_populates="team", cascade="all, delete-orphan", order_by="Agent.created_at")
     owner = relationship("User", foreign_keys=[owner_id])
 
     def __repr__(self):
