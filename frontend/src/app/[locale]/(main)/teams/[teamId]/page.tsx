@@ -263,36 +263,30 @@ export default function TeamDetailPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {team.agents.map((agent) => (
-              <Card key={agent.id}>
+              <Card key={agent.id} className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => openEditAgent(agent)}>
                 <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-2">
-                      <Bot className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <CardTitle className="text-base flex items-center gap-2">
-                          {agent.name}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Bot className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0">
+                        <CardTitle className="text-base flex items-center gap-2 flex-wrap">
+                          <span className="truncate">{agent.name}</span>
                           {agent.is_mirror && (
                             <Badge variant="secondary">{t("mirror")}</Badge>
                           )}
                         </CardTitle>
-                        <CardDescription>{agent.title}</CardDescription>
+                        <CardDescription className="truncate">{agent.title}</CardDescription>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <Badge variant="outline">{agent.model}</Badge>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Badge variant="outline" className="text-xs">{agent.model}</Badge>
                       <Button
                         variant="ghost"
-                        size="icon-xs"
-                        onClick={() => openEditAgent(agent)}
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={(e) => { e.stopPropagation(); handleDeleteAgent(agent.id); }}
                       >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        onClick={() => handleDeleteAgent(agent.id)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                        <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </div>
                   </div>
@@ -302,6 +296,7 @@ export default function TeamDetailPage() {
                     <p><span className="font-medium text-foreground">{t("expertise")}:</span> {agent.expertise}</p>
                     <p><span className="font-medium text-foreground">{t("goal")}:</span> {agent.goal}</p>
                   </div>
+                  <p className="mt-2 text-xs text-muted-foreground/60">{t("editAgent")}</p>
                 </CardContent>
               </Card>
             ))}
@@ -349,11 +344,15 @@ export default function TeamDetailPage() {
                 <div className="space-y-2">
                   <Label>{t("meetingMaxRounds")}</Label>
                   <Input
-                    type="number"
-                    min={1}
-                    max={20}
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    placeholder="5"
                     value={meetingForm.max_rounds}
-                    onChange={(e) => setMeetingForm({ ...meetingForm, max_rounds: e.target.value })}
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/[^0-9]/g, "");
+                      setMeetingForm({ ...meetingForm, max_rounds: v });
+                    }}
                   />
                 </div>
                 <DialogFooter>

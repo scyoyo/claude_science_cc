@@ -38,67 +38,93 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="flex h-screen w-14 flex-col border-r border-border/50 bg-background">
-      {/* Logo */}
-      <div className="flex h-12 items-center justify-center border-b border-border/50">
-        <Link href="/">
-          <FlaskConical className="h-5 w-5 text-primary" />
-        </Link>
-      </div>
+    <>
+      {/* Desktop sidebar */}
+      <aside className="hidden sm:flex h-screen w-14 flex-col border-r border-border/50 bg-background">
+        {/* Logo */}
+        <div className="flex h-12 items-center justify-center border-b border-border/50">
+          <Link href="/">
+            <FlaskConical className="h-5 w-5 text-primary" />
+          </Link>
+        </div>
 
-      {/* Navigation */}
-      <nav className="flex flex-1 flex-col items-center gap-1 py-3">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const active = isActive(item.href);
-          return (
-            <Tooltip key={item.key}>
+        {/* Navigation */}
+        <nav className="flex flex-1 flex-col items-center gap-1 py-3">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const active = isActive(item.href);
+            return (
+              <Tooltip key={item.key}>
+                <TooltipTrigger asChild>
+                  <Link
+                    href={item.href}
+                    className={cn(
+                      "flex h-9 w-9 items-center justify-center rounded-md transition-colors duration-200",
+                      active
+                        ? "bg-accent text-accent-foreground"
+                        : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                    )}
+                  >
+                    <Icon className="h-4 w-4" />
+                    <span className="sr-only">{t(item.key)}</span>
+                  </Link>
+                </TooltipTrigger>
+                <TooltipContent side="right" sideOffset={8}>
+                  {t(item.key)}
+                </TooltipContent>
+              </Tooltip>
+            );
+          })}
+        </nav>
+
+        {/* Profile at bottom */}
+        {user && (
+          <div className="flex flex-col items-center gap-1 py-3 border-t border-border/50">
+            <Tooltip>
               <TooltipTrigger asChild>
                 <Link
-                  href={item.href}
+                  href="/profile"
                   className={cn(
                     "flex h-9 w-9 items-center justify-center rounded-md transition-colors duration-200",
-                    active
+                    isActive("/profile")
                       ? "bg-accent text-accent-foreground"
                       : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
                   )}
                 >
-                  <Icon className="h-4 w-4" />
-                  <span className="sr-only">{t(item.key)}</span>
+                  <UserCircle className="h-4 w-4" />
+                  <span className="sr-only">{t("profile")}</span>
                 </Link>
               </TooltipTrigger>
               <TooltipContent side="right" sideOffset={8}>
-                {t(item.key)}
+                {t("profile")}
               </TooltipContent>
             </Tooltip>
+          </div>
+        )}
+      </aside>
+
+      {/* Mobile bottom nav */}
+      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around border-t border-border/50 bg-background/95 backdrop-blur-sm px-1 py-1 safe-bottom">
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          const active = isActive(item.href);
+          return (
+            <Link
+              key={item.key}
+              href={item.href}
+              className={cn(
+                "flex flex-col items-center gap-0.5 rounded-md px-3 py-1.5 text-[10px] transition-colors",
+                active
+                  ? "text-primary"
+                  : "text-muted-foreground"
+              )}
+            >
+              <Icon className="h-5 w-5" />
+              <span>{t(item.key)}</span>
+            </Link>
           );
         })}
       </nav>
-
-      {/* Profile at bottom */}
-      {user && (
-        <div className="flex flex-col items-center gap-1 py-3 border-t border-border/50">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Link
-                href="/profile"
-                className={cn(
-                  "flex h-9 w-9 items-center justify-center rounded-md transition-colors duration-200",
-                  isActive("/profile")
-                    ? "bg-accent text-accent-foreground"
-                    : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                )}
-              >
-                <UserCircle className="h-4 w-4" />
-                <span className="sr-only">{t("profile")}</span>
-              </Link>
-            </TooltipTrigger>
-            <TooltipContent side="right" sideOffset={8}>
-              {t("profile")}
-            </TooltipContent>
-          </Tooltip>
-        </div>
-      )}
-    </aside>
+    </>
   );
 }

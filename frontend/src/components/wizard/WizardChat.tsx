@@ -373,23 +373,19 @@ function MessageBubble({ message }: { message: ChatMessage }) {
 
       {/* Content */}
       <div
-        className={`max-w-[80%] space-y-3 ${
+        className={`min-w-0 max-w-[85%] space-y-3 ${
           isUser ? "text-right" : "text-left"
         }`}
       >
-        <div
-          className={`inline-block rounded-lg px-3 py-2 text-sm leading-relaxed ${
-            isUser
-              ? "bg-primary text-primary-foreground"
-              : "bg-muted/50 text-foreground"
-          }`}
-        >
-          {isUser ? (
-            <div className="whitespace-pre-wrap">{message.content}</div>
-          ) : (
+        {isUser ? (
+          <div className="inline-block rounded-lg px-3 py-2 text-sm leading-relaxed bg-primary text-primary-foreground whitespace-pre-wrap">
+            {message.content}
+          </div>
+        ) : (
+          <div className="text-sm leading-relaxed">
             <MarkdownContent content={message.content} />
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Team proposal cards */}
         {message.proposedTeam && message.proposedTeam.length > 0 && (

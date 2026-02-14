@@ -442,11 +442,15 @@ export default function MeetingDetailPage() {
               rows={3}
             />
             <Input
-              type="number"
-              min={1}
-              max={20}
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              placeholder="5"
               value={editForm.max_rounds}
-              onChange={(e) => setEditForm({ ...editForm, max_rounds: e.target.value })}
+              onChange={(e) => {
+                const v = e.target.value.replace(/[^0-9]/g, "");
+                setEditForm({ ...editForm, max_rounds: v });
+              }}
             />
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setShowEditDialog(false)}>
