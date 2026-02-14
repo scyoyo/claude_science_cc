@@ -274,26 +274,27 @@ def add_user_message(meeting_id: str, data: UserMessageRequest, db: Session = De
 
 
 def _make_llm_call(db: Session):
-    """Create an LLM callable that uses stored API keys."""
+    """Create an LLM callable that uses stored API keys, with env var fallback."""
     def llm_call(system_prompt: str, messages: List[ChatMessage]) -> str:
-        # For now, get the first agent's model from messages context
-        # In a real implementation, the model would be passed per-agent
-        # Try to find an active API key for any provider
+        env_keys = {"openai": settings.OPENAI_API_KEY, "anthropic": settings.ANTHROPIC_API_KEY, "deepseek": settings.DEEPSEEK_API_KEY}
+        model_map = {"openai": "gpt-4", "anthropic": "claude-3-opus-20240229", "deepseek": "deepseek-chat"}
         for provider_name in ["openai", "anthropic", "deepseek"]:
+            # DB first
             api_key_record = db.query(APIKey).filter(
                 APIKey.provider == provider_name,
                 APIKey.is_active == True,
             ).first()
             if api_key_record:
-                decrypted_key = decrypt_api_key(api_key_record.encrypted_key, settings.ENCRYPTION_SECRET)
-                provider = create_provider(provider_name, decrypted_key)
-                # Prepend system message
+                key = decrypt_api_key(api_key_record.encrypted_key, settings.ENCRYPTION_SECRET)
+            else:
+                # Fallback to env var
+                key = env_keys.get(provider_name, "")
+            if key:
+                provider = create_provider(provider_name, key)
                 all_messages = [ChatMessage(role="system", content=system_prompt)] + messages
-                # Use a default model for the provider
-                model_map = {"openai": "gpt-4", "anthropic": "claude-3-opus-20240229", "deepseek": "deepseek-chat"}
                 response = provider.chat(all_messages, model_map[provider_name])
                 return response.content
-        raise RuntimeError("No active API key found for any LLM provider")
+        raise RuntimeError("No active API key found for any LLM provider. Add one in Settings or set environment variables.")
     return llm_call
 
 

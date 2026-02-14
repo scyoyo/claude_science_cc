@@ -1,79 +1,61 @@
-# 云端部署（Vercel + Railway）
+# 云端部署 — 单服务 Railway（推荐）
 
-前端部署到 Vercel，后端部署到 Railway。**无需 Docker**，和 [claude_science_cs](../claude_science_cs) 一样简单。
+一个 Railway 服务跑前端+后端，**无需 Docker，无需 Vercel，无需配 CORS**。
+和本地 `npm run dev` 一样简单。
+
+```
+浏览器 → Railway (一个服务)
+           ├── Next.js  (对外 $PORT，代理 /api/*)
+           └── uvicorn  (内部 127.0.0.1:8000)
+```
 
 ---
 
-## 1. 后端上 Railway
-
-### 1.1 创建并部署
+## 1. 创建并部署
 
 1. 打开 [railway.app](https://railway.app)，用 GitHub 登录。
 2. **New Project** → **Deploy from GitHub repo** → 选择本仓库 `claude_science`。
-3. 在该 Service：**Settings** → **Root Directory** 设为 **`backend`**（Railway 只从 backend 目录构建和运行）。
-4. **Settings** → **Networking** → **Generate Domain**。记下生成的 URL（如 `https://xxx.up.railway.app`）。
+3. **Settings** → **Root Directory** 留空（使用仓库根目录）。
+4. **Settings** → **Networking** → **Generate Domain**。
 
-### 1.2 环境变量
+Railway 会自动用 `nixpacks.toml` 构建（安装 Python + Node），用 `start.sh` 启动。
 
-同一 Service 里：**Variables** → 添加：
+## 2. 环境变量
 
-| 变量 | 说明 | 示例 |
+**Variables** → 添加：
+
+| 变量 | 必填 | 说明 |
 |------|------|------|
-| `FRONTEND_URL` | 前端地址，用于 CORS（部署好前端后填 Vercel 地址） | `https://xxx.vercel.app` |
-| `ENCRYPTION_SECRET` | 加密存储 API Key 的密钥（建议生产环境必填） | 用 `openssl rand -hex 32` 生成 |
-| `OPENAI_API_KEY` | 可选，用 OpenAI 时填 | `sk-...` |
-| `ANTHROPIC_API_KEY` | 可选，用 Claude 时填 | `sk-ant-...` |
-| `DEEPSEEK_API_KEY` | 可选，用 DeepSeek 时填 | |
-| `GITHUB_TOKEN` | 可选，用于 GitHub 导出 | |
+| `ENCRYPTION_SECRET` | 建议 | 加密 API Key 的密钥（`openssl rand -hex 32`） |
+| `ANTHROPIC_API_KEY` | 按需 | 用 Claude 时填 |
+| `OPENAI_API_KEY` | 按需 | 用 OpenAI 时填 |
+| `DEEPSEEK_API_KEY` | 按需 | 用 DeepSeek 时填 |
+| `GITHUB_TOKEN` | 可选 | GitHub 导出功能 |
 
-默认使用 SQLite（数据在实例内，重启可能丢失）。若要持久化，可在 Railway 添加 **PostgreSQL** 插件，并设置 `DATABASE_URL`。
+不需要 `FRONTEND_URL`、`CORS_ORIGINS`、`BACKEND_URL` — 前后端同源，自动搞定。
 
-### 1.3 验证
+默认 SQLite（重启丢数据）。需持久化可添加 Railway PostgreSQL 插件并设 `DATABASE_URL`。
 
-浏览器打开 `https://<你的-railway-域名>/health`，应看到 `{"status":"healthy", "checks": {...}, "version": "1.0.0"}` 之类的 JSON。
+## 3. 验证
 
----
+浏览器打开 `https://<你的域名>/api/health`，看到 JSON 即后端正常。
+打开 `https://<你的域名>/` 即可使用完整应用。
 
-## 2. 前端上 Vercel
+## 4. 原理
 
-### 2.1 创建项目
-
-1. 打开 [vercel.com](https://vercel.com)，用 GitHub 登录。
-2. **Add New** → **Project** → 导入本仓库 `claude_science`。
-3. **Root Directory** 设为 **`frontend`**（点 Edit 后设置并保存）。
-
-### 2.2 环境变量
-
-在项目 **Settings** → **Environment Variables** 中添加：
-
-| Name | Value |
-|------|--------|
-| `NEXT_PUBLIC_API_URL` | 后端 API 根地址（需带 `/api`），如 `https://xxx.up.railway.app/api` |
-
-### 2.3 部署
-
-保存后部署（或 push 触发部署）。用 Vercel 给的 URL 打开应用。
+| 文件 | 作用 |
+|------|------|
+| `nixpacks.toml` | 告诉 Railway 装 Python 3.13 + Node 22，安装依赖，构建前端 |
+| `start.sh` | 启动 uvicorn (内部 8000) + next start (对外 $PORT) |
+| `railway.json` | Railway 部署配置 |
+| `frontend/next.config.ts` | rewrites 把 `/api/*` 代理到 `localhost:8000` |
 
 ---
 
-## 3. 前后端打通
+## 本地开发
 
-在 Railway 的 **Variables** 里把 **`FRONTEND_URL`** 设为你的 Vercel 地址（如 `https://你的项目.vercel.app`），这样 CORS 会放行前端来源。
+```bash
+cd local && npm run dev
+```
 
-如有 Vercel 预览域名（如 `*-git-*.vercel.app`），需要同样加入 CORS：在 **Variables** 里设置  
-`CORS_ORIGINS` 为 JSON 数组，例如：`["https://你的项目.vercel.app","https://xxx-git-xxx.vercel.app"]`。  
-只用一个生产域名时，只设 **`FRONTEND_URL`** 即可。
-
----
-
-## 4. 小结
-
-| 组件 | 平台 | 根目录 | 关键环境变量 |
-|------|------|--------|--------------|
-| 后端 | Railway | `backend` | `FRONTEND_URL`、`ENCRYPTION_SECRET`、各 API Key |
-| 前端 | Vercel | `frontend` | `NEXT_PUBLIC_API_URL` = Railway 后端 URL |
-
-本仓库已包含：
-
-- **`backend/railway.json`**：Railway 使用 Nixpacks 构建，启动命令用 `$PORT`。
-- **`backend/Procfile`**：与 railway.json 一致的启动命令，兼容其他支持 Procfile 的 PaaS。
+和云端架构一模一样：Next.js 代理 API 请求到后端。

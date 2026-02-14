@@ -1,0 +1,17 @@
+providers = []
+
+[phases.setup]
+nixPkgs = ["python313", "nodejs_22", "npm"]
+
+[phases.install]
+cmds = [
+    "python -m ensurepip --upgrade",
+    "pip install -r backend/requirements.txt",
+    "cd frontend && npm ci"
+]
+
+[phases.build]
+cmds = ["cd frontend && npm run build"]
+
+[start]
+cmd = "bash start.sh"

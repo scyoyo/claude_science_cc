@@ -129,19 +129,25 @@ def llm_chat(
     # Detect provider
     provider_name = detect_provider(request.model)
 
-    # Get API key
+    # Get API key: DB first, then env var fallback
     api_key_record = db.query(APIKey).filter(
         APIKey.provider == provider_name,
         APIKey.is_active == True,
     ).first()
-    if not api_key_record:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"No active API key found for provider '{provider_name}'. "
-                   "Add one via POST /api/llm/api-keys.",
-        )
 
-    decrypted_key = decrypt_api_key(api_key_record.encrypted_key, settings.ENCRYPTION_SECRET)
+    if api_key_record:
+        decrypted_key = decrypt_api_key(api_key_record.encrypted_key, settings.ENCRYPTION_SECRET)
+    else:
+        # Fallback to environment variable
+        env_keys = {"openai": settings.OPENAI_API_KEY, "anthropic": settings.ANTHROPIC_API_KEY, "deepseek": settings.DEEPSEEK_API_KEY}
+        decrypted_key = env_keys.get(provider_name, "")
+        if not decrypted_key:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"No active API key found for provider '{provider_name}'. "
+                       "Add one via POST /api/llm/api-keys or set the environment variable.",
+            )
+
     provider = create_provider(provider_name, decrypted_key)
 
     try:

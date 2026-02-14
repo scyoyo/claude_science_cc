@@ -6,6 +6,13 @@ from app.main import app
 from app.database import Base, get_db
 from app.models import Team, Agent, APIKey, Meeting, MeetingMessage, CodeArtifact, User, UserTeamRole  # Import models to register them with Base
 from app.core.cache import InMemoryBackend, set_cache, reset_cache
+from app.config import settings
+
+# Clear API keys so tests never make real LLM calls
+settings.OPENAI_API_KEY = ""
+settings.ANTHROPIC_API_KEY = ""
+settings.DEEPSEEK_API_KEY = ""
+settings.ONBOARDING_API_KEY = ""
 
 # Use a file-based SQLite database for testing to avoid threading issues
 TEST_DATABASE_URL = "sqlite:///./test.db"

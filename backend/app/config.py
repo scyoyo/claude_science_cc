@@ -1,9 +1,14 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
 
+# Look for .env in backend/ first, then local/ (for local dev via `cd local && npm run dev`)
+_backend_dir = Path(__file__).resolve().parent.parent
+_env_files = [_backend_dir / ".env", _backend_dir.parent / "local" / ".env"]
+_env_file = next((f for f in _env_files if f.exists()), ".env")
+
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env")
+    model_config = SettingsConfigDict(env_file=str(_env_file))
 
     PROJECT_NAME: str = "Virtual Lab - Single User"
     VERSION: str = "1.0.0"
@@ -11,6 +16,17 @@ class Settings(BaseSettings):
 
     # Database - SQLite local file
     DATABASE_URL: str = "sqlite:///./data/virtuallab.db"
+
+    # LLM API Keys (env var fallback when no key stored in DB)
+    OPENAI_API_KEY: str = ""
+    ANTHROPIC_API_KEY: str = ""
+    DEEPSEEK_API_KEY: str = ""
+
+    # GitHub (optional, for future GitHub push export)
+    GITHUB_TOKEN: str = ""
+
+    # Frontend URL (used for CORS)
+    FRONTEND_URL: str = "http://localhost:3000"
 
     # Encryption secret for API key storage
     ENCRYPTION_SECRET: str = "change-me-in-production-use-a-real-secret"

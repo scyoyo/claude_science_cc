@@ -215,16 +215,20 @@ async def _handle_start_round(websocket: WebSocket, db: Session, meeting: Meetin
 
 
 def _make_ws_llm_call(db: Session):
-    """Create an LLM callable from stored API keys."""
+    """Create an LLM callable from stored API keys, with env var fallback."""
+    env_keys = {"openai": settings.OPENAI_API_KEY, "anthropic": settings.ANTHROPIC_API_KEY, "deepseek": settings.DEEPSEEK_API_KEY}
+    model_map = {"openai": "gpt-4", "anthropic": "claude-3-opus-20240229", "deepseek": "deepseek-chat"}
     for provider_name in ["openai", "anthropic", "deepseek"]:
         api_key_record = db.query(APIKey).filter(
             APIKey.provider == provider_name,
             APIKey.is_active == True,
         ).first()
         if api_key_record:
-            decrypted_key = decrypt_api_key(api_key_record.encrypted_key, settings.ENCRYPTION_SECRET)
-            provider = create_provider(provider_name, decrypted_key)
-            model_map = {"openai": "gpt-4", "anthropic": "claude-3-opus-20240229", "deepseek": "deepseek-chat"}
+            key = decrypt_api_key(api_key_record.encrypted_key, settings.ENCRYPTION_SECRET)
+        else:
+            key = env_keys.get(provider_name, "")
+        if key:
+            provider = create_provider(provider_name, key)
 
             def llm_call(system_prompt, messages, _provider=provider, _model=model_map[provider_name]):
                 all_messages = [ChatMessage(role="system", content=system_prompt)] + messages
@@ -233,4 +237,4 @@ def _make_ws_llm_call(db: Session):
 
             return llm_call
 
-    raise RuntimeError("No active API key found. Add one in Settings.")
+    raise RuntimeError("No active API key found. Add one in Settings or set environment variables.")

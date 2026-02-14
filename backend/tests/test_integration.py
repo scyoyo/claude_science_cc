@@ -203,7 +203,7 @@ class TestFullWorkflow:
         assert resp.status_code == 200
         chat_resp = resp.json()
         assert "data" in chat_resp
-        assert chat_resp["data"]["domain"]  # Should have detected a domain
+        assert chat_resp["data"]["analysis"]["domain"]  # Should have detected a domain
 
         # Step 2: Generate team from onboarding result
         resp = client.post("/api/onboarding/generate-team", json={
