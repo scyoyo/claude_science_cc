@@ -1,11 +1,10 @@
-providers = []
+providers = ["python"]
 
 [phases.setup]
-nixPkgs = ["python313", "nodejs_22", "npm"]
+nixPkgs = ["...", "nodejs"]
 
 [phases.install]
 cmds = [
-    "python -m ensurepip --upgrade",
     "pip install -r backend/requirements.txt",
     "cd frontend && npm ci"
 ]
