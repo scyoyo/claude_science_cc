@@ -14,17 +14,39 @@ async function proxy(req: Request, { params }: { params: Promise<{ path: string[
   const target = `${BACKEND}/api/${path.join("/")}${url.search}`;
 
   const headers: Record<string, string> = {};
-  // Forward content-type and auth headers
   const ct = req.headers.get("content-type");
   if (ct) headers["Content-Type"] = ct;
   const auth = req.headers.get("authorization");
   if (auth) headers["Authorization"] = auth;
 
-  const res = await fetch(target, {
+  // Read body once as Blob so it can be re-sent on 307/308 redirects
+  // (raw ArrayBuffer gets detached after the first fetch attempt)
+  let body: Blob | undefined;
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    body = new Blob([await req.arrayBuffer()]);
+  }
+
+  // Use manual redirect to avoid "detached ArrayBuffer" crash on 307/308
+  let res = await fetch(target, {
     method: req.method,
     headers,
-    body: req.method !== "GET" && req.method !== "HEAD" ? await req.arrayBuffer() : undefined,
+    body,
+    redirect: "manual",
   });
+
+  // Follow redirects manually (FastAPI trailing-slash 307s)
+  if (res.status === 307 || res.status === 308) {
+    const location = res.headers.get("location");
+    if (location) {
+      const redirectUrl = location.startsWith("http") ? location : `${BACKEND}${location}`;
+      res = await fetch(redirectUrl, {
+        method: req.method,
+        headers,
+        body,
+        redirect: "manual",
+      });
+    }
+  }
 
   // Forward response headers
   const responseHeaders = new Headers();

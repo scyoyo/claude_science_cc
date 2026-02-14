@@ -25,8 +25,14 @@ from app.schemas.team import TeamWithAgents
 router = APIRouter(prefix="/onboarding", tags=["onboarding"])
 
 # Signal words for accept/reject detection
-ACCEPT_SIGNALS = ["accept", "looks good", "proceed", "yes", "approve", "confirm", "go ahead", "ok", "sure", "great"]
-REJECT_SIGNALS = ["reject", "no", "change", "modify", "different", "revise", "redo", "not good", "disagree"]
+ACCEPT_SIGNALS = [
+    "accept", "looks good", "proceed", "yes", "approve", "confirm", "go ahead", "ok", "sure", "great",
+    "是", "好", "同意", "可以", "确认", "没问题", "行", "启用", "开启", "enable",
+]
+REJECT_SIGNALS = [
+    "reject", "no", "change", "modify", "different", "revise", "redo", "not good", "disagree",
+    "否", "不", "跳过", "不要", "不用", "取消", "skip", "disable",
+]
 
 
 def _create_onboarding_llm_func():
@@ -326,22 +332,38 @@ def _handle_mirror_config_stage(
     request: OnboardingChatRequest,
     team_builder: TeamBuilder,
 ) -> OnboardingChatResponse:
-    """Configure mirror agents and produce final config."""
+    """Configure mirror agents based on user's response."""
     team_data = request.context.get("team_suggestion", {})
-    mirror_config = request.context.get("mirror_config", {})
 
-    data = {
-        "team_suggestion": team_data,
-        "mirror_config": mirror_config,
+    # Parse user's response for yes/no
+    decision = _detect_accept_reject(request.message)
+    enable_mirrors = decision == "accept"
+
+    # Extract model preference from user's message (default: deepseek-chat)
+    mirror_model = "deepseek-chat"
+    parsed = _parse_preferences_from_message(request.message)
+    if parsed.get("model"):
+        mirror_model = parsed["model"]
+
+    mirror_config = {
+        "enabled": enable_mirrors,
+        "mirror_model": mirror_model,
+        "agents_to_mirror": [],  # Mirror all agents
     }
+
+    if enable_mirrors:
+        msg = f"Mirror agents enabled using **{mirror_model}**. Creating your team now..."
+    else:
+        msg = "Mirror agents skipped. Creating your team now..."
 
     return OnboardingChatResponse(
         stage=OnboardingStage.mirror_config,
         next_stage=None,
-        message=(
-            "Your team configuration is ready! Creating your team now..."
-        ),
-        data=data,
+        message=msg,
+        data={
+            "team_suggestion": team_data,
+            "mirror_config": mirror_config,
+        },
     )
 
 

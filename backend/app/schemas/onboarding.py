@@ -63,7 +63,7 @@ class TeamSuggestion(BaseModel):
 
 class MirrorConfig(BaseModel):
     enabled: bool = False
-    mirror_model: str = "gpt-4"
+    mirror_model: str = "deepseek-chat"
     agents_to_mirror: List[str] = []  # Agent names to create mirrors for
 
 
