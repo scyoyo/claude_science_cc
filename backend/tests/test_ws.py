@@ -204,7 +204,7 @@ class TestStartRound:
 
         mock_llm = MagicMock(side_effect=lambda sp, msgs: f"Response from mock")
 
-        with patch("app.api.ws._make_ws_llm_call", return_value=mock_llm):
+        with patch("app.api.ws.resolve_llm_call", return_value=mock_llm):
             with client.websocket_connect(f"/ws/meetings/{mid}") as ws:
                 ws.send_json({"type": "start_round", "rounds": 1})
 
@@ -251,7 +251,7 @@ class TestStartRound:
 
         mock_llm = MagicMock(return_value="Final answer")
 
-        with patch("app.api.ws._make_ws_llm_call", return_value=mock_llm):
+        with patch("app.api.ws.resolve_llm_call", return_value=mock_llm):
             with client.websocket_connect(f"/ws/meetings/{mid}") as ws:
                 ws.send_json({"type": "start_round", "rounds": 1})
 
@@ -288,7 +288,7 @@ class TestStartRound:
             call_count += 1
             return f"Response {call_count}"
 
-        with patch("app.api.ws._make_ws_llm_call", return_value=mock_llm):
+        with patch("app.api.ws.resolve_llm_call", return_value=mock_llm):
             with client.websocket_connect(f"/ws/meetings/{mid}") as ws:
                 ws.send_json({"type": "start_round", "rounds": 3})
 
@@ -327,7 +327,7 @@ class TestStartRound:
             captured_args.append((sp, [str(m) for m in msgs]))
             return "Topic response"
 
-        with patch("app.api.ws._make_ws_llm_call", return_value=mock_llm):
+        with patch("app.api.ws.resolve_llm_call", return_value=mock_llm):
             with client.websocket_connect(f"/ws/meetings/{mid}") as ws:
                 ws.send_json({"type": "start_round", "rounds": 1, "topic": "Gene editing"})
 
@@ -352,7 +352,7 @@ class TestStartRound:
         def broken_llm(sp, msgs):
             raise Exception("LLM exploded")
 
-        with patch("app.api.ws._make_ws_llm_call", return_value=broken_llm):
+        with patch("app.api.ws.resolve_llm_call", return_value=broken_llm):
             with client.websocket_connect(f"/ws/meetings/{mid}") as ws:
                 ws.send_json({"type": "start_round", "rounds": 1})
                 data = ws.receive_json()

@@ -258,7 +258,7 @@ class TestMeetingRunAPI:
         # Should fail because no API key is configured
         assert resp.status_code in [400, 502]
 
-    @patch("app.api.meetings._make_llm_call")
+    @patch("app.api.meetings.resolve_llm_call")
     def test_run_meeting_success(self, mock_make_llm, client, team_with_agents):
         """Run a meeting with mocked LLM."""
         call_counter = 0
@@ -288,7 +288,7 @@ class TestMeetingRunAPI:
         # 2 agents * 2 rounds = 4 messages
         assert len(data["messages"]) == 4
 
-    @patch("app.api.meetings._make_llm_call")
+    @patch("app.api.meetings.resolve_llm_call")
     def test_run_meeting_completes(self, mock_make_llm, client, team_with_agents):
         """Meeting should mark as completed when max rounds reached."""
         mock_make_llm.return_value = lambda sp, msgs: "Mock response"
@@ -304,7 +304,7 @@ class TestMeetingRunAPI:
         assert resp.status_code == 200
         assert resp.json()["status"] == "completed"
 
-    @patch("app.api.meetings._make_llm_call")
+    @patch("app.api.meetings.resolve_llm_call")
     def test_run_completed_meeting_fails(self, mock_make_llm, client, team_with_agents):
         """Cannot run a meeting that's already completed."""
         mock_make_llm.return_value = lambda sp, msgs: "Mock"
@@ -324,7 +324,7 @@ class TestMeetingRunAPI:
         assert resp.status_code == 400
         assert "already completed" in resp.json()["detail"]
 
-    @patch("app.api.meetings._make_llm_call")
+    @patch("app.api.meetings.resolve_llm_call")
     def test_run_meeting_with_user_message(self, mock_make_llm, client, team_with_agents):
         """User messages should be included in meeting context."""
         received_messages_count = []
@@ -361,7 +361,7 @@ class TestMeetingRunAPI:
         resp = client.post("/api/meetings/nonexistent/run", json={"rounds": 1})
         assert resp.status_code == 404
 
-    @patch("app.api.meetings._make_llm_call")
+    @patch("app.api.meetings.resolve_llm_call")
     def test_run_meeting_no_agents(self, mock_make_llm, client):
         """Running a meeting with no agents fails."""
         mock_make_llm.return_value = lambda sp, msgs: "Mock"

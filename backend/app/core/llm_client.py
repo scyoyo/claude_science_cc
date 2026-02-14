@@ -11,9 +11,10 @@ Supports OpenAI, Anthropic (Claude), and DeepSeek with:
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 import httpx
+from sqlalchemy.orm import Session
 
 from app.schemas.onboarding import ChatMessage
 
@@ -311,3 +312,46 @@ def create_provider(
     if not cls:
         raise LLMError(f"Unknown provider: {provider_name}. Available: {list(PROVIDER_MAP.keys())}")
     return cls(api_key=api_key, **kwargs)
+
+
+def resolve_llm_call(db: Session) -> Callable[[str, List[ChatMessage]], str]:
+    """Create an LLM callable that uses stored API keys, with env var fallback.
+
+    Used by meetings API, WebSocket handler, and background runner.
+    """
+    from app.config import settings
+    from app.models import APIKey
+    from app.core.encryption import decrypt_api_key
+
+    env_keys = {
+        "openai": settings.OPENAI_API_KEY,
+        "anthropic": settings.ANTHROPIC_API_KEY,
+        "deepseek": settings.DEEPSEEK_API_KEY,
+    }
+    model_map = {
+        "openai": "gpt-4",
+        "anthropic": "claude-3-opus-20240229",
+        "deepseek": "deepseek-chat",
+    }
+
+    def llm_call(system_prompt: str, messages: List[ChatMessage]) -> str:
+        for provider_name in ["openai", "anthropic", "deepseek"]:
+            api_key_record = (
+                db.query(APIKey)
+                .filter(APIKey.provider == provider_name, APIKey.is_active == True)
+                .first()
+            )
+            if api_key_record:
+                key = decrypt_api_key(api_key_record.encrypted_key, settings.ENCRYPTION_SECRET)
+            else:
+                key = env_keys.get(provider_name, "")
+            if key:
+                provider = create_provider(provider_name, key)
+                all_messages = [ChatMessage(role="system", content=system_prompt)] + list(messages)
+                response = provider.chat(all_messages, model_map[provider_name])
+                return response.content
+        raise RuntimeError(
+            "No active API key found for any LLM provider. Add one in Settings or set environment variables."
+        )
+
+    return llm_call

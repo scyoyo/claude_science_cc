@@ -3,9 +3,8 @@ from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 from typing import List
 
-from app.config import settings
 from app.database import get_db
-from app.models import Team, Agent, Meeting, MeetingMessage, MeetingStatus, APIKey
+from app.models import Team, Agent, Meeting, MeetingMessage, MeetingStatus
 from app.schemas.meeting import (
     MeetingCreate,
     MeetingUpdate,
@@ -17,8 +16,7 @@ from app.schemas.meeting import (
     MeetingSummary,
 )
 from app.core.meeting_engine import MeetingEngine
-from app.core.llm_client import create_provider, detect_provider
-from app.core.encryption import decrypt_api_key
+from app.core.llm_client import create_provider, detect_provider, resolve_llm_call
 from app.core.background_runner import start_background_run, is_running
 from app.schemas.onboarding import ChatMessage
 from app.schemas.pagination import PaginatedResponse
@@ -332,31 +330,6 @@ def add_user_message(meeting_id: str, data: UserMessageRequest, db: Session = De
     return message
 
 
-def _make_llm_call(db: Session):
-    """Create an LLM callable that uses stored API keys, with env var fallback."""
-    def llm_call(system_prompt: str, messages: List[ChatMessage]) -> str:
-        env_keys = {"openai": settings.OPENAI_API_KEY, "anthropic": settings.ANTHROPIC_API_KEY, "deepseek": settings.DEEPSEEK_API_KEY}
-        model_map = {"openai": "gpt-4", "anthropic": "claude-3-opus-20240229", "deepseek": "deepseek-chat"}
-        for provider_name in ["openai", "anthropic", "deepseek"]:
-            # DB first
-            api_key_record = db.query(APIKey).filter(
-                APIKey.provider == provider_name,
-                APIKey.is_active == True,
-            ).first()
-            if api_key_record:
-                key = decrypt_api_key(api_key_record.encrypted_key, settings.ENCRYPTION_SECRET)
-            else:
-                # Fallback to env var
-                key = env_keys.get(provider_name, "")
-            if key:
-                provider = create_provider(provider_name, key)
-                all_messages = [ChatMessage(role="system", content=system_prompt)] + messages
-                response = provider.chat(all_messages, model_map[provider_name])
-                return response.content
-        raise RuntimeError("No active API key found for any LLM provider. Add one in Settings or set environment variables.")
-    return llm_call
-
-
 @router.post("/{meeting_id}/run", response_model=MeetingWithMessages)
 def run_meeting(
     meeting_id: str,
@@ -418,7 +391,7 @@ def run_meeting(
 
     # Create engine and run
     try:
-        llm_call = _make_llm_call(db)
+        llm_call = resolve_llm_call(db)
         engine = MeetingEngine(llm_call=llm_call)
     except Exception:
         raise HTTPException(

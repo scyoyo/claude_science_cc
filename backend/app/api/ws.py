@@ -18,12 +18,10 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
 from sqlalchemy.orm import Session
 
 from app.database import get_db, SessionLocal
-from app.models import Meeting, Agent, MeetingMessage, MeetingStatus, APIKey
+from app.models import Meeting, Agent, MeetingMessage, MeetingStatus
 from app.schemas.onboarding import ChatMessage
 from app.core.meeting_engine import MeetingEngine
-from app.core.llm_client import create_provider
-from app.core.encryption import decrypt_api_key
-from app.config import settings
+from app.core.llm_client import resolve_llm_call
 
 router = APIRouter(tags=["websocket"])
 
@@ -140,7 +138,7 @@ async def _handle_start_round(websocket: WebSocket, db: Session, meeting: Meetin
 
     # Try to create LLM callable
     try:
-        llm_call = _make_ws_llm_call(db)
+        llm_call = resolve_llm_call(db)
     except RuntimeError as e:
         await websocket.send_json({"type": "error", "detail": str(e)})
         return
@@ -214,27 +212,3 @@ async def _handle_start_round(websocket: WebSocket, db: Session, meeting: Meetin
         await websocket.send_json({"type": "error", "detail": f"Execution failed: {str(e)}"})
 
 
-def _make_ws_llm_call(db: Session):
-    """Create an LLM callable from stored API keys, with env var fallback."""
-    env_keys = {"openai": settings.OPENAI_API_KEY, "anthropic": settings.ANTHROPIC_API_KEY, "deepseek": settings.DEEPSEEK_API_KEY}
-    model_map = {"openai": "gpt-4", "anthropic": "claude-3-opus-20240229", "deepseek": "deepseek-chat"}
-    for provider_name in ["openai", "anthropic", "deepseek"]:
-        api_key_record = db.query(APIKey).filter(
-            APIKey.provider == provider_name,
-            APIKey.is_active == True,
-        ).first()
-        if api_key_record:
-            key = decrypt_api_key(api_key_record.encrypted_key, settings.ENCRYPTION_SECRET)
-        else:
-            key = env_keys.get(provider_name, "")
-        if key:
-            provider = create_provider(provider_name, key)
-
-            def llm_call(system_prompt, messages, _provider=provider, _model=model_map[provider_name]):
-                all_messages = [ChatMessage(role="system", content=system_prompt)] + messages
-                response = _provider.chat(all_messages, _model)
-                return response.content
-
-            return llm_call
-
-    raise RuntimeError("No active API key found. Add one in Settings or set environment variables.")

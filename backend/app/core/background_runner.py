@@ -11,12 +11,10 @@ from typing import Optional, Callable
 
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.models import Meeting, MeetingMessage, MeetingStatus, Agent, APIKey
+from app.models import Meeting, MeetingMessage, MeetingStatus, Agent
 from app.schemas.onboarding import ChatMessage
 from app.core.meeting_engine import MeetingEngine
-from app.core.llm_client import create_provider
-from app.core.encryption import decrypt_api_key
-from app.config import settings
+from app.core.llm_client import resolve_llm_call
 
 logger = logging.getLogger(__name__)
 
@@ -54,40 +52,6 @@ def start_background_run(
         return True
 
 
-def _make_llm_call(db: Session) -> Callable:
-    """Create an LLM callable from stored API keys (same logic as meetings.py)."""
-    env_keys = {
-        "openai": settings.OPENAI_API_KEY,
-        "anthropic": settings.ANTHROPIC_API_KEY,
-        "deepseek": settings.DEEPSEEK_API_KEY,
-    }
-    model_map = {
-        "openai": "gpt-4",
-        "anthropic": "claude-3-opus-20240229",
-        "deepseek": "deepseek-chat",
-    }
-
-    def llm_call(system_prompt: str, messages: list[ChatMessage]) -> str:
-        for provider_name in ["openai", "anthropic", "deepseek"]:
-            api_key_record = (
-                db.query(APIKey)
-                .filter(APIKey.provider == provider_name, APIKey.is_active == True)
-                .first()
-            )
-            if api_key_record:
-                key = decrypt_api_key(api_key_record.encrypted_key, settings.ENCRYPTION_SECRET)
-            else:
-                key = env_keys.get(provider_name, "")
-            if key:
-                provider = create_provider(provider_name, key)
-                all_messages = [ChatMessage(role="system", content=system_prompt)] + messages
-                response = provider.chat(all_messages, model_map[provider_name])
-                return response.content
-        raise RuntimeError("No active API key found for any LLM provider.")
-
-    return llm_call
-
-
 def _run_meeting_thread(
     meeting_id: str,
     session_factory: sessionmaker,
@@ -123,7 +87,7 @@ def _run_meeting_thread(
         if llm_call_override:
             llm_call = llm_call_override
         else:
-            llm_call = _make_llm_call(db)
+            llm_call = resolve_llm_call(db)
 
         engine = MeetingEngine(llm_call=llm_call)
 
