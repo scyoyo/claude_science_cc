@@ -5,9 +5,10 @@ import { useParams, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { meetingsAPI } from "@/lib/api";
+import { useMeetingPolling } from "@/hooks/useMeetingPolling";
 import { downloadBlob } from "@/lib/utils";
 import { useMeetingWebSocket, type WSMessage } from "@/hooks/useMeetingWebSocket";
-import type { MeetingWithMessages, MeetingMessage } from "@/types";
+import type { Meeting, MeetingWithMessages, MeetingMessage } from "@/types";
 import MeetingSummaryPanel from "@/components/MeetingSummaryPanel";
 import ArtifactsPanel from "@/components/ArtifactsPanel";
 import { MarkdownContent } from "@/components/MarkdownContent";
@@ -35,6 +36,7 @@ import {
   ArrowLeft,
   Send,
   Play,
+  PlayCircle,
   Wifi,
   WifiOff,
   Copy,
@@ -66,6 +68,7 @@ export default function MeetingDetailPage() {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editForm, setEditForm] = useState({ title: "", description: "", max_rounds: "5" });
   const [cloning, setCloning] = useState(false);
+  const [backgroundRunning, setBackgroundRunning] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = useCallback(() => {
@@ -159,6 +162,51 @@ export default function MeetingDetailPage() {
       setRunning(false);
     }
   };
+
+  const handleRunBackground = async () => {
+    try {
+      setError(null);
+      const rounds = Math.max(1, (meeting?.max_rounds ?? 5) - (meeting?.current_round ?? 0));
+      await meetingsAPI.runBackground(meetingId, rounds, topic || undefined);
+      setBackgroundRunning(true);
+      setTopic("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to start background run");
+    }
+  };
+
+  const { status: pollStatus } = useMeetingPolling({
+    meetingId,
+    enabled: backgroundRunning,
+    onStatusChange: (s) => {
+      setMeeting((prev) =>
+        prev ? { ...prev, status: s.status as Meeting["status"], current_round: s.current_round } : prev
+      );
+    },
+    onComplete: async () => {
+      setBackgroundRunning(false);
+      setRunning(false);
+      // Refresh full meeting data
+      try {
+        const data = await meetingsAPI.get(meetingId);
+        setMeeting(data);
+        setLiveMessages([]);
+      } catch {
+        // ignore
+      }
+    },
+  });
+
+  // On initial load, check if meeting is already running in background
+  useEffect(() => {
+    if (meeting && !backgroundRunning) {
+      meetingsAPI.status(meetingId).then((s) => {
+        if (s.background_running) {
+          setBackgroundRunning(true);
+        }
+      }).catch(() => {});
+    }
+  }, [meeting?.id]);
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
@@ -377,6 +425,16 @@ export default function MeetingDetailPage() {
             </div>
           </ScrollArea>
 
+          {/* Background progress indicator */}
+          {backgroundRunning && pollStatus && (
+            <div className="shrink-0 flex items-center gap-2 px-3 py-2 bg-primary/5 border border-primary/20 rounded-lg text-sm">
+              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              <span>
+                {t("backgroundRunning")} — {t("round", { current: pollStatus.current_round, max: pollStatus.max_rounds })}
+              </span>
+            </div>
+          )}
+
           {/* Controls */}
           {!isCompleted && (
             <div className="shrink-0 space-y-3 border-t pt-4">
@@ -401,10 +459,19 @@ export default function MeetingDetailPage() {
                 />
                 <Button
                   onClick={connected ? handleRunWS : handleRunHTTP}
-                  disabled={running}
+                  disabled={running || backgroundRunning}
                 >
                   <Play className="h-4 w-4 mr-1" />
                   {running ? t("running") : connected ? t("runLive") : t("run")}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleRunBackground}
+                  disabled={running || backgroundRunning}
+                  title={t("backgroundRunTitle")}
+                >
+                  <PlayCircle className="h-4 w-4 mr-1" />
+                  <span className="hidden sm:inline">{t("backgroundRun")}</span>
                 </Button>
               </div>
             </div>

@@ -19,8 +19,10 @@ from app.schemas.meeting import (
 from app.core.meeting_engine import MeetingEngine
 from app.core.llm_client import create_provider, detect_provider
 from app.core.encryption import decrypt_api_key
+from app.core.background_runner import start_background_run, is_running
 from app.schemas.onboarding import ChatMessage
 from app.schemas.pagination import PaginatedResponse
+from app.database import SessionLocal
 
 router = APIRouter(prefix="/meetings", tags=["meetings"])
 
@@ -120,6 +122,63 @@ def clone_meeting(meeting_id: str, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(clone)
     return clone
+
+
+@router.post("/{meeting_id}/run-background")
+def run_meeting_background(
+    meeting_id: str,
+    request: MeetingRunRequest,
+    db: Session = Depends(get_db),
+):
+    """Start a background meeting run. Returns immediately."""
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    if not meeting:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+
+    if meeting.status == MeetingStatus.completed.value:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Meeting is already completed")
+
+    if is_running(meeting_id):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Meeting is already running in background")
+
+    agents = db.query(Agent).filter(Agent.team_id == meeting.team_id, Agent.is_mirror == False).all()
+    if not agents:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No agents found in this team")
+
+    remaining = meeting.max_rounds - meeting.current_round
+    rounds_to_run = min(request.rounds, remaining)
+    if rounds_to_run <= 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Meeting has reached maximum rounds")
+
+    started = start_background_run(
+        meeting_id=meeting_id,
+        session_factory=SessionLocal,
+        rounds=rounds_to_run,
+        topic=request.topic,
+    )
+    if not started:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Meeting is already running in background")
+
+    return {"meeting_id": meeting_id, "status": "started", "rounds": rounds_to_run}
+
+
+@router.get("/{meeting_id}/status")
+def get_meeting_status(meeting_id: str, db: Session = Depends(get_db)):
+    """Lightweight status endpoint for polling."""
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    if not meeting:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+
+    message_count = db.query(MeetingMessage).filter(MeetingMessage.meeting_id == meeting_id).count()
+
+    return {
+        "meeting_id": meeting_id,
+        "status": meeting.status,
+        "current_round": meeting.current_round,
+        "max_rounds": meeting.max_rounds,
+        "message_count": message_count,
+        "background_running": is_running(meeting_id),
+    }
 
 
 @router.get("/{meeting_id}", response_model=MeetingWithMessages)

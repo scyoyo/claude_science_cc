@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Plus, Trash2, Pencil, Workflow, MessageSquare, Bot } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Pencil, Workflow, MessageSquare, Bot, Loader2 } from "lucide-react";
 import type { Agent } from "@/types";
 
 export default function TeamDetailPage() {
@@ -56,6 +56,7 @@ export default function TeamDetailPage() {
     model: "gpt-4",
   });
   const [meetingForm, setMeetingForm] = useState({ title: "", description: "", max_rounds: "5" });
+  const [creatingMeeting, setCreatingMeeting] = useState(false);
 
   const loadData = async () => {
     try {
@@ -84,7 +85,7 @@ export default function TeamDetailPage() {
       await agentsAPI.create({ ...agentForm, team_id: teamId });
       setAgentForm({ name: "", title: "", expertise: "", goal: "", role: "", model: "gpt-4" });
       setShowAddAgent(false);
-      loadData();
+      await loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create agent");
     }
@@ -94,7 +95,7 @@ export default function TeamDetailPage() {
     if (!confirm(t("deleteAgent"))) return;
     try {
       await agentsAPI.delete(agentId);
-      loadData();
+      await loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete agent");
     }
@@ -119,7 +120,7 @@ export default function TeamDetailPage() {
     try {
       await agentsAPI.update(editingAgent.id, editAgentForm as Record<string, unknown>);
       setEditingAgent(null);
-      loadData();
+      await loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update agent");
     }
@@ -127,20 +128,25 @@ export default function TeamDetailPage() {
 
   const handleCreateMeeting = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!meetingForm.title.trim()) return;
+    const title = meetingForm.title.trim();
+    const description = meetingForm.description.trim();
+    if (!title) return;
     const rounds = parseInt(meetingForm.max_rounds) || 5;
+    setCreatingMeeting(true);
     try {
       await meetingsAPI.create({
         team_id: teamId,
-        title: meetingForm.title,
-        description: meetingForm.description || undefined,
+        title,
+        description: description || undefined,
         max_rounds: Math.max(1, Math.min(20, rounds)),
       });
       setMeetingForm({ title: "", description: "", max_rounds: "5" });
       setShowNewMeeting(false);
-      loadData();
+      await loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create meeting");
+    } finally {
+      setCreatingMeeting(false);
     }
   };
 
@@ -263,23 +269,23 @@ export default function TeamDetailPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {team.agents.map((agent) => (
-              <Card key={agent.id} className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => openEditAgent(agent)}>
+              <Card key={agent.id} className="cursor-pointer hover:border-primary/50 transition-colors overflow-hidden" onClick={() => openEditAgent(agent)}>
                 <CardHeader>
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
                       <Bot className="h-4 w-4 shrink-0 text-muted-foreground" />
                       <div className="min-w-0">
-                        <CardTitle className="text-base flex items-center gap-2 flex-wrap">
+                        <CardTitle className="text-base flex items-center gap-2 overflow-hidden">
                           <span className="truncate">{agent.name}</span>
                           {agent.is_mirror && (
-                            <Badge variant="secondary">{t("mirror")}</Badge>
+                            <Badge variant="secondary" className="shrink-0">{t("mirror")}</Badge>
                           )}
                         </CardTitle>
                         <CardDescription className="truncate">{agent.title}</CardDescription>
                       </div>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
-                      <Badge variant="outline" className="text-xs">{agent.model}</Badge>
+                      <Badge variant="outline" className="text-xs max-w-[80px] truncate">{agent.model}</Badge>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -293,8 +299,8 @@ export default function TeamDetailPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-1 text-sm text-muted-foreground">
-                    <p><span className="font-medium text-foreground">{t("expertise")}:</span> {agent.expertise}</p>
-                    <p><span className="font-medium text-foreground">{t("goal")}:</span> {agent.goal}</p>
+                    <p className="line-clamp-2"><span className="font-medium text-foreground">{t("expertise")}:</span> {agent.expertise}</p>
+                    <p className="line-clamp-2"><span className="font-medium text-foreground">{t("goal")}:</span> {agent.goal}</p>
                   </div>
                   <p className="mt-2 text-xs text-muted-foreground/60">{t("editAgent")}</p>
                 </CardContent>
@@ -356,10 +362,13 @@ export default function TeamDetailPage() {
                   />
                 </div>
                 <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setShowNewMeeting(false)}>
+                  <Button type="button" variant="outline" onClick={() => setShowNewMeeting(false)} disabled={creatingMeeting}>
                     {tc("cancel")}
                   </Button>
-                  <Button type="submit">{tc("create")}</Button>
+                  <Button type="submit" disabled={creatingMeeting}>
+                    {creatingMeeting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                    {tc("create")}
+                  </Button>
                 </DialogFooter>
               </form>
             </DialogContent>

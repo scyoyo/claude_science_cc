@@ -124,6 +124,20 @@ export const meetingsAPI = {
       method: "POST",
       body: JSON.stringify({ rounds, topic }),
     }),
+  runBackground: (meetingId: string, rounds: number = 1, topic?: string) =>
+    fetchAPI<{ meeting_id: string; status: string; rounds: number }>(`/meetings/${meetingId}/run-background`, {
+      method: "POST",
+      body: JSON.stringify({ rounds, topic }),
+    }),
+  status: (meetingId: string) =>
+    fetchAPI<{
+      meeting_id: string;
+      status: string;
+      current_round: number;
+      max_rounds: number;
+      message_count: number;
+      background_running: boolean;
+    }>(`/meetings/${meetingId}/status`),
 };
 
 // Artifacts

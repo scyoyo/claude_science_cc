@@ -11,8 +11,11 @@ from app.middleware.logging import LoggingMiddleware
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize database on startup"""
+    """Initialize database on startup, clean up stuck meetings."""
     init_db()
+    from app.core.background_runner import cleanup_stuck_meetings
+    from app.database import SessionLocal
+    cleanup_stuck_meetings(SessionLocal)
     yield
 
 

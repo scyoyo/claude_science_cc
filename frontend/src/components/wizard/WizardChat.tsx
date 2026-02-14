@@ -223,8 +223,8 @@ export function WizardChat() {
   return (
     <div className="flex h-full flex-col">
       {/* Messages area */}
-      <ScrollArea className="flex-1 px-1" ref={scrollRef}>
-        <div className="mx-auto max-w-2xl space-y-4 py-4">
+      <ScrollArea className="flex-1 min-h-0 px-1" ref={scrollRef}>
+        <div className="mx-auto max-w-2xl space-y-4 py-4 px-2 sm:px-0">
           {messages.length === 0 && (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-border/50">
