@@ -56,6 +56,7 @@ export default function MeetingsPage() {
     individual_agent_id: "",
     source_meeting_ids: [] as string[],
     agenda_strategy: "manual" as AgendaStrategy,
+    participant_agent_ids: [] as string[],
   });
   const [newQuestion, setNewQuestion] = useState("");
   const [generatingAgenda, setGeneratingAgenda] = useState(false);
@@ -96,11 +97,12 @@ export default function MeetingsPage() {
         meeting_type: meetingForm.meeting_type,
         individual_agent_id: meetingForm.meeting_type === "individual" ? meetingForm.individual_agent_id || undefined : undefined,
         source_meeting_ids: meetingForm.meeting_type === "merge" ? meetingForm.source_meeting_ids : undefined,
+        participant_agent_ids: meetingForm.participant_agent_ids.length > 0 ? meetingForm.participant_agent_ids : undefined,
         agenda_strategy: meetingForm.agenda_strategy,
         max_rounds: meetingForm.max_rounds,
       });
       setShowCreate(false);
-      setMeetingForm({ team_id: "", title: "", description: "", max_rounds: 5, agenda: "", output_type: "code", agenda_questions: [], context_meeting_ids: [], meeting_type: "team", individual_agent_id: "", source_meeting_ids: [], agenda_strategy: "manual" });
+      setMeetingForm({ team_id: "", title: "", description: "", max_rounds: 5, agenda: "", output_type: "code", agenda_questions: [], context_meeting_ids: [], meeting_type: "team", individual_agent_id: "", source_meeting_ids: [], agenda_strategy: "manual", participant_agent_ids: [] });
       setNewQuestion("");
       await loadMeetings();
     } catch (err) {
@@ -119,19 +121,23 @@ export default function MeetingsPage() {
     }
   }, [meetingForm.team_id]);
 
-  const handleAutoGenerate = async () => {
+  const handleAutoGenerate = async (participantIds?: string[]) => {
     if (!meetingForm.team_id) return;
+    const ids = participantIds ?? meetingForm.participant_agent_ids;
     try {
       setGeneratingAgenda(true);
       const result = await agendaAPI.autoGenerate({
         team_id: meetingForm.team_id,
         goal: meetingForm.description || meetingForm.title,
         prev_meeting_ids: meetingForm.context_meeting_ids,
+        participant_agent_ids: ids.length > 0 ? ids : undefined,
       });
       setMeetingForm((f) => ({
         ...f,
         agenda: result.agenda,
         agenda_questions: result.questions,
+        max_rounds: result.suggested_rounds,
+        agenda_strategy: "ai_auto",
       }));
     } catch (err) {
       setError(getErrorMessage(err, "Failed to generate agenda"));
@@ -295,6 +301,40 @@ export default function MeetingsPage() {
                   </div>
                 </div>
               )}
+              {/* Participant agents selector (team & individual types) */}
+              {meetingForm.team_id && teamAgents.length > 0 && meetingForm.meeting_type !== "merge" && (
+                <div className="space-y-2">
+                  <Label>{t("selectParticipants") || "Participants"}</Label>
+                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                    {teamAgents.filter((a) => !a.is_mirror).map((a) => (
+                      <label key={a.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={meetingForm.participant_agent_ids.includes(a.id)}
+                          onChange={(e) => {
+                            const ids = e.target.checked
+                              ? [...meetingForm.participant_agent_ids, a.id]
+                              : meetingForm.participant_agent_ids.filter((id) => id !== a.id);
+                            setMeetingForm((f) => ({ ...f, participant_agent_ids: ids }));
+                            // Auto-generate agenda when agents are selected
+                            if (e.target.checked && ids.length > 0) {
+                              handleAutoGenerate(ids);
+                            }
+                          }}
+                          className="rounded"
+                        />
+                        <span className="truncate">{a.name} ({a.title})</span>
+                      </label>
+                    ))}
+                  </div>
+                  {generatingAgenda && (
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Generating agenda...
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="space-y-2">
                 <Label>{t("meetingTitle")}</Label>
                 <Input
@@ -351,7 +391,7 @@ export default function MeetingsPage() {
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={handleAutoGenerate}
+                      onClick={() => handleAutoGenerate()}
                       disabled={generatingAgenda || !meetingForm.team_id}
                     >
                       {generatingAgenda ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}

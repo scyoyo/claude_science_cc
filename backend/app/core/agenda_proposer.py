@@ -53,7 +53,8 @@ class AgendaProposer:
             f"Team members:\n{agent_descriptions}"
             f"{prev_context}\n\n"
             f"Generate a meeting agenda as JSON with keys: "
-            f'"agenda" (string), "questions" (list of strings), "rules" (list of strings).'
+            f'"agenda" (string), "questions" (list of strings), "rules" (list of strings), '
+            f'"suggested_rounds" (integer 1-10, how many discussion rounds are appropriate).'
         )
 
         response = self.llm_call(system_prompt, [ChatMessage(role="user", content=user_message)])
@@ -176,14 +177,20 @@ def _parse_agenda_json(response: str) -> Dict:
         end = response.rfind("}") + 1
         if start >= 0 and end > start:
             data = json.loads(response[start:end])
+            raw_rounds = data.get("suggested_rounds", 3)
+            try:
+                suggested_rounds = max(1, min(10, int(raw_rounds)))
+            except (TypeError, ValueError):
+                suggested_rounds = 3
             return {
                 "agenda": data.get("agenda", ""),
                 "questions": data.get("questions", []),
                 "rules": data.get("rules", []),
+                "suggested_rounds": suggested_rounds,
             }
     except (json.JSONDecodeError, ValueError):
         pass
-    return {"agenda": response.strip(), "questions": [], "rules": []}
+    return {"agenda": response.strip(), "questions": [], "rules": [], "suggested_rounds": 3}
 
 
 def _parse_proposals(response: str) -> List[str]:

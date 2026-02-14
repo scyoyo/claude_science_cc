@@ -7,7 +7,7 @@ Based on [virtual-lab](https://github.com/zou-group/virtual-lab) by Zou Group @ 
 ## Features
 
 - **AI Agent Teams** - Configure AI agents with specific roles (ML Researcher, Bioinformatician, Statistician, etc.) or use 10 built-in templates
-- **Collaborative Meetings** - Agents discuss research problems in rounds, with real-time WebSocket streaming
+- **Collaborative Meetings** - Agents discuss research problems in rounds, with real-time WebSocket streaming; start a meeting with only selected agents from the team page
 - **Code Generation** - Auto-extract code from meeting discussions into versioned artifacts
 - **Visual Editor** - Drag-and-drop agent graph with React Flow + inline prompt editing with Monaco Editor
 - **Multi-Format Export** - ZIP download, Jupyter notebook, GitHub push

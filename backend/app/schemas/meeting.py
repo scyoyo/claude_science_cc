@@ -111,11 +111,13 @@ class AgendaAutoRequest(BaseModel):
     team_id: str
     goal: Optional[str] = ""
     prev_meeting_ids: List[str] = []
+    participant_agent_ids: List[str] = []
 
 class AgendaAutoResponse(BaseModel):
     agenda: str
     questions: List[str]
     rules: List[str]
+    suggested_rounds: int = 3
 
 class AgentVotingRequest(BaseModel):
     team_id: str

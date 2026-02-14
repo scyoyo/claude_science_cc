@@ -162,6 +162,9 @@ def agenda_auto_generate(request: AgendaAutoRequest, db: Session = Depends(get_d
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
 
     agents = db.query(Agent).filter(Agent.team_id == request.team_id, Agent.is_mirror == False).all()
+    if request.participant_agent_ids:
+        id_set = set(request.participant_agent_ids)
+        agents = [a for a in agents if str(a.id) in id_set]
     agent_dicts = [
         {"name": a.name, "title": a.title, "expertise": a.expertise, "system_prompt": a.system_prompt}
         for a in agents

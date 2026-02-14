@@ -34,6 +34,12 @@ def _ensure_meetings_columns_sqlite(engine):
             ("output_type", "VARCHAR(20) DEFAULT 'code'"),
             ("context_meeting_ids", "TEXT"),
             ("participant_agent_ids", "TEXT"),
+            ("meeting_type", "VARCHAR(20) DEFAULT 'team'"),
+            ("individual_agent_id", "VARCHAR(36)"),
+            ("source_meeting_ids", "TEXT"),
+            ("parent_meeting_id", "VARCHAR(36)"),
+            ("rewrite_feedback", "TEXT DEFAULT ''"),
+            ("agenda_strategy", "VARCHAR(30) DEFAULT 'manual'"),
         ],
     )
 

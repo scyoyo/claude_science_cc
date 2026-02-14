@@ -189,7 +189,7 @@ export const meetingsAPI = {
 
 // Agenda Strategies
 export const agendaAPI = {
-  autoGenerate: (data: { team_id: string; goal?: string; prev_meeting_ids?: string[] }) =>
+  autoGenerate: (data: { team_id: string; goal?: string; prev_meeting_ids?: string[]; participant_agent_ids?: string[] }) =>
     fetchAPI<AgendaAutoResponse>("/meetings/agenda/auto-generate", {
       method: "POST",
       body: JSON.stringify(data),

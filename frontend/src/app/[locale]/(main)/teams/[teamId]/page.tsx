@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Link, useRouter } from "@/i18n/navigation";
-import { teamsAPI, agentsAPI, meetingsAPI } from "@/lib/api";
+import { teamsAPI, agentsAPI, meetingsAPI, agendaAPI } from "@/lib/api";
 import { getErrorMessage, downloadBlob } from "@/lib/utils";
 import type { TeamWithAgents, Meeting, TeamStats, AgentMetrics } from "@/types";
 import TemplatesBrowser from "@/components/TemplatesBrowser";
@@ -246,7 +246,9 @@ export default function TeamDetailPage() {
     }
   };
 
-  const openNewMeetingWithSelectedAgents = () => {
+  const [generatingAgenda, setGeneratingAgenda] = useState(false);
+
+  const openNewMeetingWithSelectedAgents = async () => {
     if (selectedIds.size === 0) return;
     const ids = [...selectedIds];
     setParticipantIdsForNewMeeting(ids);
@@ -258,6 +260,24 @@ export default function TeamDetailPage() {
       title: names.length > 0 ? `${t("meetingWith")} ${names.join(", ")}` : f.title,
     }));
     setShowNewMeeting(true);
+    // Auto-generate agenda for selected agents
+    try {
+      setGeneratingAgenda(true);
+      const result = await agendaAPI.autoGenerate({
+        team_id: teamId,
+        participant_agent_ids: ids,
+      });
+      setMeetingForm((f) => ({
+        ...f,
+        agenda: result.agenda,
+        agenda_questions: result.questions,
+        max_rounds: String(result.suggested_rounds),
+      }));
+    } catch {
+      // Graceful fallback: no API key or error - user can fill manually
+    } finally {
+      setGeneratingAgenda(false);
+    }
   };
 
   const addQuestion = () => {
@@ -584,6 +604,12 @@ export default function TeamDetailPage() {
                     required
                   />
                 </div>
+                {generatingAgenda && (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    {t("generatingAgenda") || "Generating agenda..."}
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label>{t("meetingAgenda")}</Label>
                   <Textarea

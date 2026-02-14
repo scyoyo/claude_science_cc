@@ -183,6 +183,8 @@ See [docs/V2_ARCHITECTURE.md](docs/V2_ARCHITECTURE.md) for full architecture pla
 - All `loadData()` calls properly `await`ed (handleCreateAgent, handleDeleteAgent, handleEditAgent, handleCreateMeeting)
 - Title/description trimmed before API call
 - Added `creatingMeeting` loading state with spinner on create button
+- **Start meeting from selected agents:** Meeting model has optional `participant_agent_ids`. Team page agents: select mode → "Start meeting (N selected)" creates a meeting with only those agents; run/WS/background respect participant list. Create/update/response schemas and SQLite backfill include `participant_agent_ids`.
+- **Agent response language:** Onboarding and meetings use first user message language, then context `response_lang`, then request `locale` (en/zh). Backend `lang_detect` + prompt instructions; frontend sends locale and persists `response_lang` in wizard context.
 
 ### V10.4: Background Meeting Runner
 **Backend:**

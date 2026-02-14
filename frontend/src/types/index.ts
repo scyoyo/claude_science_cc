@@ -335,6 +335,7 @@ export interface AgendaAutoResponse {
   agenda: string;
   questions: string[];
   rules: string[];
+  suggested_rounds: number;
 }
 
 export interface AgentProposal {

@@ -193,7 +193,7 @@ GET    /api/export/meeting/{id}/github     # Get GitHub-ready files
 **Team**: id, name, description, is_public, created_at, updated_at
 **Agent**: id, team_id(FK), name, title, expertise, goal, role, system_prompt, model, model_params(JSON), position_x, position_y, is_mirror, primary_agent_id(FK self), created_at, updated_at
 **APIKey**: id, provider, encrypted_key, is_active, created_at, updated_at
-**Meeting**: id, team_id(FK), title, description, status, max_rounds, current_round, created_at, updated_at
+**Meeting**: id, team_id(FK), title, description, agenda, agenda_questions, agenda_rules, output_type, context_meeting_ids, participant_agent_ids (optional; if set, only these agents join), status, max_rounds, current_round, created_at, updated_at
 **MeetingMessage**: id, meeting_id(FK), agent_id(FK nullable), role, agent_name, content, round_number, created_at
 **CodeArtifact**: id, meeting_id(FK), filename, language, content, description, version, created_at, updated_at
 
@@ -243,7 +243,7 @@ GET    /api/export/meeting/{id}/github     # Get GitHub-ready files
 - `backend/app/api/onboarding.py` ✅ - POST `/api/onboarding/chat` + POST `/api/onboarding/generate-team`
 - `backend/tests/test_onboarding.py` ✅ - 27 tests covering all components
 - LLM calls mockable via injectable `llm_func` callable
-- **Flow improvements:** Semantic stage (backend infers stage from context when client omits it; multi-turn at problem/clarification). Editable agent cards in chat (steps 3–4). See [docs/ONBOARDING_FLOW.md](docs/ONBOARDING_FLOW.md).
+- **Flow improvements:** Semantic stage (backend infers stage from context when client omits it; multi-turn at problem/clarification). Editable agent cards in chat (steps 3–4). Agent response language: first user message language, else context, else request `locale` (en/zh). See [docs/ONBOARDING_FLOW.md](docs/ONBOARDING_FLOW.md).
 
 ### Step 1.4: LLM API Client (DONE)
 - `backend/app/core/llm_client.py` ✅ - Abstract LLMProvider + OpenAI/Anthropic/DeepSeek implementations
@@ -262,6 +262,7 @@ GET    /api/export/meeting/{id}/github     # Get GitHub-ready files
 - `backend/app/api/meetings.py` ✅ - Full CRUD + run + user message endpoints
 - `backend/tests/test_meetings.py` ✅ - 19 tests with mocked LLM
 - Agents see cumulative context; meetings track rounds and status
+- **participant_agent_ids**: optional on Meeting; when set, only those agents participate in run/WS/background. Team page: select agents → "Start meeting (N selected)" creates meeting with only selected agents.
 - Note: WebSocket real-time updates deferred to frontend phase
 
 ### Step 1.6: Frontend Basic UI (DONE)

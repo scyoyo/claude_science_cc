@@ -445,6 +445,28 @@ class TestAgendaProposer:
         assert result["agenda"] == "ML Pipeline"
         assert len(result["questions"]) == 1
         assert len(result["rules"]) == 1
+        assert result["suggested_rounds"] == 3  # default when not in response
+
+    def test_auto_generate_with_suggested_rounds(self):
+        def mock_llm(sp, msgs):
+            return '{"agenda": "Deep analysis", "questions": ["Q1"], "rules": [], "suggested_rounds": 5}'
+
+        proposer = AgendaProposer(llm_call=mock_llm)
+        result = proposer.auto_generate(
+            agents=[{"name": "Alice"}], team_desc="Team", goal="Analyze",
+        )
+        assert result["suggested_rounds"] == 5
+
+    def test_auto_generate_suggested_rounds_clamped(self):
+        """suggested_rounds is clamped to 1-10."""
+        def mock_llm(sp, msgs):
+            return '{"agenda": "Test", "questions": [], "rules": [], "suggested_rounds": 99}'
+
+        proposer = AgendaProposer(llm_call=mock_llm)
+        result = proposer.auto_generate(
+            agents=[{"name": "A"}], team_desc="T", goal="G",
+        )
+        assert result["suggested_rounds"] == 10
 
     def test_auto_generate_fallback(self):
         def mock_llm(sp, msgs):
@@ -456,6 +478,7 @@ class TestAgendaProposer:
         )
         assert result["agenda"] != ""
         assert isinstance(result["questions"], list)
+        assert result["suggested_rounds"] == 3  # default fallback
 
     def test_agent_voting(self):
         def mock_llm(sp, msgs):
@@ -548,7 +571,7 @@ class TestAgendaStrategyAPI:
     @patch("app.api.meetings.resolve_llm_call")
     def test_auto_generate_endpoint(self, mock_llm, client, team_with_agents):
         mock_llm.return_value = lambda sp, msgs: (
-            '{"agenda": "Research plan", "questions": ["Q1"], "rules": ["R1"]}'
+            '{"agenda": "Research plan", "questions": ["Q1"], "rules": ["R1"], "suggested_rounds": 4}'
         )
         resp = client.post("/api/meetings/agenda/auto-generate", json={
             "team_id": team_with_agents["id"],
@@ -558,6 +581,36 @@ class TestAgendaStrategyAPI:
         data = resp.json()
         assert data["agenda"] != ""
         assert isinstance(data["questions"], list)
+        assert data["suggested_rounds"] == 4
+
+    @patch("app.api.meetings.resolve_llm_call")
+    def test_auto_generate_with_participant_filter(self, mock_llm, client, team_with_agents):
+        """When participant_agent_ids is provided, only those agents are described in the prompt."""
+        captured_prompts = []
+
+        def capturing_llm(sp, msgs):
+            captured_prompts.append(msgs[0].content if msgs else "")
+            return '{"agenda": "Filtered plan", "questions": [], "rules": [], "suggested_rounds": 2}'
+
+        mock_llm.return_value = capturing_llm
+
+        # Get agents for this team
+        agents_resp = client.get(f"/api/agents/team/{team_with_agents['id']}")
+        agents = agents_resp.json()["items"]
+        alice = next(a for a in agents if a["name"] == "Alice")
+
+        resp = client.post("/api/meetings/agenda/auto-generate", json={
+            "team_id": team_with_agents["id"],
+            "goal": "Solo work",
+            "participant_agent_ids": [alice["id"]],
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["agenda"] == "Filtered plan"
+        assert data["suggested_rounds"] == 2
+        # The prompt should mention Alice but not Bob
+        assert "Alice" in captured_prompts[0]
+        assert "Bob" not in captured_prompts[0]
 
     @patch("app.api.meetings.resolve_llm_call")
     def test_agent_voting_endpoint(self, mock_llm, client, team_with_agents):

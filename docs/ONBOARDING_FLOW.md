@@ -45,12 +45,22 @@ Implementation details:
 - **Frontend:** `WizardChat` keeps `teamSuggestion` and the last message with `proposedTeam` in sync. `MessageBubble` receives `isEditable` and `onEditAgent(agentIndex, updatedAgent)`. Edits update `teamSuggestion` and the last proposal message’s `proposedTeam`.
 - **Backend:** No change; `POST /api/onboarding/generate-team` still receives the final `GenerateTeamRequest` (team name, description, agents, optional mirror_config). The frontend submits the current `teamSuggestion` (including any in-chat edits) when the user completes the flow.
 
+## Agent language
+
+Agent responses (onboarding and meetings) follow a language preference:
+
+- **First:** Language of the user’s first message (detected from text, e.g. CJK → Chinese).
+- **Then:** Stored `response_lang` in context (from a previous reply).
+- **Fallback:** Request `locale` (e.g. `"en"` or `"zh"` from the app UI).
+
+The client sends optional `locale`; the backend appends a “Respond in English” or “Respond in Chinese (中文)” instruction to the relevant prompts. For meetings, the same logic uses the first user message in the meeting, the run `topic`, or the request `locale`.
+
 ## API Summary
 
 - **`POST /api/onboarding/chat`**  
-  - Body: `message`, `conversation_history`, `context`, and optional `stage`.  
+  - Body: `message`, `conversation_history`, `context`, and optional `stage`, optional `locale`.  
   - If `stage` is omitted, the backend infers it (semantic flow).  
-  - Response: `stage`, `next_stage`, `message`, `data` (e.g. `team_suggestion`, `analysis`).
+  - Response: `stage`, `next_stage`, `message`, `data` (e.g. `team_suggestion`, `analysis`, `response_lang`).
 
 - **`POST /api/onboarding/generate-team`**  
   - Body: `team_name`, `team_description`, `agents`, optional `mirror_config`.  
