@@ -6,13 +6,14 @@ Based on [virtual-lab](https://github.com/zou-group/virtual-lab) by Zou Group @ 
 
 ## Features
 
-- **AI Agent Teams** - Configure AI agents with specific roles (ML Researcher, Bioinformatician, Statistician, etc.) or use 10 built-in templates
+- **AI Agent Teams** - Configure AI agents with specific roles (ML Researcher, Bioinformatician, Statistician, etc.) or use built-in templates
 - **Collaborative Meetings** - Agents discuss research problems in rounds, with real-time WebSocket streaming; start a meeting with only selected agents from the team page
 - **Code Generation** - Auto-extract code from meeting discussions into versioned artifacts
 - **Visual Editor** - Drag-and-drop agent graph with React Flow + inline prompt editing with Monaco Editor
-- **Multi-Format Export** - ZIP download, Jupyter notebook, GitHub push
+- **Multi-Format Export** - ZIP download, Jupyter/Colab notebook, GitHub-ready files
 - **Multi-User Support** - JWT auth, RBAC (owner/editor/viewer), team sharing
 - **Search & Analytics** - Full-text search, team stats, agent metrics, meeting comparison
+- **Onboarding** - AI-guided team composition with semantic stages and editable agent cards; see [docs/ONBOARDING_FLOW.md](docs/ONBOARDING_FLOW.md)
 
 ## Quick Start (Local Development)
 
@@ -37,47 +38,60 @@ npm run dev
 ```
 
 This launches both services concurrently:
+
 - **Frontend**: http://localhost:3000
 - **Backend**: http://localhost:8000 (API docs at http://localhost:8000/docs)
 
 Other commands:
 
 ```bash
-npm test          # Run 329 backend tests
-npm run build     # Build frontend for production
-npm run dev:backend   # Start backend only
-npm run dev:frontend  # Start frontend only
+npm test              # Run backend tests (pytest)
+npm run build         # Build frontend for production
+npm run dev:backend  # Start backend only
+npm run dev:frontend # Start frontend only
 ```
 
 ### Configure LLM API Keys
 
 Open **http://localhost:3000/settings** and add your API key for one of:
+
 - OpenAI (GPT-4)
 - Anthropic (Claude)
 - DeepSeek
 
-## Docker Compose
+You can also set `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or `DEEPSEEK_API_KEY` in `local/.env` as fallback.
 
-### Development (SQLite, no auth)
+## Deployment
+
+### Docker Compose
+
+**Development (SQLite, no auth)**
 
 ```bash
 cd local
 docker compose up -d
 ```
 
-- Frontend: http://localhost:3000
+- Frontend: http://localhost:3000  
 - Backend: http://localhost:8000
 
-### Production (PostgreSQL + Redis + Nginx)
+**Production (PostgreSQL + Redis + Nginx)**
 
 ```bash
 cd cloud
 cp .env.example .env
-
-# Edit .env - generate real secrets with: openssl rand -hex 32
-vim .env
-
+# Edit .env — generate secrets with: openssl rand -hex 32
 docker compose up -d
+```
+
+### Railway (single service, no Docker)
+
+One Railway service runs frontend + backend; Next.js proxies `/api/*` to the backend. See [docs/DEPLOY.md](docs/DEPLOY.md) for step-by-step env vars and setup.
+
+### Kubernetes
+
+```bash
+cd cloud/k8s && ./deploy.sh
 ```
 
 ## Running Tests
@@ -85,62 +99,70 @@ docker compose up -d
 ```bash
 cd backend
 source venv/bin/activate
-pytest tests/ -v              # 329 tests
-pytest tests/ -v --cov=app    # with coverage
+pytest tests/ -v              # All tests
+pytest tests/ -v --cov=app    # With coverage
 ```
+
+There are 33 test files (550+ tests) covering API, core logic, auth, WebSocket, background runner, webhooks, search, templates, and more.
 
 ## Project Structure
 
 ```
 ├── backend/                    # FastAPI backend (shared)
 │   ├── app/
-│   │   ├── main.py              # FastAPI entry point
-│   │   ├── config.py            # Settings (env vars)
-│   │   ├── database.py          # SQLAlchemy setup
-│   │   ├── models/              # DB models (Team, Agent, Meeting, etc.)
-│   │   ├── schemas/             # Pydantic request/response schemas
-│   │   ├── api/                 # API routers (13 modules)
-│   │   ├── core/                # Business logic (LLM, meetings, auth, etc.)
-│   │   └── middleware/          # Logging, rate limiting
-│   ├── tests/                   # 27 test files
-│   ├── alembic/                 # DB migrations (PostgreSQL)
+│   │   ├── main.py             # FastAPI entry point
+│   │   ├── config.py           # Settings (pydantic-settings, env vars)
+│   │   ├── database.py        # SQLAlchemy (SQLite/PostgreSQL)
+│   │   ├── models/             # DB models (Team, Agent, Meeting, APIKey, etc.)
+│   │   ├── schemas/            # Pydantic request/response schemas
+│   │   ├── api/                # API routers (teams, agents, meetings, auth, etc.)
+│   │   ├── core/               # Business logic (LLM, meeting engine, team builder, etc.)
+│   │   └── middleware/         # Logging, rate limiting
+│   ├── tests/                  # pytest (33 test files)
+│   ├── alembic/                # DB migrations (PostgreSQL)
 │   └── requirements.txt
-├── frontend/                    # Next.js frontend (shared)
+├── frontend/                   # Next.js 16 + React 19 (shared)
 │   ├── src/
-│   │   ├── app/                 # Next.js pages
-│   │   ├── components/          # React components
-│   │   ├── contexts/            # Auth context
-│   │   ├── hooks/               # WebSocket hook
-│   │   ├── lib/                 # API client, auth helpers
-│   │   └── types/               # TypeScript types
+│   │   ├── app/                # App Router pages
+│   │   ├── components/         # React components (e.g. AgentNode, editor)
+│   │   ├── contexts/           # Auth context
+│   │   ├── hooks/              # WebSocket hook
+│   │   ├── lib/                # API client, auth helpers
+│   │   └── types/              # TypeScript types
 │   └── package.json
-├── local/                       # Single-user local deployment
-│   ├── package.json             # npm run dev (concurrently)
-│   └── docker-compose.yml       # SQLite, no auth
-├── cloud/                       # Multi-user cloud deployment
-│   ├── docker-compose.yml       # PostgreSQL + Redis + Nginx
-│   ├── nginx/                   # Nginx reverse proxy config
-│   └── k8s/                     # Kubernetes manifests
+├── local/                      # Single-user local deployment
+│   ├── package.json            # npm run dev (concurrently)
+│   └── docker-compose.yml      # SQLite, no auth
+├── cloud/                      # Multi-user cloud deployment
+│   ├── docker-compose.yml      # PostgreSQL + Redis + Nginx
+│   ├── nginx/                  # Nginx reverse proxy config
+│   └── k8s/                    # Kubernetes manifests
+├── docs/                       # Architecture and flows
+│   ├── DEPLOY.md               # Railway deployment guide
+│   ├── ONBOARDING_FLOW.md      # Onboarding wizard behavior
+│   └── V2_ARCHITECTURE.md      # V2 multi-user architecture
+└── CLAUDE.md                   # Development guide (env, migrations, API list)
 ```
 
 ## API Overview
 
-All endpoints available under `/api/` and `/api/v1/`. Full interactive docs at `/docs`.
+Endpoints are available under `/api/` and `/api/v1/`. Interactive docs: http://localhost:8000/docs .
 
-| Group | Endpoints | Description |
-|-------|-----------|-------------|
-| Teams | 5 + stats/export/import/members | CRUD, sharing, statistics, config export |
-| Agents | 5 + batch/clone/metrics | CRUD, batch ops, templates, performance metrics |
-| Meetings | 6 + summary/transcript/clone/compare | CRUD, execution, analysis |
-| Artifacts | 6 | Code artifact CRUD + auto-extraction |
-| Onboarding | 2 | AI-guided team composition |
-| LLM | 5 | API key management, provider config |
-| Auth | 4 | Register, login, refresh, profile |
-| Search | 2 | Full-text search teams & agents |
-| Templates | 3 | 10 predefined agent presets |
-| Webhooks | 5 | Event notifications (meeting complete, etc.) |
-| Export | 3 | ZIP, Jupyter notebook, GitHub |
-| WebSocket | 1 | Real-time meeting streaming |
+| Group      | Description |
+|-----------|-------------|
+| Teams     | CRUD, sharing, statistics, config export/import, members |
+| Agents    | CRUD, batch ops, clone, templates, metrics |
+| Meetings  | CRUD, run, run-background, status, message, summary, transcript, clone, compare |
+| Artifacts | CRUD, auto-extract code from meeting messages |
+| Onboarding| AI-guided team composition: `/api/onboarding/chat`, `/api/onboarding/generate-team` |
+| LLM       | Providers, API key management, `/api/llm/chat` |
+| Auth      | Register, login, refresh, profile |
+| Search    | Full-text search teams & agents |
+| Templates | Predefined agent presets |
+| Webhooks  | Event notifications (e.g. meeting complete) |
+| Dashboard | Aggregated stats |
+| Export    | ZIP, Jupyter notebook, GitHub-ready files |
+| WebSocket | Real-time meeting streaming: `/ws/meetings/{meeting_id}` |
 
 ## Environment Variables
 
@@ -150,14 +172,23 @@ All endpoints available under `/api/` and `/api/v1/`. Full interactive docs at `
 | `ENCRYPTION_SECRET` | (insecure default) | Secret for encrypting stored API keys |
 | `AUTH_ENABLED` | `false` | Enable JWT authentication |
 | `JWT_SECRET` | (insecure default) | Secret for signing JWT tokens |
-| `REDIS_URL` | (empty = in-memory) | Redis connection for cache/rate limiting |
+| `REDIS_URL` | (empty = in-memory) | Redis for cache/rate limiting |
+| `FRONTEND_URL` | `http://localhost:3000` | Used for CORS |
 | `CORS_ORIGINS` | `["http://localhost:3000"]` | Allowed CORS origins |
+| `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `DEEPSEEK_API_KEY` | (empty) | Optional env fallback for LLM calls |
 
 ## Tech Stack
 
 - **Backend**: FastAPI, SQLAlchemy, Pydantic v2, SQLite/PostgreSQL
 - **Frontend**: Next.js 16, React 19, TypeScript, Tailwind CSS, React Flow, Monaco Editor
-- **Infra**: Docker Compose, Nginx, Redis, Alembic, Kubernetes, GitHub Actions CI
+- **Infra**: Docker Compose, Nginx, Redis, Alembic, Kubernetes
+
+## Documentation
+
+- [CLAUDE.md](CLAUDE.md) — Development guide: migrations, test layout, API list, deployment notes
+- [docs/DEPLOY.md](docs/DEPLOY.md) — Railway single-service deployment
+- [docs/ONBOARDING_FLOW.md](docs/ONBOARDING_FLOW.md) — Onboarding wizard flow and semantics
+- [docs/V2_ARCHITECTURE.md](docs/V2_ARCHITECTURE.md) — V2 multi-user architecture
 
 ## License
 
