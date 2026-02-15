@@ -816,3 +816,123 @@ class TestMeetingChain:
         all_msgs = [m for sublist in received_messages for m in sublist]
         assert any("Previous Meeting" in m for m in all_msgs)
         assert any("Context from Previous Meetings" in m for m in all_msgs)
+
+
+# ==================== Critic Integration Tests ====================
+
+
+class TestCriticInTeamMeeting:
+    """Tests for Scientific Critic integration in team meetings."""
+
+    def _mock_llm(self, system_prompt, messages):
+        return f"Response to: {messages[-1].content[:50]}"
+
+    def test_critic_speaks_after_members(self):
+        """Critic speaks after all members in non-final rounds."""
+        engine = MeetingEngine(llm_call=self._mock_llm)
+        agents = [
+            {"id": "lead", "name": "Dr. PI", "title": "Principal Investigator", "role": "PI", "system_prompt": "Lead", "model": "gpt-4"},
+            {"id": "m1", "name": "Biologist", "title": "Biologist", "role": "", "system_prompt": "Bio", "model": "gpt-4"},
+            {"id": "critic", "name": "Scientific Critic", "title": "Critic", "role": "", "system_prompt": "Critic", "model": "gpt-4"},
+        ]
+        messages = engine.run_structured_round(
+            agents=agents, conversation_history=[], round_num=1, num_rounds=3,
+            agenda="Test", agenda_questions=["Q1"],
+        )
+        # Lead, Member, Critic = 3 messages
+        assert len(messages) == 3
+        assert messages[0]["agent_name"] == "Dr. PI"
+        assert messages[1]["agent_name"] == "Biologist"
+        assert messages[2]["agent_name"] == "Scientific Critic"
+
+    def test_critic_silent_in_final_round(self):
+        """Critic does not speak in the final round (lead-only)."""
+        engine = MeetingEngine(llm_call=self._mock_llm)
+        agents = [
+            {"id": "lead", "name": "Dr. PI", "title": "Principal Investigator", "role": "", "system_prompt": "Lead", "model": "gpt-4"},
+            {"id": "m1", "name": "Biologist", "title": "Biologist", "role": "", "system_prompt": "Bio", "model": "gpt-4"},
+            {"id": "critic", "name": "Scientific Critic", "title": "Critic", "role": "", "system_prompt": "Critic", "model": "gpt-4"},
+        ]
+        messages = engine.run_structured_round(
+            agents=agents, conversation_history=[], round_num=3, num_rounds=3,
+            agenda="Test",
+        )
+        # Final round: only lead
+        assert len(messages) == 1
+        assert messages[0]["agent_name"] == "Dr. PI"
+
+    def test_no_critic_backward_compatible(self):
+        """Without a critic agent, behavior is unchanged."""
+        engine = MeetingEngine(llm_call=self._mock_llm)
+        agents = [
+            {"id": "lead", "name": "Lead", "title": "Researcher", "role": "", "system_prompt": "Lead", "model": "gpt-4"},
+            {"id": "m1", "name": "Member", "title": "Analyst", "role": "", "system_prompt": "Member", "model": "gpt-4"},
+        ]
+        messages = engine.run_structured_round(
+            agents=agents, conversation_history=[], round_num=1, num_rounds=3,
+            agenda="Test",
+        )
+        # Lead + Member = 2 (no critic)
+        assert len(messages) == 2
+        assert messages[0]["agent_name"] == "Lead"
+        assert messages[1]["agent_name"] == "Member"
+
+    def test_pi_auto_detected(self):
+        """PI is auto-detected as lead even if not first in list."""
+        engine = MeetingEngine(llm_call=self._mock_llm)
+        agents = [
+            {"id": "m1", "name": "Data Analyst", "title": "Analyst", "role": "", "system_prompt": "A", "model": "gpt-4"},
+            {"id": "lead", "name": "Dr. Smith", "title": "Principal Investigator", "role": "PI", "system_prompt": "PI", "model": "gpt-4"},
+        ]
+        messages = engine.run_structured_round(
+            agents=agents, conversation_history=[], round_num=1, num_rounds=3,
+            agenda="Test",
+        )
+        # PI speaks first (as lead)
+        assert messages[0]["agent_name"] == "Dr. Smith"
+        assert messages[1]["agent_name"] == "Data Analyst"
+
+    def test_round_plan_goal_injected(self):
+        """Round plan goal is injected into conversation context."""
+        received = []
+
+        def tracking_llm(system_prompt, messages):
+            received.append([m.content for m in messages])
+            return "OK"
+
+        engine = MeetingEngine(llm_call=tracking_llm)
+        agents = [
+            {"id": "lead", "name": "Lead", "title": "Researcher", "role": "", "system_prompt": "L", "model": "gpt-4"},
+        ]
+        engine.run_structured_round(
+            agents=agents, conversation_history=[], round_num=2, num_rounds=3,
+            agenda="Test",
+            round_plan={"round": 2, "goal": "Focus on methodology details"},
+        )
+        all_msgs = [m for sublist in received for m in sublist]
+        assert any("Focus on methodology details" in m for m in all_msgs)
+
+    def test_critic_sees_all_member_messages(self):
+        """Critic receives all prior messages from this round (lead + members)."""
+        received_by_agent = {}
+
+        def tracking_llm(system_prompt, messages):
+            # Track which agent sees how many messages
+            if "Critic" in system_prompt:
+                received_by_agent["critic"] = len(messages)
+            return "OK"
+
+        engine = MeetingEngine(llm_call=tracking_llm)
+        agents = [
+            {"id": "lead", "name": "Dr. PI", "title": "Principal Investigator", "role": "", "system_prompt": "Lead", "model": "gpt-4"},
+            {"id": "m1", "name": "Biologist", "title": "Biologist", "role": "", "system_prompt": "Bio", "model": "gpt-4"},
+            {"id": "m2", "name": "Chemist", "title": "Chemist", "role": "", "system_prompt": "Chem", "model": "gpt-4"},
+            {"id": "critic", "name": "Scientific Critic", "title": "Critic", "role": "", "system_prompt": "Critic", "model": "gpt-4"},
+        ]
+        engine.run_structured_round(
+            agents=agents, conversation_history=[], round_num=1, num_rounds=3,
+            agenda="Test",
+        )
+        # Critic should see: meeting_start + round_goal(none) + lead_msg + bio_msg + chem_msg + critic_prompt = 5
+        # At minimum, critic sees more messages than just the start context
+        assert received_by_agent.get("critic", 0) >= 5

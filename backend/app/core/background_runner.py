@@ -88,7 +88,10 @@ def _run_meeting_thread(
             return
 
         agent_dicts = [
-            {"id": str(a.id), "name": a.name, "system_prompt": a.system_prompt, "model": a.model}
+            {
+                "id": str(a.id), "name": a.name, "system_prompt": a.system_prompt,
+                "model": a.model, "title": a.title or "", "role": getattr(a, "role", "") or "",
+            }
             for a in agents
         ]
 
@@ -138,6 +141,13 @@ def _run_meeting_thread(
             existing_messages, topic, locale, team_language=team_language
         )
 
+        # Build round_plans lookup for goal injection
+        raw_plans = getattr(meeting, "round_plans", None) or []
+        plans_by_round = {}
+        for rp in raw_plans:
+            if isinstance(rp, dict):
+                plans_by_round[rp.get("round", 0)] = rp
+
         # Run round by round, committing after each
         for round_idx in range(rounds_to_run):
             current_round_num = meeting.current_round + 1
@@ -154,6 +164,7 @@ def _run_meeting_thread(
                     agenda_rules=meeting.agenda_rules or [],
                     output_type=meeting.output_type or "code",
                     preferred_lang=preferred_lang,
+                    round_plan=plans_by_round.get(current_round_num),
                 )
             else:
                 round_topic = topic if round_idx == 0 else None

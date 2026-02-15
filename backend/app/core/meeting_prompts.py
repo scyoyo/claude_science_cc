@@ -124,6 +124,7 @@ def meeting_start_prompt(
     agenda_rules: List[str],
     num_rounds: int,
     preferred_lang: Optional[str] = None,
+    critic_name: Optional[str] = None,
 ) -> str:
     """Generate the meeting start context prompt injected as the first user message."""
     parts = [
@@ -131,8 +132,10 @@ def meeting_start_prompt(
         f"",
         f"**Team Lead:** {team_lead_name}",
         f"**Team Members:** {', '.join(member_names)}",
-        f"**Number of Rounds:** {num_rounds}",
     ]
+    if critic_name:
+        parts.append(f"**Critic:** {critic_name}")
+    parts.append(f"**Number of Rounds:** {num_rounds}")
 
     if agenda:
         parts.append(f"")
@@ -228,6 +231,23 @@ def team_lead_final_prompt(
 
 
 # ==================== Team Member Prompts ====================
+
+def team_meeting_critic_prompt(
+    critic_name: str,
+    round_num: int,
+    num_rounds: int,
+) -> str:
+    """Prompt for the critic in a team meeting: evaluate the round's discussion."""
+    return (
+        f"{critic_name}, please critically evaluate the discussion so far "
+        f"(round {round_num}/{num_rounds}).\n"
+        f"- Identify flaws in reasoning, missing considerations, or weak evidence.\n"
+        f"- Validate whether the discussion addresses the agenda and questions.\n"
+        f"- Suggest specific improvements for the next round.\n"
+        f"- Be constructive but rigorous — every critique should include a suggestion.\n"
+        f"- Be direct and concise."
+    )
+
 
 def team_member_prompt(
     member_name: str,

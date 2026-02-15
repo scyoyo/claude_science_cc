@@ -774,6 +774,8 @@ def run_meeting(
             "name": a.name,
             "system_prompt": a.system_prompt,
             "model": a.model,
+            "title": a.title or "",
+            "role": getattr(a, "role", "") or "",
         }
         for a in agents
     ]
@@ -893,6 +895,7 @@ def run_meeting(
                 start_round=meeting.current_round + 1,
                 context_summaries=context_summaries,
                 preferred_lang=preferred_lang,
+                round_plans=getattr(meeting, "round_plans", None) or [],
             )
         else:
             all_rounds = engine.run_meeting(

@@ -18,6 +18,7 @@ from app.core.meeting_prompts import (
     team_lead_synthesis_prompt,
     team_lead_final_prompt,
     team_member_prompt,
+    team_meeting_critic_prompt,
     phase_temperature,
     previous_context_prompt,
     CONCISENESS_RULE,
@@ -27,6 +28,7 @@ from app.core.meeting_prompts import (
     individual_meeting_agent_revision_prompt,
     create_merge_prompt,
 )
+from app.core.agent_roles import sort_agents_for_meeting
 
 
 # Type for LLM callable: (system_prompt, messages) -> response_text
@@ -160,15 +162,16 @@ class MeetingEngine:
         output_type: str = "code",
         context_summaries: Optional[List[Dict]] = None,
         preferred_lang: Optional[str] = None,
+        round_plan: Optional[Dict] = None,
     ) -> List[Dict]:
         """Run one structured round with phase-aware prompts.
 
-        Round 1: Team Lead proposes, members respond.
-        Middle rounds: Team Lead synthesizes, members contribute.
+        Round 1: Team Lead proposes, members respond, critic evaluates.
+        Middle rounds: Team Lead synthesizes, members contribute, critic evaluates.
         Final round: Team Lead only — produces structured output.
 
         Args:
-            agents: List of agent dicts. First agent is Team Lead.
+            agents: List of agent dicts. PI/Lead auto-detected; Critic auto-separated.
             conversation_history: Previous messages.
             round_num: Current round number (1-indexed).
             num_rounds: Total rounds planned.
@@ -176,6 +179,7 @@ class MeetingEngine:
             agenda_questions: Questions to answer by end of meeting.
             agenda_rules: Constraint rules.
             output_type: "code", "report", or "paper".
+            round_plan: Optional dict with 'goal', 'title', 'expected_output' for this round.
 
         Returns:
             List of messages for this round.
@@ -185,9 +189,20 @@ class MeetingEngine:
 
         questions = agenda_questions or []
         rules = agenda_rules or []
-        team_lead = agents[0]
-        members = agents[1:]
+
+        # Auto-detect roles: PI/Lead, Members, Critic
+        team_lead, members, critic = sort_agents_for_meeting(agents)
         new_messages = []
+
+        # Inject round plan goal into conversation context
+        if round_plan:
+            goal = round_plan.get("goal", "")
+            if goal:
+                conversation_history = list(conversation_history)
+                conversation_history.append(ChatMessage(
+                    role="user",
+                    content=f"## Round {round_num} Goal\n{goal}",
+                ))
 
         # Inject meeting start context on the first round
         if round_num == 1:
@@ -210,13 +225,14 @@ class MeetingEngine:
                 agenda_rules=rules,
                 num_rounds=num_rounds,
                 preferred_lang=preferred_lang,
+                critic_name=critic["name"] if critic else None,
             )
             conversation_history.append(ChatMessage(
                 role="user",
                 content=start_context,
             ))
 
-        # Final round: only Team Lead speaks
+        # Final round: only Team Lead speaks (no critic)
         if round_num >= num_rounds and num_rounds > 1:
             final_prompt = team_lead_final_prompt(
                 team_lead_name=team_lead["name"],
@@ -237,7 +253,7 @@ class MeetingEngine:
             })
             return new_messages
 
-        # Non-final rounds: Team Lead first, then members
+        # Non-final rounds: Team Lead first, then members, then critic
 
         # Team Lead prompt
         if round_num == 1:
@@ -261,7 +277,6 @@ class MeetingEngine:
             member_prompt_text = team_member_prompt(member["name"], round_num, num_rounds)
 
             messages = list(conversation_history)
-            # Include messages from this round so far
             for msg in new_messages:
                 messages.append(ChatMessage(
                     role="user",
@@ -273,6 +288,27 @@ class MeetingEngine:
             new_messages.append({
                 "agent_id": member["id"],
                 "agent_name": member["name"],
+                "role": "assistant",
+                "content": response,
+            })
+
+        # Critic evaluates (non-final rounds only)
+        if critic:
+            critic_prompt_text = team_meeting_critic_prompt(
+                critic["name"], round_num, num_rounds,
+            )
+            messages = list(conversation_history)
+            for msg in new_messages:
+                messages.append(ChatMessage(
+                    role="user",
+                    content=f"[{msg['agent_name']}]: {msg['content']}",
+                ))
+            messages.append(ChatMessage(role="user", content=critic_prompt_text))
+
+            response = self.llm_call(critic["system_prompt"], messages)
+            new_messages.append({
+                "agent_id": critic["id"],
+                "agent_name": critic["name"],
                 "role": "assistant",
                 "content": response,
             })
@@ -291,11 +327,12 @@ class MeetingEngine:
         start_round: int = 1,
         context_summaries: Optional[List[Dict]] = None,
         preferred_lang: Optional[str] = None,
+        round_plans: Optional[List[Dict]] = None,
     ) -> List[List[Dict]]:
         """Run a full structured meeting across multiple rounds.
 
         Args:
-            agents: List of agent dicts. First agent is Team Lead.
+            agents: List of agent dicts. PI/Lead auto-detected.
             conversation_history: Previous messages.
             rounds: Number of rounds to run.
             agenda: Meeting agenda text.
@@ -303,6 +340,7 @@ class MeetingEngine:
             agenda_rules: Constraint rules.
             output_type: "code", "report", or "paper".
             start_round: Starting round number (1-indexed, for resuming).
+            round_plans: Optional list of dicts with 'round', 'goal', 'title', 'expected_output'.
 
         Returns:
             List of rounds, each containing a list of messages.
@@ -310,6 +348,10 @@ class MeetingEngine:
         all_rounds = []
         current_history = list(conversation_history)
         total_rounds = start_round + rounds - 1
+        plans_by_round = {}
+        if round_plans:
+            for rp in round_plans:
+                plans_by_round[rp.get("round", 0)] = rp
 
         for i in range(rounds):
             current_round = start_round + i
@@ -324,6 +366,7 @@ class MeetingEngine:
                 output_type=output_type,
                 context_summaries=context_summaries if current_round == start_round else None,
                 preferred_lang=preferred_lang,
+                round_plan=plans_by_round.get(current_round),
             )
             all_rounds.append(round_messages)
 
