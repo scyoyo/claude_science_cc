@@ -1,13 +1,16 @@
 import json
+import io
+from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
-from typing import List
-import io
 
 from app.database import get_db
 from app.models import Meeting, MeetingMessage, CodeArtifact, Agent
 from app.core.exporter import export_as_zip, export_as_colab_notebook, export_as_github_files
+from app.core.github_client import GitHubPushError, ensure_repo, push_files
 
 router = APIRouter(prefix="/export", tags=["export"])
 
@@ -128,6 +131,13 @@ def export_json(meeting_id: str, db: Session = Depends(get_db)):
     )
 
 
+def _safe_attachment_filename(name: str, suffix: str) -> str:
+    """Sanitize for Content-Disposition filename (no quotes/newlines)."""
+    safe = "".join(c if c.isalnum() or c in " ._-" else "_" for c in (name or "export"))
+    safe = (safe.strip() or "export")[:200].strip()
+    return f"{safe}{suffix}"
+
+
 @router.get("/meeting/{meeting_id}/zip")
 def export_zip(meeting_id: str, db: Session = Depends(get_db)):
     """Download meeting artifacts as a ZIP file."""
@@ -139,12 +149,18 @@ def export_zip(meeting_id: str, db: Session = Depends(get_db)):
             detail="No code artifacts to export. Extract code first.",
         )
 
-    zip_bytes = export_as_zip(artifact_dicts, project_name=meeting.title.replace(" ", "_"))
+    try:
+        zip_bytes = export_as_zip(artifact_dicts, project_name=meeting.title.replace(" ", "_") if meeting.title else "export")
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Export failed: {str(e)}",
+        )
 
     return StreamingResponse(
         io.BytesIO(zip_bytes),
         media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="{meeting.title.replace(" ", "_")}.zip"'},
+        headers={"Content-Disposition": f'attachment; filename="{_safe_attachment_filename(meeting.title, ".zip")}"'},
     )
 
 
@@ -165,7 +181,7 @@ def export_notebook(meeting_id: str, db: Session = Depends(get_db)):
     return StreamingResponse(
         io.BytesIO(notebook_json.encode()),
         media_type="application/json",
-        headers={"Content-Disposition": f'attachment; filename="{meeting.title.replace(" ", "_")}.ipynb"'},
+        headers={"Content-Disposition": f'attachment; filename="{_safe_attachment_filename(meeting.title, ".ipynb")}"'},
     )
 
 
@@ -185,3 +201,60 @@ def export_github(meeting_id: str, db: Session = Depends(get_db)):
 
     files = export_as_github_files(artifact_dicts, project_name=meeting.title)
     return {"project_name": meeting.title, "files": files}
+
+
+class PushGithubRequest(BaseModel):
+    """Request body for pushing meeting artifacts to GitHub."""
+
+    repo_owner: str = Field(..., min_length=1, description="GitHub owner (user or org)")
+    repo_name: str = Field(..., min_length=1, description="Repository name")
+    create_if_missing: bool = Field(default=False, description="Create repo if it does not exist")
+    github_token: str = Field(..., min_length=1, description="GitHub personal access token")
+
+
+@router.post("/meeting/{meeting_id}/push-github")
+def push_github(meeting_id: str, body: PushGithubRequest, db: Session = Depends(get_db)):
+    """Push meeting artifacts to a GitHub repository.
+
+    Uses the same file set as GET /export/meeting/{id}/github. Creates the repo if
+    create_if_missing is true and the repo does not exist. Token is not stored.
+    """
+    meeting, artifact_dicts = _get_artifacts(meeting_id, db)
+
+    if not artifact_dicts:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No code artifacts to export. Extract code first.",
+        )
+
+    files = export_as_github_files(artifact_dicts, project_name=meeting.title or "export")
+
+    try:
+        ensure_repo(
+            body.github_token,
+            body.repo_owner.strip(),
+            body.repo_name.strip(),
+            body.create_if_missing,
+        )
+        push_files(
+            body.github_token,
+            body.repo_owner.strip(),
+            body.repo_name.strip(),
+            files,
+            commit_message=f"Update from meeting: {meeting.title or meeting_id}",
+        )
+    except GitHubPushError as e:
+        code = e.status_code or 400
+        if code == 401:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=e.message)
+        if code == 403:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=e.message)
+        if code == 404:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e.message)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=e.message,
+        )
+
+    repo_url = f"https://github.com/{body.repo_owner.strip()}/{body.repo_name.strip()}"
+    return {"ok": True, "repo_url": repo_url}

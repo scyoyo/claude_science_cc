@@ -84,6 +84,15 @@ export default function MeetingSummaryPanel({ meetingId }: MeetingSummaryPanelPr
             </div>
           </div>
 
+          {summary.summary_text && (
+            <>
+              <Separator />
+              <div>
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{summary.summary_text}</p>
+              </div>
+            </>
+          )}
+
           <Separator />
 
           {/* Key Points */}

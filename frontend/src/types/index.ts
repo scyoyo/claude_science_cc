@@ -169,6 +169,7 @@ export interface MeetingSummary {
   participants: string[];
   key_points: string[];
   status: string;
+  summary_text?: string;
 }
 
 export interface CodeArtifact {

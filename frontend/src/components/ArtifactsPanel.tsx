@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { artifactsAPI, exportAPI } from "@/lib/api";
+import { artifactsAPI, exportAPI, ApiError } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
 import { downloadBlob } from "@/lib/utils";
 import type { CodeArtifact } from "@/types";
 import { Button } from "@/components/ui/button";
 import FileTree from "@/components/FileTree";
 import ArtifactViewer from "@/components/ArtifactViewer";
+import { ExportToGithubDialog } from "@/components/ExportToGithubDialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,6 +24,7 @@ import {
   Wand2,
   Loader2,
   Archive,
+  Upload,
 } from "lucide-react";
 
 interface ArtifactsPanelProps {
@@ -40,6 +42,8 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
   const [error, setError] = useState<string | null>(null);
   const [viewerArtifact, setViewerArtifact] = useState<CodeArtifact | null>(null);
   const [viewerOpen, setViewerOpen] = useState(false);
+  const [pushGithubOpen, setPushGithubOpen] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const loadArtifacts = async () => {
     try {
@@ -93,7 +97,7 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
       const blob = await exportAPI.zip(meetingId);
       downloadBlob(blob, `${meetingTitle.replace(/\s+/g, "_")}.zip`);
     } catch (err) {
-      setError(getErrorMessage(err, "Export failed"));
+      setError(err instanceof ApiError && err.status === 400 ? t("extractCodeFirst") : getErrorMessage(err, "Export failed"));
     } finally {
       setExporting(false);
     }
@@ -106,7 +110,7 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
       const blob = await exportAPI.notebook(meetingId);
       downloadBlob(blob, `${meetingTitle.replace(/\s+/g, "_")}.ipynb`);
     } catch (err) {
-      setError(getErrorMessage(err, "Export failed"));
+      setError(err instanceof ApiError && err.status === 400 ? t("extractCodeFirst") : getErrorMessage(err, "Export failed"));
     } finally {
       setExporting(false);
     }
@@ -120,24 +124,12 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
       downloadBlob(blob, `${meetingTitle.replace(/\s+/g, "_")}_github.json`);
     } catch (err) {
-      setError(getErrorMessage(err, "Export failed"));
+      setError(err instanceof ApiError && err.status === 400 ? t("extractCodeFirst") : getErrorMessage(err, "Export failed"));
     } finally {
       setExporting(false);
     }
   };
 
-  const handleExportJson = async () => {
-    try {
-      setExporting(true);
-      setError(null);
-      const blob = await exportAPI.json(meetingId);
-      downloadBlob(blob, `${meetingTitle.replace(/\s+/g, "_")}.json`);
-    } catch (err) {
-      setError(getErrorMessage(err, "Export failed"));
-    } finally {
-      setExporting(false);
-    }
-  };
 
   if (loading) return <p className="text-muted-foreground text-sm py-4">{tc("loading")}</p>;
 
@@ -145,6 +137,11 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
     <div className="space-y-4 py-2">
       {error && (
         <div className="p-3 bg-destructive/10 text-destructive rounded-lg text-sm">{error}</div>
+      )}
+      {successMessage && (
+        <div className="p-3 bg-green-500/10 text-green-700 dark:text-green-400 rounded-lg text-sm">
+          {successMessage}
+        </div>
       )}
 
       {/* Actions bar */}
@@ -165,7 +162,7 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
               <DropdownMenuTrigger asChild>
                 <Button size="sm" variant="outline" disabled={exporting}>
                   <Download className="h-4 w-4 mr-1" />
-                  {t("moreExports") || "More"}
+                  {t("moreExports")}
                   <ChevronDown className="h-3 w-3 ml-1" />
                 </Button>
               </DropdownMenuTrigger>
@@ -178,9 +175,9 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
                   <Code className="h-4 w-4 mr-2" />
                   {t("exportGithub")}
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleExportJson}>
-                  <FileCode className="h-4 w-4 mr-2" />
-                  {t("exportJson")}
+                <DropdownMenuItem onClick={() => setPushGithubOpen(true)}>
+                  <Upload className="h-4 w-4 mr-2" />
+                  {t("pushToGithub")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -198,6 +195,17 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
           onDeleteFile={handleDelete}
         />
       )}
+
+      <ExportToGithubDialog
+        open={pushGithubOpen}
+        onOpenChange={setPushGithubOpen}
+        meetingId={meetingId}
+        onSuccess={(repoUrl) => {
+          setSuccessMessage(`${t("pushSuccess")}: ${repoUrl}`);
+          setError(null);
+          setTimeout(() => setSuccessMessage(null), 8000);
+        }}
+      />
 
       {/* Artifact viewer */}
       <ArtifactViewer

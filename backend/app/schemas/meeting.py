@@ -116,6 +116,7 @@ class MeetingSummary(BaseModel):
     participants: List[str]
     key_points: List[str]
     status: str
+    summary_text: Optional[str] = None  # AI-generated paragraph; None if LLM not used
 
 
 # ==================== Agenda Strategy Schemas ====================

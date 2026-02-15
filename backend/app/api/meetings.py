@@ -479,9 +479,34 @@ def get_meeting(meeting_id: str, db: Session = Depends(get_db)):
     return meeting
 
 
+def _parse_summary_llm_response(text: str) -> tuple[str | None, list[str]]:
+    """Parse LLM response with SUMMARY: and KEY_POINTS: sections. Returns (summary_text, key_points)."""
+    summary_text: str | None = None
+    key_points: list[str] = []
+    if not text or not text.strip():
+        return summary_text, key_points
+    upper = text.upper()
+    summary_start = upper.find("SUMMARY:")
+    kp_start = upper.find("KEY_POINTS:")
+    if summary_start >= 0:
+        end = kp_start if kp_start >= 0 else len(text)
+        summary_text = text[summary_start + 8 : end].strip()
+        if summary_text:
+            summary_text = summary_text.strip()
+    if kp_start >= 0:
+        block = text[kp_start + 11 :].strip()
+        for line in block.split("\n"):
+            line = line.strip()
+            if line.startswith("-"):
+                line = line[1:].strip()
+            if line:
+                key_points.append(line)
+    return summary_text or None, key_points
+
+
 @router.get("/{meeting_id}/summary", response_model=MeetingSummary)
 def get_meeting_summary(meeting_id: str, db: Session = Depends(get_db)):
-    """Generate a summary of the meeting from its messages."""
+    """Generate a summary of the meeting from its messages. Uses LLM when API key is configured."""
     meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
     if not meeting:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
@@ -496,27 +521,56 @@ def get_meeting_summary(meeting_id: str, db: Session = Depends(get_db)):
         if m.agent_name and m.role == "assistant"
     })
 
-    # Key points: first sentence of assistant messages that look like natural language (not code/markdown)
+    # Fallback key points: first sentence of assistant messages (natural language only)
     key_points = []
     seen = set()
     for m in messages:
         if m.role != "assistant" or not m.content:
             continue
-        # Prefer last round for summary; skip code-heavy messages
         first_line = m.content.strip().split("\n")[0].strip()
         first_sentence = m.content.split(".")[0].strip()
-        # Skip if looks like code or markdown header
         if first_sentence.startswith("```") or first_sentence.startswith("#"):
             continue
         if first_line.startswith("```") or first_line.startswith("#"):
             continue
-        # Must be reasonable length (natural language, not a code block)
         if len(first_sentence) < 15 or len(first_sentence) > 300:
             continue
         if first_sentence in seen:
             continue
         seen.add(first_sentence)
         key_points.append(f"[{m.agent_name or 'Agent'}] {first_sentence}")
+
+    summary_text: str | None = None
+    # Try LLM for summary_text and optional key_points
+    try:
+        llm_call = resolve_llm_call(db)
+    except Exception:
+        llm_call = None
+    if llm_call and messages:
+        transcript = "\n\n".join(
+            f"[Round {m.round_number}] {m.agent_name or m.role}: {m.content}"
+            for m in messages
+        )
+        if len(transcript) > 12000:
+            transcript = transcript[:12000] + "\n\n[... truncated for summary ...]"
+        system = (
+            "You are a meeting summarizer. Output exactly two sections: SUMMARY: (one short paragraph, 2-4 sentences), "
+            "then KEY_POINTS: (3-7 bullet items, each on a new line starting with '- '). "
+            "Use the same language as the meeting content when possible."
+        )
+        user_content = (
+            f"Meeting title: {meeting.title}\n\nTranscript:\n{transcript}\n\n"
+            "Provide SUMMARY: and KEY_POINTS: as described."
+        )
+        try:
+            response = llm_call(system, [ChatMessage(role="user", content=user_content)])
+            parsed_summary, parsed_points = _parse_summary_llm_response(response)
+            if parsed_summary:
+                summary_text = parsed_summary
+            if parsed_points:
+                key_points = parsed_points
+        except (LLMQuotaError, Exception):
+            pass  # Keep fallback key_points and summary_text=None
 
     return MeetingSummary(
         meeting_id=meeting_id,
@@ -527,6 +581,7 @@ def get_meeting_summary(meeting_id: str, db: Session = Depends(get_db)):
         participants=participants,
         key_points=key_points,
         status=meeting.status,
+        summary_text=summary_text,
     )
 
 
@@ -541,11 +596,12 @@ def get_meeting_transcript(meeting_id: str, db: Session = Depends(get_db)):
         MeetingMessage.meeting_id == meeting_id,
     ).order_by(MeetingMessage.created_at).all()
 
+    created_str = meeting.created_at.strftime("%Y-%m-%d %H:%M") if meeting.created_at else "—"
     lines = [
         f"# {meeting.title}",
         "",
         f"**Status:** {meeting.status} | **Rounds:** {meeting.current_round}/{meeting.max_rounds}",
-        f"**Created:** {meeting.created_at.strftime('%Y-%m-%d %H:%M')}",
+        f"**Created:** {created_str}",
     ]
 
     # Agenda info
@@ -593,10 +649,13 @@ def get_meeting_transcript(meeting_id: str, db: Session = Depends(get_db)):
             lines.append(f"- `{a.filename}` ({a.language})")
         lines.append("")
 
+    safe_name = "".join(c if c.isalnum() or c in " ._-" else "_" for c in (meeting.title or "transcript"))
+    safe_name = safe_name.strip() or "transcript"
+    safe_name = safe_name[:200].strip()
     return PlainTextResponse(
         content="\n".join(lines),
         media_type="text/markdown",
-        headers={"Content-Disposition": f'attachment; filename="{meeting.title}.md"'},
+        headers={"Content-Disposition": f'attachment; filename="{safe_name}.md"'},
     )
 
 

@@ -257,6 +257,11 @@ export const exportAPI = {
   },
   github: (meetingId: string) =>
     fetchAPI<{ project_name: string; files: Array<{ path: string; content: string }> }>(`/export/meeting/${meetingId}/github`),
+  pushGithub: (meetingId: string, body: { repo_owner: string; repo_name: string; create_if_missing: boolean; github_token: string }) =>
+    fetchAPI<{ ok: boolean; repo_url: string }>(`/export/meeting/${meetingId}/push-github`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   json: async (meetingId: string): Promise<Blob> => {
     const res = await fetchRaw(`/export/meeting/${meetingId}/json`);
     return res.blob();
