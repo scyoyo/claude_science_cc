@@ -279,7 +279,7 @@ export default function TeamsPage() {
                 }}
               >
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
+                  <CardTitle className="flex items-center gap-2 min-w-0">
                     {selectMode && (
                       <input
                         type="checkbox"
@@ -290,7 +290,7 @@ export default function TeamsPage() {
                       />
                     )}
                     <Users className="h-4 w-4 shrink-0" />
-                    <span className="truncate">{team.name}</span>
+                    <span className="truncate min-w-0">{team.name}</span>
                   </CardTitle>
                   {team.description && (
                     <CardDescription className="line-clamp-2">
