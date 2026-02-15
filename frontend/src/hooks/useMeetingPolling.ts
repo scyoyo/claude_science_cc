@@ -23,7 +23,7 @@ interface UseMeetingPollingOptions {
 export function useMeetingPolling({
   meetingId,
   enabled,
-  intervalMs = 3000,
+  intervalMs = 5000,
   onStatusChange,
   onComplete,
 }: UseMeetingPollingOptions) {

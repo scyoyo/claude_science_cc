@@ -226,11 +226,12 @@ export default function MeetingDetailPage() {
   const handleRunBackground = async (rounds: number) => {
     try {
       setError(null);
+      setBackgroundRunning(true);  // SSE connects FIRST (before API call)
       const localeParam = locale === "zh" || locale === "en" ? locale : undefined;
       await meetingsAPI.runBackground(meetingId, rounds, topic || undefined, localeParam);
-      setBackgroundRunning(true);
       setTopic("");
     } catch (err) {
+      setBackgroundRunning(false);  // Roll back on failure
       setError(getErrorMessage(err, "Failed to start run"));
     }
   };
@@ -246,7 +247,7 @@ export default function MeetingDetailPage() {
 
   const { status: pollStatus } = useMeetingPolling({
     meetingId,
-    enabled: backgroundRunning,
+    enabled: backgroundRunning && !sseConnected,
     onStatusChange: (s) => {
       setMeeting((prev) =>
         prev ? { ...prev, status: s.status as Meeting["status"], current_round: s.current_round } : prev
@@ -265,21 +266,6 @@ export default function MeetingDetailPage() {
       }
     },
   });
-
-  // Fallback: poll full meeting data at slow interval (SSE handles real-time)
-  useEffect(() => {
-    if (!backgroundRunning || !meetingId || sseConnected) return;
-    const intervalMs = 5000;
-    const t = setInterval(async () => {
-      try {
-        const data = await meetingsAPI.get(meetingId);
-        setMeeting(data);
-      } catch {
-        // ignore
-      }
-    }, intervalMs);
-    return () => clearInterval(t);
-  }, [backgroundRunning, meetingId, sseConnected]);
 
   // On initial load, check if meeting is already running in background
   useEffect(() => {

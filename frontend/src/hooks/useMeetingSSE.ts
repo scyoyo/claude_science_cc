@@ -25,7 +25,8 @@ interface UseMeetingSSEOptions {
   onError?: (detail: string) => void;
 }
 
-const RECONNECT_DELAY_MS = 3000;
+const RECONNECT_BASE_MS = 3000;
+const RECONNECT_MAX_MS = 30000;
 
 export function useMeetingSSE({
   meetingId,
@@ -38,6 +39,7 @@ export function useMeetingSSE({
   const [connected, setConnected] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryCountRef = useRef(0);
   const enabledRef = useRef(enabled);
   enabledRef.current = enabled;
 
@@ -82,6 +84,7 @@ export function useMeetingSSE({
       }
 
       setConnected(true);
+      retryCountRef.current = 0;  // reset backoff on successful connection
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
@@ -131,12 +134,14 @@ export function useMeetingSSE({
       setConnected(false);
     }
 
-    // Auto-reconnect if still enabled
+    // Auto-reconnect if still enabled (exponential backoff)
     if (enabledRef.current) {
       setConnected(false);
+      const delay = Math.min(RECONNECT_BASE_MS * Math.pow(2, retryCountRef.current), RECONNECT_MAX_MS);
+      retryCountRef.current += 1;
       reconnectTimer.current = setTimeout(() => {
         if (enabledRef.current) connectSSE();
-      }, RECONNECT_DELAY_MS);
+      }, delay);
     }
   }, [meetingId, cleanup]);
 
