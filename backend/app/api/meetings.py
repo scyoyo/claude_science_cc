@@ -1,5 +1,7 @@
 import asyncio
 import json
+import logging
+from queue import Empty
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import PlainTextResponse
@@ -431,6 +433,7 @@ async def stream_meeting(meeting_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
 
     q = event_bus.subscribe(meeting_id)
+    _sse_logger = logging.getLogger("app.api.meetings.sse")
 
     async def event_generator():
         try:
@@ -443,9 +446,15 @@ async def stream_meeting(meeting_id: str, db: Session = Depends(get_db)):
                     # Close stream on terminal events
                     if event.get("type") in ("meeting_complete", "error"):
                         return
-                except Exception:
+                except Empty:
                     # queue.Empty on timeout — send keepalive
                     yield ": keepalive\n\n"
+                except GeneratorExit:
+                    return
+                except Exception:
+                    _sse_logger.exception("SSE generator error for meeting %s", meeting_id)
+                    yield f"data: {json.dumps({'type': 'error', 'detail': 'Internal stream error'})}\n\n"
+                    return
         finally:
             event_bus.unsubscribe(meeting_id, q)
 
@@ -453,8 +462,10 @@ async def stream_meeting(meeting_id: str, db: Session = Depends(get_db)):
         event_generator(),
         media_type="text/event-stream",
         headers={
-            "Cache-Control": "no-cache",
+            "Cache-Control": "no-cache, no-transform",
             "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+            "Content-Encoding": "identity",
         },
     )
 

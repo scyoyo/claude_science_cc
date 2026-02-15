@@ -179,6 +179,14 @@ def _run_meeting_thread(
             current_round_num = meeting.current_round + 1
             total_rounds = meeting.max_rounds
 
+            # Notify frontend that an agent is about to think
+            if agent_dicts:
+                event_bus.publish(meeting_id, {
+                    "type": "agent_speaking",
+                    "agent_name": agent_dicts[0]["name"],
+                    "agent_id": agent_dicts[0]["id"],
+                })
+
             if use_structured:
                 round_messages = engine.run_structured_round(
                     agents=agent_dicts,

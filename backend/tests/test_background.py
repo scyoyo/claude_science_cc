@@ -190,11 +190,18 @@ class TestBackgroundRunnerDirect:
         unsubscribe(meeting_id, q)
         clear_event_bus()
 
-        # Should have message events (2 agents) + round_complete + meeting_complete
+        # Should have agent_speaking + message events (2 agents) + round_complete + meeting_complete
         types = [e["type"] for e in events]
+        assert "agent_speaking" in types
         assert types.count("message") == 2
         assert "round_complete" in types
         assert "meeting_complete" in types
+
+        # Verify agent_speaking event structure
+        speaking_events = [e for e in events if e["type"] == "agent_speaking"]
+        for e in speaking_events:
+            assert "agent_name" in e
+            assert "agent_id" in e
 
         # Verify message event structure
         msg_events = [e for e in events if e["type"] == "message"]

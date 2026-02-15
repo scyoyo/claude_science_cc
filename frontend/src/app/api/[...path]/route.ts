@@ -6,6 +6,8 @@
  * fetch and returns the response — no redirect, guaranteed to work.
  */
 
+export const dynamic = "force-dynamic";
+
 const BACKEND = process.env.BACKEND_URL || "http://localhost:8000";
 
 async function proxy(req: Request, { params }: { params: Promise<{ path: string[] }> }) {
@@ -60,7 +62,27 @@ async function proxy(req: Request, { params }: { params: Promise<{ path: string[
   if (resCt) responseHeaders.set("Content-Type", resCt);
   const resCd = res.headers.get("content-disposition");
   if (resCd) responseHeaders.set("Content-Disposition", resCd);
-  // SSE: disable caching and proxy buffering so events stream immediately
+
+  // SSE: pipe body through TransformStream to force chunk-by-chunk forwarding
+  // (prevents Node.js / Next.js runtime from buffering the entire response)
+  const isSSE = resCt?.includes("text/event-stream");
+  if (isSSE && res.body) {
+    responseHeaders.set("Cache-Control", "no-cache, no-transform");
+    responseHeaders.set("X-Accel-Buffering", "no");
+    responseHeaders.set("Connection", "keep-alive");
+    responseHeaders.set("Content-Encoding", "identity");
+
+    // Pipe through a passthrough TransformStream so each chunk flushes immediately
+    const { readable, writable } = new TransformStream();
+    res.body.pipeTo(writable).catch(() => {});
+
+    return new Response(readable, {
+      status: res.status,
+      headers: responseHeaders,
+    });
+  }
+
+  // Non-SSE: forward caching / buffering headers from backend
   const resCc = res.headers.get("cache-control");
   if (resCc) responseHeaders.set("Cache-Control", resCc);
   const resXab = res.headers.get("x-accel-buffering");

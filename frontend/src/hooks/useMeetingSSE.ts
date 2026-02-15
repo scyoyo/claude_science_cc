@@ -38,6 +38,7 @@ export function useMeetingSSE({
   onError,
 }: UseMeetingSSEOptions) {
   const [connected, setConnected] = useState(false);
+  const [speaking, setSpeaking] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryCountRef = useRef(0);
@@ -64,6 +65,7 @@ export function useMeetingSSE({
       abortRef.current = null;
     }
     setConnected(false);
+    setSpeaking(null);
   }, []);
 
   const connectSSE = useCallback(async () => {
@@ -106,7 +108,11 @@ export function useMeetingSSE({
               switch (event.type) {
                 case "stream_start":
                   break;
+                case "agent_speaking":
+                  setSpeaking(event.agent_name || null);
+                  break;
                 case "message":
+                  setSpeaking(null);
                   onMessageRef.current?.(event);
                   break;
                 case "round_complete":
@@ -157,5 +163,5 @@ export function useMeetingSSE({
     return cleanup;
   }, [enabled, meetingId, connectSSE, cleanup]);
 
-  return { connected };
+  return { connected, speaking };
 }

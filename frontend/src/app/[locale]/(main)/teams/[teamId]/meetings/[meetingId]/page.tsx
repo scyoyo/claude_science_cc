@@ -239,7 +239,7 @@ export default function MeetingDetailPage() {
     setRunning(false);
   }, [markExhausted]);
 
-  const { connected: sseConnected } = useMeetingSSE({
+  const { connected: sseConnected, speaking: sseSpeaking } = useMeetingSSE({
     meetingId,
     enabled: backgroundRunning,
     onMessage: onSSEMessage,
@@ -249,6 +249,7 @@ export default function MeetingDetailPage() {
   });
 
   const connected = wsConnected || sseConnected;
+  const activeSpeaking = speaking || sseSpeaking;
 
   useEffect(() => {
     (async () => {
@@ -762,13 +763,13 @@ export default function MeetingDetailPage() {
                 })
               )}
 
-              {speaking && (
+              {activeSpeaking && (
                 <div className="p-3 sm:p-4 rounded-lg bg-muted border animate-pulse">
                   <span className="text-sm text-muted-foreground">
                     {t("thinking", {
                       agent: (() => {
-                        const a = agents.find((x) => x.name === speaking);
-                        return a?.title ? `${speaking} · ${a.title}` : speaking;
+                        const a = agents.find((x) => x.name === activeSpeaking);
+                        return a?.title ? `${activeSpeaking} · ${a.title}` : activeSpeaking;
                       })(),
                     })}
                   </span>
