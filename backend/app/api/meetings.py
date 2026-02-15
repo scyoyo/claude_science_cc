@@ -330,6 +330,7 @@ def create_meeting(data: MeetingCreate, db: Session = Depends(get_db)):
         rewrite_feedback=data.rewrite_feedback,
         agenda_strategy=data.agenda_strategy,
         max_rounds=data.max_rounds,
+        round_plans=[rp.model_dump() for rp in (data.round_plans or [])],
     )
     db.add(meeting)
     db.commit()
@@ -359,6 +360,7 @@ def clone_meeting(meeting_id: str, db: Session = Depends(get_db)):
         source_meeting_ids=getattr(original, "source_meeting_ids", None) or [],
         agenda_strategy=original.agenda_strategy or "manual",
         max_rounds=original.max_rounds,
+        round_plans=getattr(original, "round_plans", None) or [],
     )
     db.add(clone)
     db.commit()

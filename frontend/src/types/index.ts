@@ -80,6 +80,13 @@ export interface AgentCreate {
 export type MeetingType = "team" | "individual" | "merge";
 export type AgendaStrategy = "manual" | "ai_auto" | "onboarding" | "agent_voting" | "chain";
 
+export interface RoundPlan {
+  round: number;
+  title: string;
+  goal: string;
+  expected_output: string;
+}
+
 export interface Meeting {
   id: string;
   team_id: string;
@@ -97,6 +104,7 @@ export interface Meeting {
   parent_meeting_id?: string | null;
   rewrite_feedback?: string;
   agenda_strategy: AgendaStrategy;
+  round_plans?: RoundPlan[];
   status: "pending" | "running" | "completed" | "failed";
   max_rounds: number;
   current_round: number;
@@ -136,6 +144,7 @@ export interface MeetingCreate {
   rewrite_feedback?: string;
   agenda_strategy?: AgendaStrategy;
   max_rounds?: number;
+  round_plans?: RoundPlan[];
 }
 
 export interface MeetingUpdate {
@@ -339,6 +348,8 @@ export interface AgendaAutoResponse {
   questions: string[];
   rules: string[];
   suggested_rounds: number;
+  title: string;
+  round_plans: RoundPlan[];
 }
 
 export interface AgentProposal {

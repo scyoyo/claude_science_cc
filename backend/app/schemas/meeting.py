@@ -3,6 +3,13 @@ from datetime import datetime
 from typing import List, Optional
 
 
+class RoundPlan(BaseModel):
+    round: int
+    title: str = ""
+    goal: str = ""
+    expected_output: str = ""
+
+
 class MeetingCreate(BaseModel):
     team_id: str
     title: str = Field(..., min_length=1, max_length=255)
@@ -20,6 +27,7 @@ class MeetingCreate(BaseModel):
     rewrite_feedback: str = ""
     agenda_strategy: str = "manual"
     max_rounds: int = Field(default=5, ge=1, le=20)
+    round_plans: Optional[List[RoundPlan]] = []
 
 
 class MeetingUpdate(BaseModel):
@@ -38,6 +46,7 @@ class MeetingUpdate(BaseModel):
     rewrite_feedback: Optional[str] = None
     agenda_strategy: Optional[str] = None
     max_rounds: Optional[int] = Field(None, ge=1, le=20)
+    round_plans: Optional[List[RoundPlan]] = None
 
 
 class MeetingMessageResponse(BaseModel):
@@ -72,6 +81,7 @@ class MeetingResponse(BaseModel):
     parent_meeting_id: Optional[str] = None
     rewrite_feedback: Optional[str] = ""
     agenda_strategy: Optional[str] = "manual"
+    round_plans: Optional[list] = []
     status: str
     max_rounds: int
     current_round: int
@@ -118,6 +128,8 @@ class AgendaAutoResponse(BaseModel):
     questions: List[str]
     rules: List[str]
     suggested_rounds: int = 3
+    title: str = ""
+    round_plans: List[RoundPlan] = []
 
 class AgentVotingRequest(BaseModel):
     team_id: str

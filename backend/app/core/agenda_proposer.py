@@ -43,6 +43,14 @@ class AgendaProposer:
                 f"- {m['title']}" for m in prev_meetings
             )
 
+        # Determine output type from goal context (fallback to "code")
+        output_type = "code"
+        goal_lower = goal.lower() if goal else ""
+        if any(w in goal_lower for w in ["report", "分析", "研究"]):
+            output_type = "report"
+        elif any(w in goal_lower for w in ["paper", "论文", "academic"]):
+            output_type = "paper"
+
         system_prompt = (
             "You are an expert meeting facilitator. Generate a structured meeting agenda "
             "based on the team composition and goals. Return valid JSON only."
@@ -52,9 +60,20 @@ class AgendaProposer:
             f"Goal: {goal}\n"
             f"Team members:\n{agent_descriptions}"
             f"{prev_context}\n\n"
-            f"Generate a meeting agenda as JSON with keys: "
-            f'"agenda" (string), "questions" (list of strings), "rules" (list of strings), '
-            f'"suggested_rounds" (integer 1-10, how many discussion rounds are appropriate).'
+            f'Generate a meeting agenda as JSON with keys:\n'
+            f'"title" (string, a concise meeting title),\n'
+            f'"agenda" (string, overall meeting goal),\n'
+            f'"questions" (list of strings),\n'
+            f'"rules" (list of strings),\n'
+            f'"suggested_rounds" (integer 1-10),\n'
+            f'"round_plans" (array of objects, one per round, each with keys:\n'
+            f'  "round" (integer), "title" (short round title),\n'
+            f'  "goal" (what this round should accomplish),\n'
+            f'  "expected_output" (what deliverable this round produces)).\n\n'
+            f'Round plan guidelines:\n'
+            f'- Round 1 is exploration: propose approaches, identify challenges\n'
+            f'- Middle rounds are synthesis: refine, resolve disagreements, converge\n'
+            f'- Final round is structured output: produce the deliverable ({output_type})'
         )
 
         response = self.llm_call(system_prompt, [ChatMessage(role="user", content=user_message)])
@@ -182,15 +201,38 @@ def _parse_agenda_json(response: str) -> Dict:
                 suggested_rounds = max(1, min(10, int(raw_rounds)))
             except (TypeError, ValueError):
                 suggested_rounds = 3
+
+            # Parse round_plans
+            raw_plans = data.get("round_plans", [])
+            round_plans = []
+            if isinstance(raw_plans, list):
+                for rp in raw_plans:
+                    if isinstance(rp, dict):
+                        round_plans.append({
+                            "round": int(rp.get("round", 0)),
+                            "title": str(rp.get("title", "")),
+                            "goal": str(rp.get("goal", "")),
+                            "expected_output": str(rp.get("expected_output", "")),
+                        })
+
             return {
                 "agenda": data.get("agenda", ""),
                 "questions": data.get("questions", []),
                 "rules": data.get("rules", []),
                 "suggested_rounds": suggested_rounds,
+                "title": str(data.get("title", "")),
+                "round_plans": round_plans,
             }
     except (json.JSONDecodeError, ValueError):
         pass
-    return {"agenda": response.strip(), "questions": [], "rules": [], "suggested_rounds": 3}
+    return {
+        "agenda": response.strip(),
+        "questions": [],
+        "rules": [],
+        "suggested_rounds": 3,
+        "title": "",
+        "round_plans": [],
+    }
 
 
 def _parse_proposals(response: str) -> List[str]:

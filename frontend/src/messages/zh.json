@@ -130,7 +130,12 @@
     "batchDeleteConfirm": "确定删除 {count} 个选中的智能体吗？",
     "startMeetingWithSelected": "发起会议（已选 {count} 人）",
     "meetingWith": "与",
-    "exportTeam": "导出"
+    "exportTeam": "导出",
+    "meetingAgendaQuestionsHint": "智能体将在最终产出中明确回答每个问题",
+    "meetingMaxRoundsHint": "第 1 轮：探索。中间轮：综合。最后一轮：结构化产出。",
+    "meetingOutputCodeHint": "完整的可运行代码及使用说明",
+    "meetingOutputReportHint": "详细的研究发现、分析和结论",
+    "meetingOutputPaperHint": "包含摘要、方法、结果、讨论的学术论文"
   },
   "meeting": {
     "backToTeam": "返回团队",
@@ -199,7 +204,15 @@
     "exportJson": "导出 JSON",
     "exporting": "导出中...",
     "contextMeetings": "引用历史会议",
-    "noCompletedMeetings": "暂无已完成的会议"
+    "noCompletedMeetings": "暂无已完成的会议",
+    "phaseExploration": "探索",
+    "phaseSynthesis": "综合",
+    "phaseOutput": "最终产出",
+    "roundGoal": "目标",
+    "roundExpectedOutput": "预期成果",
+    "roundAll": "全部",
+    "roundPlans": "轮次计划",
+    "roundDivider": "R{round} · {phase}：{goal}"
   },
   "meetings": {
     "title": "会议",

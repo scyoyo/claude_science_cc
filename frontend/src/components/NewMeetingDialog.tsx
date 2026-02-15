@@ -5,7 +5,8 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { meetingsAPI, agendaAPI, agentsAPI } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
-import type { Meeting, Team, MeetingCreate } from "@/types";
+import type { Meeting, Team, MeetingCreate, RoundPlan } from "@/types";
+import { getMeetingPhase, getPhaseLabel } from "@/lib/meetingPhase";
 import {
   Dialog,
   DialogContent,
@@ -49,7 +50,7 @@ const defaultForm = {
   title: "",
   description: "",
   agenda: "",
-  output_type: "code" as const,
+  output_type: "code" as string,
   agenda_questions: [] as string[],
   context_meeting_ids: [] as string[],
   max_rounds: "5",
@@ -67,6 +68,7 @@ export function NewMeetingDialog({
   onSuccess,
 }: NewMeetingDialogProps) {
   const t = useTranslations("teamDetail");
+  const tm = useTranslations("meeting");
   const tc = useTranslations("common");
   const router = useRouter();
 
@@ -75,6 +77,7 @@ export function NewMeetingDialog({
   const [loadedAgents, setLoadedAgents] = useState<{ id: string; name: string; title: string; is_mirror: boolean }[]>([]);
   const [participantIds, setParticipantIds] = useState<string[]>([]);
   const [form, setForm] = useState(defaultForm);
+  const [roundPlans, setRoundPlans] = useState<RoundPlan[]>([]);
   const [newQuestion, setNewQuestion] = useState("");
   const [generatingAgenda, setGeneratingAgenda] = useState(false);
   const [creatingMeeting, setCreatingMeeting] = useState(false);
@@ -96,6 +99,7 @@ export function NewMeetingDialog({
         title: initialTitle || f.title || defaultForm.title,
       }));
       setNewQuestion("");
+      setRoundPlans([]);
       setError(null);
       if (isTeamContext) {
         setSelectedTeamId("");
@@ -142,7 +146,10 @@ export function NewMeetingDialog({
         agenda: result.agenda,
         agenda_questions: result.questions,
         max_rounds: String(result.suggested_rounds),
+        // Auto-fill title if user hasn't typed one yet
+        title: f.title.trim() ? f.title : (result.title || f.title),
       }));
+      setRoundPlans(result.round_plans || []);
     } catch (e) {
       setError(getErrorMessage(e, "Failed to generate agenda"));
     } finally {
@@ -181,6 +188,7 @@ export function NewMeetingDialog({
         context_meeting_ids: form.context_meeting_ids.length > 0 ? form.context_meeting_ids : undefined,
         participant_agent_ids: effectiveParticipantIds.length > 0 ? effectiveParticipantIds : undefined,
         max_rounds: Math.max(1, Math.min(20, parseInt(form.max_rounds, 10) || 5)),
+        round_plans: roundPlans.length > 0 ? roundPlans : undefined,
       };
       const created = await meetingsAPI.create(payload);
       onSuccess?.(created);
@@ -297,6 +305,11 @@ export function NewMeetingDialog({
                     <SelectItem value="paper">{t("meetingOutputPaper")}</SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">
+                  {form.output_type === "code" && t("meetingOutputCodeHint")}
+                  {form.output_type === "report" && t("meetingOutputReportHint")}
+                  {form.output_type === "paper" && t("meetingOutputPaperHint")}
+                </p>
               </div>
               <div className="space-y-2">
                 <Label>{t("meetingAgendaQuestions")}</Label>
@@ -319,6 +332,7 @@ export function NewMeetingDialog({
                     <Plus className="h-4 w-4" />
                   </Button>
                 </div>
+                <p className="text-xs text-muted-foreground">{t("meetingAgendaQuestionsHint")}</p>
               </div>
               {meetings.filter((m) => m.status === "completed").length > 0 && (
                 <div className="space-y-2">
@@ -359,6 +373,7 @@ export function NewMeetingDialog({
                       setForm((f) => ({ ...f, max_rounds: v }));
                     }}
                   />
+                  <p className="text-xs text-muted-foreground">{t("meetingMaxRoundsHint")}</p>
                 </div>
                 <div className="space-y-2">
                   <Label>{t("meetingDescription")}</Label>
@@ -369,6 +384,38 @@ export function NewMeetingDialog({
                   />
                 </div>
               </div>
+
+              {/* Round Plans Preview */}
+              {roundPlans.length > 0 && (
+                <div className="space-y-2">
+                  <Label>{tm("roundPlans")} ({roundPlans.length})</Label>
+                  <div className="border rounded-lg divide-y text-sm">
+                    {roundPlans.map((rp) => {
+                      const maxRounds = parseInt(form.max_rounds, 10) || roundPlans.length;
+                      const phase = getMeetingPhase(rp.round, maxRounds);
+                      const phaseLabel = getPhaseLabel(phase, tm);
+                      return (
+                        <div key={rp.round} className="px-3 py-2 space-y-0.5">
+                          <div className="font-medium">
+                            R{rp.round} · {phaseLabel}
+                            {rp.title && <span className="font-normal text-muted-foreground"> — {rp.title}</span>}
+                          </div>
+                          {rp.goal && (
+                            <div className="text-muted-foreground text-xs">
+                              <span className="font-medium">{tm("roundGoal")}:</span> {rp.goal}
+                            </div>
+                          )}
+                          {rp.expected_output && (
+                            <div className="text-muted-foreground text-xs">
+                              <span className="font-medium">{tm("roundExpectedOutput")}:</span> {rp.expected_output}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </>
           )}
 

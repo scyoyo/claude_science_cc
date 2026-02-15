@@ -33,6 +33,7 @@ class Meeting(Base):
     parent_meeting_id = Column(String(36), ForeignKey("meetings.id"), nullable=True)  # for rewrite
     rewrite_feedback = Column(Text, default="")
     agenda_strategy = Column(String(30), default="manual")  # manual|ai_auto|onboarding|agent_voting|chain
+    round_plans = Column(JSON, default=list)  # [{round: 1, title: "...", goal: "...", expected_output: "..."}]
     status = Column(String(20), default=MeetingStatus.pending.value)
     max_rounds = Column(Integer, default=5)
     current_round = Column(Integer, default=0)

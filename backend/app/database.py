@@ -40,6 +40,7 @@ def _ensure_meetings_columns_sqlite(engine):
             ("parent_meeting_id", "VARCHAR(36)"),
             ("rewrite_feedback", "TEXT DEFAULT ''"),
             ("agenda_strategy", "VARCHAR(30) DEFAULT 'manual'"),
+            ("round_plans", "TEXT"),
         ],
     )
 

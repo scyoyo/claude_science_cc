@@ -10,7 +10,8 @@ import { useMeetingPolling } from "@/hooks/useMeetingPolling";
 import { downloadBlob } from "@/lib/utils";
 import { useMeetingWebSocket, type WSMessage } from "@/hooks/useMeetingWebSocket";
 import { useMeetingSSE, type SSEMessage } from "@/hooks/useMeetingSSE";
-import type { Meeting, MeetingWithMessages, MeetingMessage, Agent } from "@/types";
+import type { Meeting, MeetingWithMessages, MeetingMessage, Agent, RoundPlan } from "@/types";
+import { getMeetingPhase, getPhaseLabel } from "@/lib/meetingPhase";
 import MeetingSummaryPanel from "@/components/MeetingSummaryPanel";
 import ArtifactsPanel from "@/components/ArtifactsPanel";
 import { MarkdownContent } from "@/components/MarkdownContent";
@@ -80,6 +81,7 @@ export default function MeetingDetailPage() {
   const [rewriteFeedback, setRewriteFeedback] = useState("");
   const [rewriting, setRewriting] = useState(false);
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [selectedRound, setSelectedRound] = useState(0); // 0 = show all
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const agentTitleByKey = (msg: MeetingMessage): string | null => {
@@ -382,6 +384,9 @@ export default function MeetingDetailPage() {
 
   const isCompleted = meeting.status === "completed";
   const allMessages = [...(meeting.messages || []), ...liveMessages];
+  const filteredMessages = selectedRound === 0
+    ? allMessages
+    : allMessages.filter((msg) => msg.round_number === selectedRound);
 
   const statusVariant = (status: string) => {
     switch (status) {
@@ -514,12 +519,72 @@ export default function MeetingDetailPage() {
 
         {/* Chat Tab */}
         <TabsContent value="chat" className="flex-1 flex flex-col min-h-0">
+          {/* Round Selector */}
+          {meeting.max_rounds > 1 && (
+            <div className="shrink-0 flex items-center gap-1 mb-3 overflow-x-auto pb-1">
+              <Button
+                variant={selectedRound === 0 ? "default" : "outline"}
+                size="sm"
+                className="shrink-0 h-7 px-2.5 text-xs"
+                onClick={() => setSelectedRound(0)}
+              >
+                {t("roundAll")}
+              </Button>
+              {Array.from({ length: meeting.max_rounds }, (_, i) => i + 1).map((r) => {
+                const plan = (meeting.round_plans as RoundPlan[] | undefined)?.find((p) => p.round === r);
+                const phase = getMeetingPhase(r, meeting.max_rounds);
+                const hasMessages = allMessages.some((m) => m.round_number === r);
+                return (
+                  <Button
+                    key={r}
+                    variant={selectedRound === r ? "default" : "outline"}
+                    size="sm"
+                    className="shrink-0 h-7 px-2.5 text-xs relative"
+                    onClick={() => setSelectedRound(r)}
+                    title={plan?.title || getPhaseLabel(phase, t)}
+                  >
+                    R{r}
+                    {hasMessages && selectedRound !== r && (
+                      <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-primary" />
+                    )}
+                  </Button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Round Header (when specific round selected) */}
+          {selectedRound > 0 && (() => {
+            const plan = (meeting.round_plans as RoundPlan[] | undefined)?.find((p) => p.round === selectedRound);
+            const phase = getMeetingPhase(selectedRound, meeting.max_rounds);
+            const phaseLabel = getPhaseLabel(phase, t);
+            return (
+              <div className="shrink-0 mb-3 p-3 bg-muted/50 rounded-lg border text-sm space-y-1">
+                <div className="font-medium">
+                  {t("round", { current: selectedRound, max: meeting.max_rounds })}
+                  {" · "}{phaseLabel}
+                  {plan?.title && <> — {plan.title}</>}
+                </div>
+                {plan?.goal && (
+                  <div className="text-muted-foreground">
+                    <span className="font-medium">{t("roundGoal")}:</span> {plan.goal}
+                  </div>
+                )}
+                {plan?.expected_output && (
+                  <div className="text-muted-foreground">
+                    <span className="font-medium">{t("roundExpectedOutput")}:</span> {plan.expected_output}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           <ScrollArea className="flex-1 mb-4">
             <div className="space-y-3 pr-4">
-              {allMessages.length === 0 ? (
+              {filteredMessages.length === 0 ? (
                 <p className="text-muted-foreground text-sm">{t("noMessages")}</p>
               ) : (
-                allMessages.map((msg) => {
+                filteredMessages.map((msg, idx) => {
                   const isFinalSummary =
                     isCompleted &&
                     meeting.agenda &&
@@ -527,49 +592,74 @@ export default function MeetingDetailPage() {
                     msg.role === "assistant";
                   const isCritic = msg.agent_name === "Scientific Critic";
                   const agentTitle = msg.role !== "user" ? agentTitleByKey(msg) : null;
+
+                  // Round divider in "All" mode
+                  const showDivider = selectedRound === 0 &&
+                    msg.round_number > 0 &&
+                    (idx === 0 || filteredMessages[idx - 1].round_number !== msg.round_number);
+
+                  const roundPlan = showDivider
+                    ? (meeting.round_plans as RoundPlan[] | undefined)?.find((p) => p.round === msg.round_number)
+                    : null;
+                  const dividerPhase = showDivider
+                    ? getPhaseLabel(getMeetingPhase(msg.round_number, meeting.max_rounds), t)
+                    : "";
+                  const dividerGoal = roundPlan?.goal || "";
+
                   return (
-                    <div
-                      key={msg.id}
-                      className={`p-4 rounded-lg border ${
-                        isFinalSummary
-                          ? "bg-primary/5 border-primary/30 ring-1 ring-primary/20"
-                          : isCritic
-                          ? "bg-amber-50 border-amber-200 dark:bg-amber-950/20 dark:border-amber-800"
-                          : msg.role === "user"
-                          ? "bg-primary/5 border-primary/20"
-                          : "bg-card"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <span className="font-medium text-sm">
-                          {msg.role === "user" ? t("you") : msg.agent_name || "Assistant"}
-                        </span>
-                        {agentTitle && (
-                          <>
-                            <span className="text-muted-foreground/60">·</span>
-                            <span className="text-xs text-muted-foreground font-normal">
-                              {agentTitle}
-                            </span>
-                          </>
-                        )}
-                        {isFinalSummary && (
-                          <Badge variant="default" className="text-xs">
-                            {t("finalSummary")}
-                          </Badge>
-                        )}
-                        {msg.round_number > 0 && (
-                          <Badge variant="outline" className="text-xs">
-                            R{msg.round_number}
-                          </Badge>
+                    <div key={msg.id}>
+                      {showDivider && (
+                        <div className="flex items-center gap-2 my-2 text-xs text-muted-foreground">
+                          <div className="flex-1 border-t" />
+                          <span className="shrink-0 font-medium">
+                            R{msg.round_number} · {dividerPhase}
+                            {dividerGoal && `: ${dividerGoal}`}
+                          </span>
+                          <div className="flex-1 border-t" />
+                        </div>
+                      )}
+                      <div
+                        className={`p-4 rounded-lg border ${
+                          isFinalSummary
+                            ? "bg-primary/5 border-primary/30 ring-1 ring-primary/20"
+                            : isCritic
+                            ? "bg-amber-50 border-amber-200 dark:bg-amber-950/20 dark:border-amber-800"
+                            : msg.role === "user"
+                            ? "bg-primary/5 border-primary/20"
+                            : "bg-card"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <span className="font-medium text-sm">
+                            {msg.role === "user" ? t("you") : msg.agent_name || "Assistant"}
+                          </span>
+                          {agentTitle && (
+                            <>
+                              <span className="text-muted-foreground/60">·</span>
+                              <span className="text-xs text-muted-foreground font-normal">
+                                {agentTitle}
+                              </span>
+                            </>
+                          )}
+                          {isFinalSummary && (
+                            <Badge variant="default" className="text-xs">
+                              {t("finalSummary")}
+                            </Badge>
+                          )}
+                          {msg.round_number > 0 && selectedRound === 0 && (
+                            <Badge variant="outline" className="text-xs">
+                              R{msg.round_number}
+                            </Badge>
+                          )}
+                        </div>
+                        {msg.role === "user" ? (
+                          <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                            {msg.content}
+                          </p>
+                        ) : (
+                          <MarkdownContent content={msg.content} className="text-sm text-muted-foreground" />
                         )}
                       </div>
-                      {msg.role === "user" ? (
-                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                          {msg.content}
-                        </p>
-                      ) : (
-                        <MarkdownContent content={msg.content} className="text-sm text-muted-foreground" />
-                      )}
                     </div>
                   );
                 })

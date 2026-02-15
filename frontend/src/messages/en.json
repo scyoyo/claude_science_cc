@@ -130,7 +130,12 @@
     "batchDeleteConfirm": "Delete {count} selected agents?",
     "startMeetingWithSelected": "Start meeting ({count} selected)",
     "meetingWith": "Meeting with",
-    "exportTeam": "Export"
+    "exportTeam": "Export",
+    "meetingAgendaQuestionsHint": "Agents will explicitly answer each question in the final output",
+    "meetingMaxRoundsHint": "Round 1: exploration. Middle: synthesis. Final: structured output.",
+    "meetingOutputCodeHint": "Complete, runnable code with usage instructions",
+    "meetingOutputReportHint": "Detailed findings, analysis, and conclusions",
+    "meetingOutputPaperHint": "Academic paper with abstract, methods, results, discussion"
   },
   "meeting": {
     "backToTeam": "Back to Team",
@@ -199,7 +204,15 @@
     "exportJson": "Export JSON",
     "exporting": "Exporting...",
     "contextMeetings": "Reference previous meetings",
-    "noCompletedMeetings": "No completed meetings"
+    "noCompletedMeetings": "No completed meetings",
+    "phaseExploration": "Exploration",
+    "phaseSynthesis": "Synthesis",
+    "phaseOutput": "Final Output",
+    "roundGoal": "Goal",
+    "roundExpectedOutput": "Expected Output",
+    "roundAll": "All",
+    "roundPlans": "Round Plans",
+    "roundDivider": "R{round} · {phase}: {goal}"
   },
   "meetings": {
     "title": "Meetings",
