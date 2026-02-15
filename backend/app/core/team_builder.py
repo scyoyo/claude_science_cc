@@ -544,36 +544,6 @@ class TeamBuilder:
 
     # ==================== Template-Based Methods (Fallback) ====================
 
-
-def _keyword_accept_reject(message: str) -> str:
-    """Keyword-based accept/reject/unclear (no LLM). Returns 'accept', 'reject', or 'unclear'."""
-    if not (message or "").strip():
-        return "unclear"
-    msg_lower = message.strip().lower()
-    accept = ["accept", "looks good", "yes", "ok", "sure", "是", "好", "同意", "可以", "确认", "没问题", "行"]
-    reject = ["reject", "no", "change", "modify", "different", "revise", "否", "不", "跳过", "不要", "不用", "取消"]
-    modify = ["add a", "add an", "remove ", "replace ", "换掉", "加一个", "去掉", "删掉", "改一下"]
-    if any(s in msg_lower for s in reject) or any(s in msg_lower for s in modify):
-        return "reject"
-    if any(s in msg_lower for s in accept):
-        return "accept"
-    return "unclear"
-
-
-def _extract_model_from_message(message: str) -> Optional[str]:
-    """Extract model id from user message (e.g. gpt-4, deepseek-chat)."""
-    import re
-    patterns = [
-        r"gpt-4[o\-a-z]*", r"gpt-3\.5[a-z\-]*",
-        r"claude-3[a-z\-]*", r"claude-sonnet[a-z\-]*", r"claude-opus[a-z\-]*",
-        r"deepseek[a-z\-]*",
-    ]
-    for p in patterns:
-        m = re.search(p, message, re.IGNORECASE)
-        if m:
-            return m.group(0).lower()
-    return None
-
     def analyze_problem(self, problem_description: str) -> DomainAnalysis:
         """Analyze a research problem and return domain analysis.
 
@@ -702,3 +672,33 @@ def _extract_model_from_message(message: str) -> Optional[str]:
 
         analysis = self.analyze_problem(problem_description)
         return self.suggest_team_composition(analysis, {"team_name": team_name})
+
+
+def _keyword_accept_reject(message: str) -> str:
+    """Keyword-based accept/reject/unclear (no LLM). Returns 'accept', 'reject', or 'unclear'."""
+    if not (message or "").strip():
+        return "unclear"
+    msg_lower = message.strip().lower()
+    accept = ["accept", "looks good", "yes", "ok", "sure", "是", "好", "同意", "可以", "确认", "没问题", "行"]
+    reject = ["reject", "no", "change", "modify", "different", "revise", "否", "不", "跳过", "不要", "不用", "取消"]
+    modify = ["add a", "add an", "remove ", "replace ", "换掉", "加一个", "去掉", "删掉", "改一下"]
+    if any(s in msg_lower for s in reject) or any(s in msg_lower for s in modify):
+        return "reject"
+    if any(s in msg_lower for s in accept):
+        return "accept"
+    return "unclear"
+
+
+def _extract_model_from_message(message: str) -> Optional[str]:
+    """Extract model id from user message (e.g. gpt-4, deepseek-chat)."""
+    import re
+    patterns = [
+        r"gpt-4[o\-a-z]*", r"gpt-3\.5[a-z\-]*",
+        r"claude-3[a-z\-]*", r"claude-sonnet[a-z\-]*", r"claude-opus[a-z\-]*",
+        r"deepseek[a-z\-]*",
+    ]
+    for p in patterns:
+        m = re.search(p, message, re.IGNORECASE)
+        if m:
+            return m.group(0).lower()
+    return None
