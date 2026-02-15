@@ -4,12 +4,12 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useTranslations, useLocale } from "next-intl";
 import { Link } from "@/i18n/navigation";
-import { meetingsAPI, agendaAPI } from "@/lib/api";
+import { meetingsAPI, agendaAPI, agentsAPI } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
 import { useMeetingPolling } from "@/hooks/useMeetingPolling";
 import { downloadBlob } from "@/lib/utils";
 import { useMeetingWebSocket, type WSMessage } from "@/hooks/useMeetingWebSocket";
-import type { Meeting, MeetingWithMessages, MeetingMessage } from "@/types";
+import type { Meeting, MeetingWithMessages, MeetingMessage, Agent } from "@/types";
 import MeetingSummaryPanel from "@/components/MeetingSummaryPanel";
 import ArtifactsPanel from "@/components/ArtifactsPanel";
 import { MarkdownContent } from "@/components/MarkdownContent";
@@ -78,7 +78,23 @@ export default function MeetingDetailPage() {
   const [showRewriteDialog, setShowRewriteDialog] = useState(false);
   const [rewriteFeedback, setRewriteFeedback] = useState("");
   const [rewriting, setRewriting] = useState(false);
+  const [runAfterConnect, setRunAfterConnect] = useState(false);
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const pendingTopicRef = useRef("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const agentTitleByKey = (msg: MeetingMessage): string | null => {
+    if (msg.role === "user") return null;
+    if (msg.agent_id) {
+      const a = agents.find((x) => x.id === msg.agent_id);
+      return a?.title ?? null;
+    }
+    if (msg.agent_name) {
+      const a = agents.find((x) => x.name === msg.agent_name);
+      return a?.title ?? null;
+    }
+    return null;
+  };
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -143,6 +159,11 @@ export default function MeetingDetailPage() {
   }, [meetingId]);
 
   useEffect(() => {
+    if (!teamId) return;
+    agentsAPI.listByTeam(teamId).then(setAgents).catch(() => {});
+  }, [teamId]);
+
+  useEffect(() => {
     if (meeting && meeting.status !== "completed") {
       connect();
     }
@@ -155,6 +176,16 @@ export default function MeetingDetailPage() {
     setError(null);
     startRound(1, topic || undefined, locale === "zh" || locale === "en" ? locale : undefined);
     setTopic("");
+  };
+
+  const handleRun = () => {
+    if (connected) {
+      handleRunWS();
+    } else {
+      pendingTopicRef.current = topic;
+      setRunAfterConnect(true);
+      connect();
+    }
   };
 
   const handleRunHTTP = async () => {
@@ -215,6 +246,31 @@ export default function MeetingDetailPage() {
       }
     },
   });
+
+  // When background run is in progress, poll full meeting so new messages appear incrementally
+  useEffect(() => {
+    if (!backgroundRunning || !meetingId) return;
+    const intervalMs = 2000;
+    const t = setInterval(async () => {
+      try {
+        const data = await meetingsAPI.get(meetingId);
+        setMeeting(data);
+      } catch {
+        // ignore
+      }
+    }, intervalMs);
+    return () => clearInterval(t);
+  }, [backgroundRunning, meetingId]);
+
+  // When WS connects and user asked to run, start round so messages stream
+  useEffect(() => {
+    if (!connected || !runAfterConnect) return;
+    setRunning(true);
+    setError(null);
+    startRound(1, pendingTopicRef.current || undefined, locale === "zh" || locale === "en" ? locale : undefined);
+    setTopic("");
+    setRunAfterConnect(false);
+  }, [connected, runAfterConnect, startRound, locale]);
 
   // On initial load, check if meeting is already running in background
   useEffect(() => {
@@ -463,6 +519,7 @@ export default function MeetingDetailPage() {
                     msg.round_number === meeting.max_rounds &&
                     msg.role === "assistant";
                   const isCritic = msg.agent_name === "Scientific Critic";
+                  const agentTitle = msg.role !== "user" ? agentTitleByKey(msg) : null;
                   return (
                     <div
                       key={msg.id}
@@ -476,10 +533,18 @@ export default function MeetingDetailPage() {
                           : "bg-card"
                       }`}
                     >
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <span className="font-medium text-sm">
                           {msg.role === "user" ? t("you") : msg.agent_name || "Assistant"}
                         </span>
+                        {agentTitle && (
+                          <>
+                            <span className="text-muted-foreground/60">·</span>
+                            <span className="text-xs text-muted-foreground font-normal">
+                              {agentTitle}
+                            </span>
+                          </>
+                        )}
                         {isFinalSummary && (
                           <Badge variant="default" className="text-xs">
                             {t("finalSummary")}
@@ -506,7 +571,12 @@ export default function MeetingDetailPage() {
               {speaking && (
                 <div className="p-4 rounded-lg bg-muted border animate-pulse">
                   <span className="text-sm text-muted-foreground">
-                    {t("thinking", { agent: speaking })}
+                    {t("thinking", {
+                      agent: (() => {
+                        const a = agents.find((x) => x.name === speaking);
+                        return a?.title ? `${speaking} · ${a.title}` : speaking;
+                      })(),
+                    })}
                   </span>
                 </div>
               )}
@@ -548,11 +618,17 @@ export default function MeetingDetailPage() {
                   className="flex-1"
                 />
                 <Button
-                  onClick={connected ? handleRunWS : handleRunHTTP}
-                  disabled={running || backgroundRunning}
+                  onClick={handleRun}
+                  disabled={running || backgroundRunning || runAfterConnect}
                 >
                   <Play className="h-4 w-4 mr-1" />
-                  {running ? t("running") : connected ? t("runLive") : t("run")}
+                  {runAfterConnect
+                    ? t("connecting")
+                    : running
+                    ? t("running")
+                    : connected
+                    ? t("runLive")
+                    : t("run")}
                 </Button>
                 <Button
                   variant="outline"

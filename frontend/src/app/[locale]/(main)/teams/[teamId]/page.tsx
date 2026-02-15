@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Link, useRouter } from "@/i18n/navigation";
-import { teamsAPI, agentsAPI, meetingsAPI, agendaAPI } from "@/lib/api";
+import { teamsAPI, agentsAPI, meetingsAPI } from "@/lib/api";
 import { getErrorMessage, downloadBlob } from "@/lib/utils";
 import type { TeamWithAgents, Meeting, TeamStats, AgentMetrics } from "@/types";
 import TemplatesBrowser from "@/components/TemplatesBrowser";
@@ -34,6 +34,7 @@ import { SHOW_VISUAL_EDITOR, SHOW_EXPORT_TEAM } from "@/lib/feature-flags";
 import type { Agent } from "@/types";
 import { MODEL_OPTIONS } from "@/lib/models";
 import { EditAgentDialog, type EditAgentFormData } from "@/components/EditAgentDialog";
+import { NewMeetingDialog } from "@/components/NewMeetingDialog";
 
 export default function TeamDetailPage() {
   const params = useParams();
@@ -58,13 +59,6 @@ export default function TeamDetailPage() {
     role: "",
     model: "gpt-4",
   });
-  const [meetingForm, setMeetingForm] = useState({
-    title: "", description: "", max_rounds: "5",
-    agenda: "", output_type: "code", agenda_questions: [] as string[],
-    context_meeting_ids: [] as string[],
-  });
-  const [newQuestion, setNewQuestion] = useState("");
-  const [creatingMeeting, setCreatingMeeting] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const [teamStats, setTeamStats] = useState<TeamStats | null>(null);
   const [agentMetricsMap, setAgentMetricsMap] = useState<Record<string, AgentMetrics>>({});
@@ -218,88 +212,16 @@ export default function TeamDetailPage() {
     }
   };
 
-  const handleCreateMeeting = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const title = meetingForm.title.trim();
-    const description = meetingForm.description.trim();
-    if (!title) return;
-    const rounds = parseInt(meetingForm.max_rounds) || 5;
-    setCreatingMeeting(true);
-    try {
-      const created = await meetingsAPI.create({
-        team_id: teamId,
-        title,
-        description: description || undefined,
-        agenda: meetingForm.agenda.trim() || undefined,
-        agenda_questions: meetingForm.agenda_questions.length > 0 ? meetingForm.agenda_questions : undefined,
-        output_type: meetingForm.output_type,
-        context_meeting_ids: meetingForm.context_meeting_ids.length > 0 ? meetingForm.context_meeting_ids : undefined,
-        participant_agent_ids: participantIdsForNewMeeting && participantIdsForNewMeeting.length > 0 ? participantIdsForNewMeeting : undefined,
-        max_rounds: Math.max(1, Math.min(20, rounds)),
-      });
-      setMeetingForm({ title: "", description: "", max_rounds: "5", agenda: "", output_type: "code", agenda_questions: [], context_meeting_ids: [] });
-      setNewQuestion("");
-      setShowNewMeeting(false);
-      setParticipantIdsForNewMeeting(null);
-      setSelectedIds(new Set());
-      setSelectMode(false);
-      await loadData();
-      router.push(`/teams/${teamId}/meetings/${created.id}`);
-    } catch (err) {
-      setError(getErrorMessage(err, "Failed to create meeting"));
-    } finally {
-      setCreatingMeeting(false);
-    }
-  };
-
-  const [generatingAgenda, setGeneratingAgenda] = useState(false);
-
-  const openNewMeetingWithSelectedAgents = async () => {
+  const openNewMeetingWithSelectedAgents = () => {
     if (selectedIds.size === 0) return;
-    const ids = [...selectedIds];
-    setParticipantIdsForNewMeeting(ids);
-    const names = ids
-      .map((id) => team?.agents.find((a) => a.id === id)?.name)
-      .filter(Boolean) as string[];
-    setMeetingForm((f) => ({
-      ...f,
-      title: names.length > 0 ? `${t("meetingWith")} ${names.join(", ")}` : f.title,
-    }));
+    setParticipantIdsForNewMeeting([...selectedIds]);
     setShowNewMeeting(true);
-    // Auto-generate agenda for selected agents
-    try {
-      setGeneratingAgenda(true);
-      const result = await agendaAPI.autoGenerate({
-        team_id: teamId,
-        participant_agent_ids: ids,
-      });
-      setMeetingForm((f) => ({
-        ...f,
-        agenda: result.agenda,
-        agenda_questions: result.questions,
-        max_rounds: String(result.suggested_rounds),
-      }));
-    } catch {
-      // Graceful fallback: no API key or error - user can fill manually
-    } finally {
-      setGeneratingAgenda(false);
-    }
   };
 
-  const addQuestion = () => {
-    const q = newQuestion.trim();
-    if (q) {
-      setMeetingForm({ ...meetingForm, agenda_questions: [...meetingForm.agenda_questions, q] });
-      setNewQuestion("");
-    }
-  };
-
-  const removeQuestion = (index: number) => {
-    setMeetingForm({
-      ...meetingForm,
-      agenda_questions: meetingForm.agenda_questions.filter((_, i) => i !== index),
-    });
-  };
+  const newMeetingInitialTitle =
+    participantIdsForNewMeeting?.length && team
+      ? `${t("meetingWith")} ${participantIdsForNewMeeting.map((id) => team.agents.find((a) => a.id === id)?.name).filter(Boolean).join(", ")}`
+      : "";
 
   if (loading) return <p className="text-muted-foreground">{tc("loading")}</p>;
   if (!team) return <p className="text-destructive">Team not found</p>;
@@ -588,149 +510,27 @@ export default function TeamDetailPage() {
           <h2 className="text-xl font-semibold">
             {t("meetings")} ({meetings.length})
           </h2>
-          <Dialog
+          <Button size="sm" variant="outline" onClick={() => setShowNewMeeting(true)}>
+            <Plus className="h-4 w-4 mr-1" />
+            {t("addMeeting")}
+          </Button>
+          <NewMeetingDialog
             open={showNewMeeting}
             onOpenChange={(open) => {
               setShowNewMeeting(open);
               if (!open) setParticipantIdsForNewMeeting(null);
             }}
-          >
-            <DialogTrigger asChild>
-              <Button size="sm" variant="outline">
-                <Plus className="h-4 w-4 mr-1" />
-                {t("addMeeting")}
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>{t("addMeeting")}</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleCreateMeeting} className="space-y-4">
-                <div className="space-y-2">
-                  <Label>{t("meetingTitle")}</Label>
-                  <Input
-                    value={meetingForm.title}
-                    onChange={(e) => setMeetingForm({ ...meetingForm, title: e.target.value })}
-                    placeholder={t("meetingTitle")}
-                    autoFocus
-                    required
-                  />
-                </div>
-                {generatingAgenda && (
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    {t("generatingAgenda") || "Generating agenda..."}
-                  </div>
-                )}
-                <div className="space-y-2">
-                  <Label>{t("meetingAgenda")}</Label>
-                  <Textarea
-                    value={meetingForm.agenda}
-                    onChange={(e) => setMeetingForm({ ...meetingForm, agenda: e.target.value })}
-                    placeholder={t("meetingAgendaPlaceholder")}
-                    rows={3}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>{t("meetingOutputType")}</Label>
-                  <Select
-                    value={meetingForm.output_type}
-                    onValueChange={(v) => setMeetingForm({ ...meetingForm, output_type: v })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="code">{t("meetingOutputCode")}</SelectItem>
-                      <SelectItem value="report">{t("meetingOutputReport")}</SelectItem>
-                      <SelectItem value="paper">{t("meetingOutputPaper")}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>{t("meetingAgendaQuestions")}</Label>
-                  {meetingForm.agenda_questions.map((q, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <span className="text-sm flex-1 bg-muted px-2 py-1 rounded">{q}</span>
-                      <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeQuestion(i)}>
-                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                      </Button>
-                    </div>
-                  ))}
-                  <div className="flex gap-2">
-                    <Input
-                      value={newQuestion}
-                      onChange={(e) => setNewQuestion(e.target.value)}
-                      placeholder={t("meetingAgendaQuestionsPlaceholder")}
-                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addQuestion(); } }}
-                    />
-                    <Button type="button" variant="outline" size="sm" onClick={addQuestion}>
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-                {/* Context meetings selector */}
-                {meetings.filter((m) => m.status === "completed").length > 0 && (
-                  <div className="space-y-2">
-                    <Label>{t("contextMeetings")}</Label>
-                    <div className="space-y-1 max-h-32 overflow-y-auto">
-                      {meetings
-                        .filter((m) => m.status === "completed")
-                        .map((m) => (
-                          <label key={m.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={meetingForm.context_meeting_ids.includes(m.id)}
-                              onChange={(e) => {
-                                const ids = e.target.checked
-                                  ? [...meetingForm.context_meeting_ids, m.id]
-                                  : meetingForm.context_meeting_ids.filter((id) => id !== m.id);
-                                setMeetingForm({ ...meetingForm, context_meeting_ids: ids });
-                              }}
-                              className="rounded"
-                            />
-                            <span className="truncate">{m.title}</span>
-                          </label>
-                        ))}
-                    </div>
-                  </div>
-                )}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label>{t("meetingMaxRounds")}</Label>
-                    <Input
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      placeholder="5"
-                      value={meetingForm.max_rounds}
-                      onChange={(e) => {
-                        const v = e.target.value.replace(/[^0-9]/g, "");
-                        setMeetingForm({ ...meetingForm, max_rounds: v });
-                      }}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>{t("meetingDescription")}</Label>
-                    <Input
-                      value={meetingForm.description}
-                      onChange={(e) => setMeetingForm({ ...meetingForm, description: e.target.value })}
-                      placeholder={t("meetingDescription")}
-                    />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setShowNewMeeting(false)} disabled={creatingMeeting}>
-                    {tc("cancel")}
-                  </Button>
-                  <Button type="submit" disabled={creatingMeeting}>
-                    {creatingMeeting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-                    {tc("create")}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
+            teamId={teamId}
+            meetings={meetings}
+            initialParticipantIds={participantIdsForNewMeeting}
+            initialTitle={newMeetingInitialTitle}
+            navigateToMeeting
+            onSuccess={() => {
+              setSelectedIds(new Set());
+              setSelectMode(false);
+              loadData();
+            }}
+          />
         </div>
 
         {meetings.length === 0 ? (
