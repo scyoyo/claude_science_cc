@@ -74,6 +74,8 @@ class MeetingEngine:
         conversation_history: List[ChatMessage],
         topic: Optional[str] = None,
         preferred_lang: Optional[str] = None,
+        on_agent_start: Optional[Callable[[Dict], None]] = None,
+        on_agent_done: Optional[Callable[[Dict], None]] = None,
     ) -> List[Dict]:
         """Run one round of discussion where each agent speaks once (legacy mode).
 
@@ -82,6 +84,10 @@ class MeetingEngine:
             conversation_history: Previous messages in the meeting.
             topic: Optional topic to focus the discussion.
             preferred_lang: Optional language code ("zh", "en") for response language.
+            on_agent_start: Optional callback fired before each agent's LLM call
+                with the agent dict. Used for real-time "agent is thinking" events.
+            on_agent_done: Optional callback fired after each agent's LLM response
+                with the message dict. Used for real-time message streaming.
 
         Returns:
             List of new messages generated in this round.
@@ -90,6 +96,9 @@ class MeetingEngine:
         new_messages = []
 
         for agent in agents:
+            if on_agent_start:
+                on_agent_start(agent)
+
             # Build the context for this agent
             messages = list(conversation_history)
 
@@ -121,12 +130,16 @@ class MeetingEngine:
                 messages,
             )
 
-            new_messages.append({
+            msg_data = {
                 "agent_id": agent["id"],
                 "agent_name": agent["name"],
                 "role": "assistant",
                 "content": response_text,
-            })
+            }
+            new_messages.append(msg_data)
+
+            if on_agent_done:
+                on_agent_done(msg_data)
 
         return new_messages
 
@@ -185,6 +198,8 @@ class MeetingEngine:
         context_summaries: Optional[List[Dict]] = None,
         preferred_lang: Optional[str] = None,
         round_plan: Optional[Dict] = None,
+        on_agent_start: Optional[Callable[[Dict], None]] = None,
+        on_agent_done: Optional[Callable[[Dict], None]] = None,
     ) -> List[Dict]:
         """Run one structured round with phase-aware prompts.
 
@@ -273,13 +288,18 @@ class MeetingEngine:
             messages = list(conversation_history)
             messages.append(ChatMessage(role="user", content=final_prompt))
 
+            if on_agent_start:
+                on_agent_start(team_lead)
             response = self.llm_call(team_lead["system_prompt"], messages)
-            new_messages.append({
+            msg_data = {
                 "agent_id": team_lead["id"],
                 "agent_name": team_lead["name"],
                 "role": "assistant",
                 "content": response,
-            })
+            }
+            new_messages.append(msg_data)
+            if on_agent_done:
+                on_agent_done(msg_data)
             return new_messages
 
         # Non-final rounds: Team Lead first, then members, then critic
@@ -295,13 +315,18 @@ class MeetingEngine:
         lead_messages = list(conversation_history)
         lead_messages.append(ChatMessage(role="user", content=lead_prompt))
 
+        if on_agent_start:
+            on_agent_start(team_lead)
         lead_response = self.llm_call(team_lead["system_prompt"], lead_messages)
-        new_messages.append({
+        lead_msg = {
             "agent_id": team_lead["id"],
             "agent_name": team_lead["name"],
             "role": "assistant",
             "content": lead_response,
-        })
+        }
+        new_messages.append(lead_msg)
+        if on_agent_done:
+            on_agent_done(lead_msg)
 
         # Members respond
         for member in members:
@@ -317,13 +342,18 @@ class MeetingEngine:
                 ))
             messages.append(ChatMessage(role="user", content=member_prompt_text))
 
+            if on_agent_start:
+                on_agent_start(member)
             response = self.llm_call(member["system_prompt"], messages)
-            new_messages.append({
+            member_msg = {
                 "agent_id": member["id"],
                 "agent_name": member["name"],
                 "role": "assistant",
                 "content": response,
-            })
+            }
+            new_messages.append(member_msg)
+            if on_agent_done:
+                on_agent_done(member_msg)
 
         # Critic evaluates (non-final rounds only)
         if critic:
@@ -340,13 +370,18 @@ class MeetingEngine:
                 ))
             messages.append(ChatMessage(role="user", content=critic_prompt_text))
 
+            if on_agent_start:
+                on_agent_start(critic)
             response = self.llm_call(critic["system_prompt"], messages)
-            new_messages.append({
+            critic_msg = {
                 "agent_id": critic["id"],
                 "agent_name": critic["name"],
                 "role": "assistant",
                 "content": response,
-            })
+            }
+            new_messages.append(critic_msg)
+            if on_agent_done:
+                on_agent_done(critic_msg)
 
         # Integrator step (code meetings): one agent consolidates code into folder structure
         if output_type == "code":
@@ -359,13 +394,18 @@ class MeetingEngine:
                     content=f"[{msg['agent_name']}]: {msg['content']}",
                 ))
             messages.append(ChatMessage(role="user", content=integrator_prompt))
+            if on_agent_start:
+                on_agent_start(integrator)
             response = self.llm_call(integrator["system_prompt"], messages)
-            new_messages.append({
+            integrator_msg = {
                 "agent_id": integrator["id"],
                 "agent_name": integrator["name"],
                 "role": "assistant",
                 "content": response,
-            })
+            }
+            new_messages.append(integrator_msg)
+            if on_agent_done:
+                on_agent_done(integrator_msg)
 
         return new_messages
 
