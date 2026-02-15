@@ -54,6 +54,65 @@ function StatCard({
   return <Card>{content}</Card>;
 }
 
+/** Skeleton that matches the real dashboard layout to avoid flash of FallbackCards. */
+function DashboardSkeleton() {
+  return (
+    <>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[1, 2, 3, 4].map((i) => (
+          <Card key={i} className="h-full">
+            <CardContent className="flex items-center gap-4 py-5">
+              <div className="rounded-lg bg-muted p-2.5 h-9 w-9 animate-pulse" />
+              <div className="space-y-2">
+                <div className="h-7 w-12 bg-muted rounded animate-pulse" />
+                <div className="h-4 w-24 bg-muted rounded animate-pulse" />
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="h-9 w-32 bg-muted rounded-md animate-pulse" />
+        <div className="h-9 w-28 bg-muted rounded-md animate-pulse" />
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <div className="h-5 w-32 bg-muted rounded animate-pulse" />
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex items-center justify-between p-3 rounded-lg border border-border/50">
+                <div className="space-y-2 flex-1 min-w-0">
+                  <div className="h-4 w-full max-w-[200px] bg-muted rounded animate-pulse" />
+                  <div className="h-3 w-24 bg-muted rounded animate-pulse" />
+                </div>
+                <div className="h-5 w-14 bg-muted rounded animate-pulse shrink-0 ml-3" />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <div className="h-5 w-28 bg-muted rounded animate-pulse" />
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex items-center justify-between p-3 rounded-lg border border-border/50">
+                <div className="space-y-2 flex-1 min-w-0">
+                  <div className="h-4 w-full max-w-[180px] bg-muted rounded animate-pulse" />
+                  <div className="h-3 w-20 bg-muted rounded animate-pulse" />
+                </div>
+                <div className="h-4 w-16 bg-muted rounded animate-pulse shrink-0 ml-3" />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
+    </>
+  );
+}
+
 function FallbackCards({ t }: { t: ReturnType<typeof useTranslations<"home">> }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -147,8 +206,10 @@ export default function DashboardPage() {
         <p className="mt-2 text-muted-foreground">{t("subtitle")}</p>
       </div>
 
-      {error || !stats ? (
+      {error ? (
         <FallbackCards t={t} />
+      ) : !stats ? (
+        <DashboardSkeleton />
       ) : (
         <>
           {/* Stats Row - each card links to corresponding page */}
