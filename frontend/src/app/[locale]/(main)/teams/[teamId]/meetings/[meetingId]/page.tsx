@@ -88,6 +88,8 @@ export default function MeetingDetailPage() {
   const [viewerArtifact, setViewerArtifact] = useState<CodeArtifact | null>(null);
   const [viewerOpen, setViewerOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  /** Pending run to start only after SSE is connected, so we don't miss real-time events. */
+  const pendingRunRef = useRef<{ rounds: number; topic?: string; locale?: string } | null>(null);
 
   const agentTitleByKey = (msg: MeetingMessage): string | null => {
     if (msg.role === "user") return null;
@@ -232,19 +234,43 @@ export default function MeetingDetailPage() {
     return () => disconnect();
   }, [meeting?.id, meeting?.status]);
 
-  /** Run N rounds via background runner + polling. Both buttons use this. */
-  const handleRunBackground = async (rounds: number) => {
-    try {
-      setError(null);
-      setBackgroundRunning(true);  // SSE connects FIRST (before API call)
-      const localeParam = locale === "zh" || locale === "en" ? locale : undefined;
-      await meetingsAPI.runBackground(meetingId, rounds, topic || undefined, localeParam);
-      setTopic("");
-    } catch (err) {
-      setBackgroundRunning(false);  // Roll back on failure
-      setError(getErrorMessage(err, "Failed to start run"));
-    }
+  /** Run N rounds: connect SSE first, then start run when connected so messages stream in real time. */
+  const handleRunBackground = (rounds: number) => {
+    setError(null);
+    const localeParam = locale === "zh" || locale === "en" ? locale : undefined;
+    pendingRunRef.current = { rounds, topic: topic || undefined, locale: localeParam };
+    setTopic("");
+    setBackgroundRunning(true);  // SSE connects; once connected we fire run-background in effect below
   };
+
+  // Start run after SSE is connected so messages stream in real time; fallback after 8s if SSE never connects
+  useEffect(() => {
+    if (!backgroundRunning || !pendingRunRef.current) return;
+    const pending = pendingRunRef.current;
+
+    if (sseConnected) {
+      pendingRunRef.current = null;
+      meetingsAPI
+        .runBackground(meetingId, pending.rounds, pending.topic, pending.locale)
+        .catch((err) => {
+          setError(getErrorMessage(err, "Failed to start run"));
+          setBackgroundRunning(false);
+        });
+      return;
+    }
+
+    const fallback = setTimeout(() => {
+      if (!pendingRunRef.current) return;
+      pendingRunRef.current = null;
+      meetingsAPI
+        .runBackground(meetingId, pending.rounds, pending.topic, pending.locale)
+        .catch((err) => {
+          setError(getErrorMessage(err, "Failed to start run"));
+          setBackgroundRunning(false);
+        });
+    }, 8000);
+    return () => clearTimeout(fallback);
+  }, [backgroundRunning, sseConnected, meetingId]);
 
   /** "Run 1 round" button */
   const handleRun = () => handleRunBackground(1);
@@ -398,13 +424,15 @@ export default function MeetingDetailPage() {
     <div className="flex flex-col min-h-0 h-[calc(100dvh-theme(spacing.16))] sm:h-[calc(100vh-120px)]">
       {/* Header */}
       <div className="shrink-0 space-y-2 mb-3 sm:mb-4">
-        <Link
-          href={`/teams/${teamId}`}
+        <button
+          type="button"
+          onClick={() => router.back()}
           className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+          title={t("backToTeam")}
         >
           <ArrowLeft className="h-3.5 w-3.5" />
-          {t("backToTeam")}
-        </Link>
+          {tc("back")}
+        </button>
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-xl sm:text-2xl font-bold truncate">{meeting.title}</h1>
           {meeting.meeting_type && meeting.meeting_type !== "team" && (
