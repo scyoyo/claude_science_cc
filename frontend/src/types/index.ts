@@ -35,6 +35,9 @@ export interface Team {
   language: string;
   created_at: string;
   updated_at: string;
+  /** Present when from list endpoint */
+  agent_count?: number;
+  meeting_count?: number;
 }
 
 export interface TeamWithAgents extends Team {
