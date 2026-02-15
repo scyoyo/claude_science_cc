@@ -78,9 +78,7 @@ export default function MeetingDetailPage() {
   const [showRewriteDialog, setShowRewriteDialog] = useState(false);
   const [rewriteFeedback, setRewriteFeedback] = useState("");
   const [rewriting, setRewriting] = useState(false);
-  const [runAfterConnect, setRunAfterConnect] = useState(false);
   const [agents, setAgents] = useState<Agent[]>([]);
-  const pendingTopicRef = useRef("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const agentTitleByKey = (msg: MeetingMessage): string | null => {
@@ -134,33 +132,6 @@ export default function MeetingDetailPage() {
     setRunning(false);
   }, []);
 
-  // WS connection failed (timeout or error) — fall back to HTTP if user wanted to run
-  const onConnectFailed = useCallback(() => {
-    if (runAfterConnect) {
-      setRunAfterConnect(false);
-      // Auto-fallback: run via HTTP instead
-      (async () => {
-        try {
-          setRunning(true);
-          setError(null);
-          const data = await meetingsAPI.run(
-            meetingId,
-            1,
-            pendingTopicRef.current || undefined,
-            locale === "zh" || locale === "en" ? locale : undefined
-          );
-          setMeeting(data);
-          setLiveMessages([]);
-          setTopic("");
-        } catch (err) {
-          setError(getErrorMessage(err, "Failed to run meeting"));
-        } finally {
-          setRunning(false);
-        }
-      })();
-    }
-  }, [runAfterConnect, meetingId, locale]);
-
   const { connected, speaking, connect, disconnect, sendUserMessage, startRound } =
     useMeetingWebSocket({
       meetingId,
@@ -168,7 +139,6 @@ export default function MeetingDetailPage() {
       onError: onWSError,
       onRoundComplete,
       onMeetingComplete,
-      onConnectFailed,
     });
 
   useEffect(() => {
@@ -198,59 +168,26 @@ export default function MeetingDetailPage() {
     return () => disconnect();
   }, [meeting?.id, meeting?.status]);
 
-  const handleRunWS = () => {
-    if (!connected) return;
-    setRunning(true);
-    setError(null);
-    startRound(1, topic || undefined, locale === "zh" || locale === "en" ? locale : undefined);
-    setTopic("");
-  };
-
-  const handleRun = () => {
-    if (connected) {
-      handleRunWS();
-    } else {
-      pendingTopicRef.current = topic;
-      setRunAfterConnect(true);
-      connect();
-    }
-  };
-
-  const handleRunHTTP = async () => {
-    try {
-      setRunning(true);
-      setError(null);
-      const data = await meetingsAPI.run(
-        meetingId,
-        1,
-        topic || undefined,
-        locale === "zh" || locale === "en" ? locale : undefined
-      );
-      setMeeting(data);
-      setLiveMessages([]);
-      setTopic("");
-    } catch (err) {
-      setError(getErrorMessage(err, "Failed to run meeting"));
-    } finally {
-      setRunning(false);
-    }
-  };
-
-  const handleRunBackground = async () => {
+  /** Run N rounds via background runner + polling. Both buttons use this. */
+  const handleRunBackground = async (rounds: number) => {
     try {
       setError(null);
-      const rounds = Math.max(1, (meeting?.max_rounds ?? 5) - (meeting?.current_round ?? 0));
-      await meetingsAPI.runBackground(
-        meetingId,
-        rounds,
-        topic || undefined,
-        locale === "zh" || locale === "en" ? locale : undefined
-      );
+      const localeParam = locale === "zh" || locale === "en" ? locale : undefined;
+      await meetingsAPI.runBackground(meetingId, rounds, topic || undefined, localeParam);
       setBackgroundRunning(true);
       setTopic("");
     } catch (err) {
-      setError(getErrorMessage(err, "Failed to start background run"));
+      setError(getErrorMessage(err, "Failed to start run"));
     }
+  };
+
+  /** "Run 1 round" button */
+  const handleRun = () => handleRunBackground(1);
+
+  /** "Run all remaining" button */
+  const handleRunAll = () => {
+    const remaining = Math.max(1, (meeting?.max_rounds ?? 5) - (meeting?.current_round ?? 0));
+    handleRunBackground(remaining);
   };
 
   const { status: pollStatus } = useMeetingPolling({
@@ -289,16 +226,6 @@ export default function MeetingDetailPage() {
     }, intervalMs);
     return () => clearInterval(t);
   }, [backgroundRunning, meetingId]);
-
-  // When WS connects and user asked to run, start round so messages stream
-  useEffect(() => {
-    if (!connected || !runAfterConnect) return;
-    setRunning(true);
-    setError(null);
-    startRound(1, pendingTopicRef.current || undefined, locale === "zh" || locale === "en" ? locale : undefined);
-    setTopic("");
-    setRunAfterConnect(false);
-  }, [connected, runAfterConnect, startRound, locale]);
 
   // On initial load, check if meeting is already running in background
   useEffect(() => {
@@ -647,20 +574,14 @@ export default function MeetingDetailPage() {
                 />
                 <Button
                   onClick={handleRun}
-                  disabled={running || backgroundRunning || runAfterConnect}
+                  disabled={running || backgroundRunning}
                 >
                   <Play className="h-4 w-4 mr-1" />
-                  {runAfterConnect
-                    ? t("connecting")
-                    : running
-                    ? t("running")
-                    : connected
-                    ? t("runLive")
-                    : t("run")}
+                  {backgroundRunning ? t("running") : t("run")}
                 </Button>
                 <Button
                   variant="outline"
-                  onClick={handleRunBackground}
+                  onClick={handleRunAll}
                   disabled={running || backgroundRunning}
                   title={t("backgroundRunTitle")}
                 >
