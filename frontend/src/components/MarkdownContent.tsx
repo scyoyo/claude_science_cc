@@ -66,9 +66,11 @@ export function MarkdownContent({
               }
             }
             return (
-              <pre className="bg-muted/70 rounded-md p-2.5 overflow-x-auto text-xs my-2 max-w-full min-w-0 block">
-                {children}
-              </pre>
+              <div className="max-w-full min-w-0 overflow-hidden my-2">
+                <pre className="bg-muted/70 rounded-md p-2.5 overflow-x-auto text-xs w-full block">
+                  {children}
+                </pre>
+              </div>
             );
           },
           code: ({ children, className: codeClassName }) => {
@@ -98,8 +100,8 @@ export function MarkdownContent({
             </blockquote>
           ),
           table: ({ children }) => (
-            <div className="overflow-x-auto my-2 max-w-full w-full min-w-0">
-              <table className="border-collapse border border-border text-xs min-w-full">
+            <div className="overflow-x-auto my-2 max-w-full w-full min-w-0 overflow-hidden rounded-md border border-border">
+              <table className="border-collapse text-xs w-full">
                 {children}
               </table>
             </div>
