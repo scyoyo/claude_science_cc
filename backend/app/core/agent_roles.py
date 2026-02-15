@@ -21,6 +21,25 @@ _CRITIC_KEYWORDS = re.compile(
     re.IGNORECASE,
 )
 
+_CODING_KEYWORDS = re.compile(
+    r"\b(engineer|developer|programmer|coding|software\s*engineer|"
+    r"ml\s*engineer|code\s*engineer|implementation|programming)",
+    re.IGNORECASE,
+)
+
+_INTEGRATOR_KEYWORDS = re.compile(
+    r"\b(integrator|integration|consolidat)",
+    re.IGNORECASE,
+)
+
+
+def is_coding_role(agent: Dict) -> bool:
+    """True if this agent is responsible for writing code (title/expertise/role)."""
+    text = " ".join(
+        str(agent.get(f, "") or "") for f in ("name", "title", "expertise", "role")
+    )
+    return bool(_CODING_KEYWORDS.search(text))
+
 
 def detect_role(agent: Dict) -> str:
     """Detect agent role: 'lead', 'critic', or 'member'.
@@ -76,3 +95,26 @@ def sort_agents_for_meeting(
             critic = None
 
     return lead, members, critic
+
+
+def detect_integrator(
+    team_lead: Dict,
+    members: List[Dict],
+    critic: Optional[Dict],
+) -> Dict:
+    """Choose which agent acts as integrator (consolidates code in code meetings).
+
+    Prefer a member with 'integrator' in title/role; else a coding member (engineer);
+    otherwise use the team lead.
+    """
+    def has_integrator_keyword(a: Dict) -> bool:
+        text = " ".join(str(a.get(f, "") or "") for f in ("title", "expertise", "role"))
+        return bool(_INTEGRATOR_KEYWORDS.search(text))
+
+    for m in members:
+        if has_integrator_keyword(m):
+            return m
+    for m in members:
+        if is_coding_role(m):
+            return m
+    return team_lead

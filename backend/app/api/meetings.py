@@ -492,21 +492,33 @@ def get_meeting_summary(meeting_id: str, db: Session = Depends(get_db)):
         if m.agent_name and m.role == "assistant"
     })
 
-    # Extract key points: first sentence of each agent message (deduped)
+    # Key points: first sentence of assistant messages that look like natural language (not code/markdown)
     key_points = []
     seen = set()
     for m in messages:
-        if m.role == "assistant" and m.content:
-            # Take the first sentence as a key point
-            first_sentence = m.content.split(".")[0].strip()
-            if first_sentence and len(first_sentence) > 10 and first_sentence not in seen:
-                key_points.append(f"[{m.agent_name or 'Agent'}] {first_sentence}")
-                seen.add(first_sentence)
+        if m.role != "assistant" or not m.content:
+            continue
+        # Prefer last round for summary; skip code-heavy messages
+        first_line = m.content.strip().split("\n")[0].strip()
+        first_sentence = m.content.split(".")[0].strip()
+        # Skip if looks like code or markdown header
+        if first_sentence.startswith("```") or first_sentence.startswith("#"):
+            continue
+        if first_line.startswith("```") or first_line.startswith("#"):
+            continue
+        # Must be reasonable length (natural language, not a code block)
+        if len(first_sentence) < 15 or len(first_sentence) > 300:
+            continue
+        if first_sentence in seen:
+            continue
+        seen.add(first_sentence)
+        key_points.append(f"[{m.agent_name or 'Agent'}] {first_sentence}")
 
     return MeetingSummary(
         meeting_id=meeting_id,
         title=meeting.title,
         total_rounds=meeting.current_round,
+        max_rounds=getattr(meeting, "max_rounds", 5),
         total_messages=len(messages),
         participants=participants,
         key_points=key_points,

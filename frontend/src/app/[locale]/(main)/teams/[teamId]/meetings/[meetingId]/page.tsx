@@ -4,16 +4,17 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useTranslations, useLocale } from "next-intl";
 import { Link } from "@/i18n/navigation";
-import { meetingsAPI, agendaAPI, agentsAPI } from "@/lib/api";
+import { meetingsAPI, agendaAPI, agentsAPI, artifactsAPI } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
 import { useMeetingPolling } from "@/hooks/useMeetingPolling";
 import { downloadBlob } from "@/lib/utils";
 import { useMeetingWebSocket, type WSMessage } from "@/hooks/useMeetingWebSocket";
 import { useMeetingSSE, type SSEMessage } from "@/hooks/useMeetingSSE";
-import type { Meeting, MeetingWithMessages, MeetingMessage, Agent, RoundPlan } from "@/types";
+import type { Meeting, MeetingWithMessages, MeetingMessage, Agent, RoundPlan, CodeArtifact } from "@/types";
 import { getMeetingPhase, getPhaseLabel } from "@/lib/meetingPhase";
 import MeetingSummaryPanel from "@/components/MeetingSummaryPanel";
 import ArtifactsPanel from "@/components/ArtifactsPanel";
+import ArtifactViewer from "@/components/ArtifactViewer";
 import { MarkdownContent } from "@/components/MarkdownContent";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,6 +56,7 @@ import {
   Layers,
   User,
   GitMerge,
+  FileCode,
 } from "lucide-react";
 
 export default function MeetingDetailPage() {
@@ -82,6 +84,9 @@ export default function MeetingDetailPage() {
   const [rewriting, setRewriting] = useState(false);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [selectedRound, setSelectedRound] = useState(0); // 0 = show all
+  const [chatArtifacts, setChatArtifacts] = useState<CodeArtifact[]>([]);
+  const [viewerArtifact, setViewerArtifact] = useState<CodeArtifact | null>(null);
+  const [viewerOpen, setViewerOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const agentTitleByKey = (msg: MeetingMessage): string | null => {
@@ -173,6 +178,7 @@ export default function MeetingDetailPage() {
       const data = await meetingsAPI.get(meetingId);
       setMeeting(data);
       setLiveMessages([]);
+      artifactsAPI.listByMeeting(meetingId).then(setChatArtifacts).catch(() => {});
     } catch {
       // ignore
     }
@@ -216,6 +222,10 @@ export default function MeetingDetailPage() {
   }, [teamId]);
 
   useEffect(() => {
+    artifactsAPI.listByMeeting(meetingId).then(setChatArtifacts).catch(() => setChatArtifacts([]));
+  }, [meetingId]);
+
+  useEffect(() => {
     if (meeting && meeting.status !== "completed") {
       connect();
     }
@@ -256,11 +266,12 @@ export default function MeetingDetailPage() {
     onComplete: async () => {
       setBackgroundRunning(false);
       setRunning(false);
-      // Refresh full meeting data
+      // Refresh full meeting data and artifacts (auto-extract may have run)
       try {
         const data = await meetingsAPI.get(meetingId);
         setMeeting(data);
         setLiveMessages([]);
+        artifactsAPI.listByMeeting(meetingId).then(setChatArtifacts).catch(() => {});
       } catch {
         // ignore
       }
@@ -384,9 +395,9 @@ export default function MeetingDetailPage() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-120px)]">
+    <div className="flex flex-col min-h-0 h-[calc(100dvh-theme(spacing.16))] sm:h-[calc(100vh-120px)]">
       {/* Header */}
-      <div className="shrink-0 space-y-2 mb-4">
+      <div className="shrink-0 space-y-2 mb-3 sm:mb-4">
         <Link
           href={`/teams/${teamId}`}
           className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
@@ -488,17 +499,17 @@ export default function MeetingDetailPage() {
 
       {/* Tabs */}
       <Tabs defaultValue="chat" className="flex-1 flex flex-col min-h-0">
-        <TabsList className="shrink-0">
-          <TabsTrigger value="chat">
-            <MessageSquare className="h-4 w-4 mr-1" />
+        <TabsList className="shrink-0 flex w-full overflow-x-auto min-h-11 p-1">
+          <TabsTrigger value="chat" className="flex-1 sm:flex-initial min-h-11 px-2 sm:px-3 text-xs sm:text-sm">
+            <MessageSquare className="h-4 w-4 mr-1 shrink-0" />
             {t("tabChat")}
           </TabsTrigger>
-          <TabsTrigger value="summary">
-            <BarChart3 className="h-4 w-4 mr-1" />
+          <TabsTrigger value="summary" className="flex-1 sm:flex-initial min-h-11 px-2 sm:px-3 text-xs sm:text-sm">
+            <BarChart3 className="h-4 w-4 mr-1 shrink-0" />
             {t("tabSummary")}
           </TabsTrigger>
-          <TabsTrigger value="artifacts">
-            <Code className="h-4 w-4 mr-1" />
+          <TabsTrigger value="artifacts" className="flex-1 sm:flex-initial min-h-11 px-2 sm:px-3 text-xs sm:text-sm">
+            <Code className="h-4 w-4 mr-1 shrink-0" />
             {t("tabArtifacts")}
           </TabsTrigger>
         </TabsList>
@@ -507,11 +518,11 @@ export default function MeetingDetailPage() {
         <TabsContent value="chat" className="flex-1 flex flex-col min-h-0">
           {/* Round Selector */}
           {meeting.max_rounds > 1 && (
-            <div className="shrink-0 flex items-center gap-1 mb-3 overflow-x-auto pb-1">
+            <div className="shrink-0 flex items-center gap-1 mb-3 overflow-x-auto pb-1 -mx-1 px-1 min-h-10">
               <Button
                 variant={selectedRound === 0 ? "default" : "outline"}
                 size="sm"
-                className="shrink-0 h-7 px-2.5 text-xs"
+                className="shrink-0 h-8 min-w-[2.5rem] px-2.5 text-xs touch-manipulation"
                 onClick={() => setSelectedRound(0)}
               >
                 {t("roundAll")}
@@ -525,7 +536,7 @@ export default function MeetingDetailPage() {
                     key={r}
                     variant={selectedRound === r ? "default" : "outline"}
                     size="sm"
-                    className="shrink-0 h-7 px-2.5 text-xs relative"
+                    className="shrink-0 h-8 min-w-[2.5rem] px-2.5 text-xs relative touch-manipulation"
                     onClick={() => setSelectedRound(r)}
                     title={plan?.title || getPhaseLabel(phase, t)}
                   >
@@ -565,8 +576,31 @@ export default function MeetingDetailPage() {
             );
           })()}
 
-          <ScrollArea className="flex-1 mb-4">
-            <div className="space-y-3 pr-4">
+          {/* Generated files in this meeting — open in same-page viewer */}
+          {chatArtifacts.length > 0 && (
+            <div className="shrink-0 mb-3 p-3 rounded-lg border bg-muted/30">
+              <p className="text-xs font-medium text-muted-foreground mb-2">{t("generatedFiles")}</p>
+              <div className="flex flex-wrap gap-2">
+                {chatArtifacts.map((a) => (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => {
+                      setViewerArtifact(a);
+                      setViewerOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm bg-background border hover:bg-accent hover:text-accent-foreground transition-colors"
+                  >
+                    <FileCode className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate max-w-[180px] sm:max-w-[240px]">{a.filename}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <ScrollArea className="flex-1 mb-3 sm:mb-4">
+            <div className="space-y-3 pr-2 sm:pr-4">
               {filteredMessages.length === 0 ? (
                 <p className="text-muted-foreground text-sm">{t("noMessages")}</p>
               ) : (
@@ -605,7 +639,7 @@ export default function MeetingDetailPage() {
                         </div>
                       )}
                       <div
-                        className={`p-4 rounded-lg border ${
+                        className={`p-3 sm:p-4 rounded-lg border break-words ${
                           isFinalSummary
                             ? "bg-primary/5 border-primary/30 ring-1 ring-primary/20"
                             : isCritic
@@ -680,42 +714,46 @@ export default function MeetingDetailPage() {
 
           {/* Controls */}
           {!isCompleted && (
-            <div className="shrink-0 space-y-3 border-t pt-4">
+            <div className="shrink-0 space-y-3 border-t pt-3 sm:pt-4 pb-4">
               <form onSubmit={handleSendMessage} className="flex gap-2">
                 <Input
                   value={userMessage}
                   onChange={(e) => setUserMessage(e.target.value)}
                   placeholder={t("sendMessage")}
-                  className="flex-1"
+                  className="flex-1 min-h-10"
                 />
-                <Button type="submit" size="icon">
+                <Button type="submit" size="icon" className="shrink-0 min-h-10 min-w-10">
                   <Send className="h-4 w-4" />
                 </Button>
               </form>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <Input
                   value={topic}
                   onChange={(e) => setTopic(e.target.value)}
                   placeholder={t("topic")}
-                  className="flex-1"
+                  className="flex-1 min-h-10"
                 />
-                <Button
-                  onClick={handleRun}
-                  disabled={running || backgroundRunning}
-                >
-                  <Play className="h-4 w-4 mr-1" />
-                  {backgroundRunning ? t("running") : t("run")}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={handleRunAll}
-                  disabled={running || backgroundRunning}
-                  title={t("backgroundRunTitle")}
-                >
-                  <PlayCircle className="h-4 w-4 mr-1" />
-                  <span className="hidden sm:inline">{t("backgroundRun")}</span>
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleRun}
+                    disabled={running || backgroundRunning}
+                    className="flex-1 sm:flex-initial min-h-10"
+                  >
+                    <Play className="h-4 w-4 mr-1 shrink-0" />
+                    {backgroundRunning ? t("running") : t("run")}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleRunAll}
+                    disabled={running || backgroundRunning}
+                    title={t("backgroundRunTitle")}
+                    className="min-h-10 px-3"
+                  >
+                    <PlayCircle className="h-4 w-4 sm:mr-1 shrink-0" />
+                    <span className="hidden sm:inline">{t("backgroundRun")}</span>
+                  </Button>
+                </div>
               </div>
             </div>
           )}
@@ -760,6 +798,16 @@ export default function MeetingDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Artifact viewer (same-page modal) */}
+      <ArtifactViewer
+        artifact={viewerArtifact}
+        open={viewerOpen}
+        onOpenChange={(open) => {
+          setViewerOpen(open);
+          if (!open) setViewerArtifact(null);
+        }}
+      />
 
       {/* Edit Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>

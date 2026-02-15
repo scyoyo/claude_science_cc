@@ -221,7 +221,7 @@ class TestStructuredMeetingEngine:
         return f"Response to: {messages[-1].content[:50]}"
 
     def test_structured_first_round_team_lead_and_members(self):
-        """First round: team lead proposes, members respond."""
+        """First round: team lead proposes, members respond, then integrator (default output_type=code)."""
         engine = MeetingEngine(llm_call=self._mock_llm)
         agents = [
             {"id": "lead", "name": "Dr. Lead", "system_prompt": "Lead system", "model": "gpt-4"},
@@ -235,10 +235,11 @@ class TestStructuredMeetingEngine:
             agenda="Build a pipeline",
             agenda_questions=["What algorithm?"],
         )
-        # Lead + 1 member = 2 messages
-        assert len(messages) == 2
+        # Lead + 1 member + integrator (default output_type=code)
+        assert len(messages) == 3
         assert messages[0]["agent_name"] == "Dr. Lead"
         assert messages[1]["agent_name"] == "Dr. Member"
+        assert messages[2]["agent_name"] == "Dr. Lead"  # Lead is integrator (no coding member)
 
     def test_structured_final_round_only_lead(self):
         """Final round: only Team Lead speaks."""
@@ -307,12 +308,33 @@ class TestStructuredMeetingEngine:
             output_type="code",
         )
         assert len(all_rounds) == 3
-        # Round 1: lead + member = 2
-        assert len(all_rounds[0]) == 2
-        # Round 2: lead + member = 2
-        assert len(all_rounds[1]) == 2
+        # Round 1: lead + member + integrator = 3 (code meeting has integrator step)
+        assert len(all_rounds[0]) == 3
+        # Round 2: lead + member + integrator = 3
+        assert len(all_rounds[1]) == 3
         # Round 3 (final): lead only = 1
         assert len(all_rounds[2]) == 1
+
+    def test_structured_code_round_includes_integrator_message(self):
+        """Code meeting non-final round includes integrator consolidation message."""
+        engine = MeetingEngine(llm_call=lambda s, m: "Consolidated: main.py, requirements.txt. Entry point: main.")
+        agents = [
+            {"id": "lead", "name": "Lead", "system_prompt": "Lead", "model": "gpt-4"},
+            {"id": "m1", "name": "Engineer", "title": "Software Engineer", "system_prompt": "Member", "model": "gpt-4"},
+        ]
+        messages = engine.run_structured_round(
+            agents=agents,
+            conversation_history=[],
+            round_num=1,
+            num_rounds=2,
+            agenda="Build script",
+            output_type="code",
+        )
+        # Lead + Member + Integrator (Engineer is coding role, chosen as integrator)
+        assert len(messages) >= 3
+        last = messages[-1]
+        assert last["agent_name"] == "Engineer"
+        assert "Consolidated" in last["content"] or "main.py" in last["content"]
 
     def test_structured_empty_agents(self):
         """Structured round with no agents returns empty."""
@@ -321,15 +343,73 @@ class TestStructuredMeetingEngine:
         assert messages == []
 
     def test_structured_single_agent(self):
-        """With only one agent (lead, no members), lead speaks every round."""
+        """With only one agent (lead, no members), lead speaks then again as integrator (code default)."""
         engine = MeetingEngine(llm_call=lambda s, m: "OK")
         agents = [{"id": "lead", "name": "Lead", "system_prompt": "Lead", "model": "gpt-4"}]
-        # Round 1: lead speaks (no members)
+        # Round 1: lead speaks, then lead as integrator (output_type default "code")
         msgs = engine.run_structured_round(agents, [], 1, 3, agenda="Test")
-        assert len(msgs) == 1
-        # Final round: lead speaks
+        assert len(msgs) == 2
+        assert msgs[0]["agent_name"] == "Lead"
+        assert msgs[1]["agent_name"] == "Lead"
+        # Final round: lead speaks only (no integrator step in final round)
         msgs = engine.run_structured_round(agents, [], 3, 3, agenda="Test")
         assert len(msgs) == 1
+
+    def test_structured_code_meeting_non_coding_gets_no_code_instruction(self):
+        """When output_type is code, non-coding roles receive instruction not to output code blocks."""
+        from app.core.meeting_prompts import NO_CODE_FOR_NON_CODING
+
+        received_calls = []
+
+        def tracking_llm(system_prompt, messages):
+            # Record last user message content for this call
+            user_contents = [m.content for m in messages if getattr(m, "role", None) == "user"]
+            received_calls.append({"user_contents": user_contents})
+            # Return discussion-only so non-coding agent would not add code
+            return "I recommend we use Python and agree with the approach. No code from me."
+
+        engine = MeetingEngine(llm_call=tracking_llm)
+        # Lead = non-coding (PI), Member = coding (Engineer)
+        agents = [
+            {
+                "id": "lead",
+                "name": "Dr. Smith",
+                "title": "Principal Investigator",
+                "expertise": "Biology",
+                "role": "PI",
+                "system_prompt": "Lead",
+                "model": "gpt-4",
+            },
+            {
+                "id": "m1",
+                "name": "Jane",
+                "title": "Software Engineer",
+                "expertise": "Backend",
+                "role": "Developer",
+                "system_prompt": "Member",
+                "model": "gpt-4",
+            },
+        ]
+        engine.run_structured_round(
+            agents=agents,
+            conversation_history=[],
+            round_num=1,
+            num_rounds=2,
+            agenda="Build a pipeline",
+            output_type="code",
+        )
+        # First call = Lead (non-coding), second = Member (coding). Lead's prompt must include no-code instruction.
+        assert len(received_calls) >= 1
+        lead_user_msgs = received_calls[0]["user_contents"]
+        assert any(NO_CODE_FOR_NON_CODING in c for c in lead_user_msgs), (
+            "Non-coding lead should receive NO_CODE_FOR_NON_CODING in their prompt"
+        )
+        # Member (coding) should not get that instruction in their prompt
+        if len(received_calls) >= 2:
+            member_user_msgs = received_calls[1]["user_contents"]
+            assert not any(NO_CODE_FOR_NON_CODING in c for c in member_user_msgs), (
+                "Coding member should not receive NO_CODE_FOR_NON_CODING"
+            )
 
 
 # ==================== Meeting API Tests ====================
@@ -839,11 +919,12 @@ class TestCriticInTeamMeeting:
             agents=agents, conversation_history=[], round_num=1, num_rounds=3,
             agenda="Test", agenda_questions=["Q1"],
         )
-        # Lead, Member, Critic = 3 messages
-        assert len(messages) == 3
+        # Lead, Member, Critic, Integrator (default output_type=code)
+        assert len(messages) == 4
         assert messages[0]["agent_name"] == "Dr. PI"
         assert messages[1]["agent_name"] == "Biologist"
         assert messages[2]["agent_name"] == "Scientific Critic"
+        assert messages[3]["agent_name"] == "Dr. PI"  # Lead is integrator (no coding member)
 
     def test_critic_silent_in_final_round(self):
         """Critic does not speak in the final round (lead-only)."""
@@ -872,10 +953,11 @@ class TestCriticInTeamMeeting:
             agents=agents, conversation_history=[], round_num=1, num_rounds=3,
             agenda="Test",
         )
-        # Lead + Member = 2 (no critic)
-        assert len(messages) == 2
+        # Lead + Member + Integrator (no critic; default output_type=code)
+        assert len(messages) == 3
         assert messages[0]["agent_name"] == "Lead"
         assert messages[1]["agent_name"] == "Member"
+        assert messages[2]["agent_name"] == "Lead"  # Lead is integrator (Member not coding)
 
     def test_pi_auto_detected(self):
         """PI is auto-detected as lead even if not first in list."""
@@ -888,9 +970,11 @@ class TestCriticInTeamMeeting:
             agents=agents, conversation_history=[], round_num=1, num_rounds=3,
             agenda="Test",
         )
-        # PI speaks first (as lead)
+        # PI speaks first (as lead), then Data Analyst, then integrator (Lead)
+        assert len(messages) == 3
         assert messages[0]["agent_name"] == "Dr. Smith"
         assert messages[1]["agent_name"] == "Data Analyst"
+        assert messages[2]["agent_name"] == "Dr. Smith"
 
     def test_round_plan_goal_injected(self):
         """Round plan goal is injected into conversation context."""

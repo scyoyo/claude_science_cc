@@ -77,6 +77,24 @@ def get_default_rules(output_type: str) -> List[str]:
     return list(DEFAULT_RULES.get(output_type, [CONCISENESS_RULE]))
 
 
+# Instruction for non-coding agents when output_type is "code"
+NO_CODE_FOR_NON_CODING = (
+    "Do not output full code blocks; provide recommendations and discussion only. "
+    "Code will be produced by the coding-focused team members."
+)
+
+
+def get_agenda_rules_for_agent(output_type: str, agent: Dict) -> List[str]:
+    """Return agenda rules for this agent. When output_type is code, non-coding roles skip CODING_RULES."""
+    from app.core.agent_roles import is_coding_role
+
+    if output_type != "code":
+        return get_default_rules(output_type)
+    if is_coding_role(agent):
+        return list(DEFAULT_RULES.get("code", [CONCISENESS_RULE]))
+    return [CONCISENESS_RULE]
+
+
 # ==================== Previous Context Prompt ====================
 
 def previous_context_prompt(summaries: List[Dict]) -> str:
@@ -230,6 +248,30 @@ def team_lead_final_prompt(
     return "\n".join(parts)
 
 
+def team_lead_final_prompt_synthesis_only(
+    team_lead_name: str,
+    agenda: str,
+    questions: List[str],
+) -> str:
+    """Final round prompt for a non-coding Lead: synthesize and list code from members, do not write new code."""
+    parts = [
+        f"{team_lead_name}, this is the FINAL round. Produce a structured summary of the meeting.",
+        "",
+        "Do NOT write new code yourself. Instead:",
+        "- Summarize the key code or artifacts that team members have proposed.",
+        "- List filenames and brief descriptions for each code artifact.",
+        "- Provide usage/run instructions if members suggested them.",
+        "- Restate agenda, recommendations, and answers to agenda questions.",
+        "",
+    ]
+    if questions:
+        parts.append("Answer each agenda question explicitly:")
+        for i, q in enumerate(questions, 1):
+            parts.append(f"  {i}. {q}")
+        parts.append("")
+    return "\n".join(parts)
+
+
 # ==================== Team Member Prompts ====================
 
 def team_meeting_critic_prompt(
@@ -246,6 +288,16 @@ def team_meeting_critic_prompt(
         f"- Suggest specific improvements for the next round.\n"
         f"- Be constructive but rigorous — every critique should include a suggestion.\n"
         f"- Be direct and concise."
+    )
+
+
+def integrator_consolidation_prompt(integrator_name: str) -> str:
+    """Prompt for the integrator to consolidate code from the round."""
+    return (
+        f"{integrator_name}, consolidate all code contributions from this round into a single folder structure. "
+        "List filenames and ensure the project is runnable (e.g. entry point, dependencies). "
+        "Do not duplicate code; integrate and document. "
+        "If no code was contributed this round, summarize what was discussed and what files would be needed."
     )
 
 

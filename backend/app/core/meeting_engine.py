@@ -17,18 +17,21 @@ from app.core.meeting_prompts import (
     team_lead_initial_prompt,
     team_lead_synthesis_prompt,
     team_lead_final_prompt,
+    team_lead_final_prompt_synthesis_only,
     team_member_prompt,
     team_meeting_critic_prompt,
+    integrator_consolidation_prompt,
     phase_temperature,
     previous_context_prompt,
     CONCISENESS_RULE,
+    NO_CODE_FOR_NON_CODING,
     SCIENTIFIC_CRITIC,
     individual_meeting_start_prompt,
     individual_meeting_critic_prompt,
     individual_meeting_agent_revision_prompt,
     create_merge_prompt,
 )
-from app.core.agent_roles import sort_agents_for_meeting
+from app.core.agent_roles import sort_agents_for_meeting, is_coding_role, detect_integrator
 
 
 # Type for LLM callable: (system_prompt, messages) -> response_text
@@ -234,13 +237,20 @@ class MeetingEngine:
 
         # Final round: only Team Lead speaks (no critic)
         if round_num >= num_rounds and num_rounds > 1:
-            final_prompt = team_lead_final_prompt(
-                team_lead_name=team_lead["name"],
-                agenda=agenda,
-                questions=questions,
-                rules=rules,
-                output_type=output_type,
-            )
+            if output_type == "code" and not is_coding_role(team_lead):
+                final_prompt = team_lead_final_prompt_synthesis_only(
+                    team_lead_name=team_lead["name"],
+                    agenda=agenda,
+                    questions=questions,
+                )
+            else:
+                final_prompt = team_lead_final_prompt(
+                    team_lead_name=team_lead["name"],
+                    agenda=agenda,
+                    questions=questions,
+                    rules=rules,
+                    output_type=output_type,
+                )
             messages = list(conversation_history)
             messages.append(ChatMessage(role="user", content=final_prompt))
 
@@ -260,6 +270,8 @@ class MeetingEngine:
             lead_prompt = team_lead_initial_prompt(team_lead["name"])
         else:
             lead_prompt = team_lead_synthesis_prompt(team_lead["name"], round_num, num_rounds)
+        if output_type == "code" and not is_coding_role(team_lead):
+            lead_prompt = lead_prompt + "\n\n" + NO_CODE_FOR_NON_CODING
 
         lead_messages = list(conversation_history)
         lead_messages.append(ChatMessage(role="user", content=lead_prompt))
@@ -275,6 +287,8 @@ class MeetingEngine:
         # Members respond
         for member in members:
             member_prompt_text = team_member_prompt(member["name"], round_num, num_rounds)
+            if output_type == "code" and not is_coding_role(member):
+                member_prompt_text = member_prompt_text + "\n\n" + NO_CODE_FOR_NON_CODING
 
             messages = list(conversation_history)
             for msg in new_messages:
@@ -297,6 +311,8 @@ class MeetingEngine:
             critic_prompt_text = team_meeting_critic_prompt(
                 critic["name"], round_num, num_rounds,
             )
+            if output_type == "code" and not is_coding_role(critic):
+                critic_prompt_text = critic_prompt_text + "\n\n" + NO_CODE_FOR_NON_CODING
             messages = list(conversation_history)
             for msg in new_messages:
                 messages.append(ChatMessage(
@@ -309,6 +325,25 @@ class MeetingEngine:
             new_messages.append({
                 "agent_id": critic["id"],
                 "agent_name": critic["name"],
+                "role": "assistant",
+                "content": response,
+            })
+
+        # Integrator step (code meetings): one agent consolidates code into folder structure
+        if output_type == "code":
+            integrator = detect_integrator(team_lead, members, critic)
+            integrator_prompt = integrator_consolidation_prompt(integrator["name"])
+            messages = list(conversation_history)
+            for msg in new_messages:
+                messages.append(ChatMessage(
+                    role="user",
+                    content=f"[{msg['agent_name']}]: {msg['content']}",
+                ))
+            messages.append(ChatMessage(role="user", content=integrator_prompt))
+            response = self.llm_call(integrator["system_prompt"], messages)
+            new_messages.append({
+                "agent_id": integrator["id"],
+                "agent_name": integrator["name"],
                 "role": "assistant",
                 "content": response,
             })

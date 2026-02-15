@@ -161,6 +161,7 @@ export interface MeetingSummary {
   meeting_id: string;
   title: string;
   total_rounds: number;
+  max_rounds?: number;
   total_messages: number;
   participants: string[];
   key_points: string[];

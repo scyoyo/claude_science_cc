@@ -53,8 +53,11 @@ export default function MeetingSummaryPanel({ meetingId }: MeetingSummaryPanelPr
           <div className="flex gap-6">
             <div className="flex items-center gap-2 text-sm">
               <RotateCw className="h-4 w-4 text-muted-foreground" />
-              <span className="text-muted-foreground">{t("totalRounds")}:</span>
-              <span className="font-medium">{summary.total_rounds}</span>
+              <span className="text-muted-foreground">{t("roundsCompleted")}:</span>
+              <span className="font-medium">
+                {summary.total_rounds}
+                {summary.max_rounds != null ? ` / ${summary.max_rounds}` : ""}
+              </span>
             </div>
             <div className="flex items-center gap-2 text-sm">
               <MessageSquare className="h-4 w-4 text-muted-foreground" />

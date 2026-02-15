@@ -106,9 +106,12 @@ class UserMessageRequest(BaseModel):
 
 
 class MeetingSummary(BaseModel):
+    """Summary of a meeting. total_rounds = rounds completed (current_round)."""
+
     meeting_id: str
     title: str
-    total_rounds: int
+    total_rounds: int  # Rounds completed (meeting.current_round)
+    max_rounds: int = 5  # Total rounds planned (meeting.max_rounds)
     total_messages: int
     participants: List[str]
     key_points: List[str]
