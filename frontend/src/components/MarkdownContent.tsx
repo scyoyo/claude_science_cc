@@ -2,6 +2,10 @@
 
 import { useRef } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import "katex/dist/katex.min.css";
 import { FileCode } from "lucide-react";
 
 export interface CodeBlockArtifact {
@@ -35,6 +39,8 @@ export function MarkdownContent({
   return (
     <div className={`max-w-full min-w-0 break-words overflow-wrap-anywhere [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 ${className}`}>
       <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[rehypeKatex]}
         children={content}
         components={{
           p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed break-words max-w-full overflow-wrap-anywhere">{children}</p>,
@@ -111,6 +117,33 @@ export function MarkdownContent({
               {children}
             </td>
           ),
+          hr: () => <hr className="my-4 border-t border-border" />,
+          img: ({ src, alt }) => (
+            <img
+              src={src}
+              alt={alt || ""}
+              className="max-w-full h-auto rounded-md my-2"
+              loading="lazy"
+            />
+          ),
+          del: ({ children }) => <del className="text-muted-foreground line-through">{children}</del>,
+          h4: ({ children }) => <p className="font-semibold mb-1 break-words max-w-full text-sm">{children}</p>,
+          h5: ({ children }) => <p className="font-semibold mb-1 break-words max-w-full text-xs">{children}</p>,
+          h6: ({ children }) => <p className="font-semibold mb-1 break-words max-w-full text-xs">{children}</p>,
+          input: ({ type, checked, disabled }) => {
+            if (type === "checkbox") {
+              return (
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  disabled={disabled}
+                  className="mr-2 align-middle"
+                  readOnly
+                />
+              );
+            }
+            return <input type={type} />;
+          },
         }}
       />
     </div>
