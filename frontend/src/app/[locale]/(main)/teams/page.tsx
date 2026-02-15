@@ -237,7 +237,10 @@ export default function TeamsPage() {
                   </Button>
                 </CardAction>
               </CardHeader>
-              <div className="px-6 pb-4">
+              <div className="px-6 pb-4 flex items-center justify-between gap-2">
+                <span className="text-xs text-muted-foreground">
+                  {t("agentCount", { count: team.agent_count ?? 0 })} · {t("meetingCount", { count: team.meeting_count ?? 0 })}
+                </span>
                 <span className="text-xs text-muted-foreground">
                   {new Date(team.created_at).toLocaleDateString()}
                 </span>

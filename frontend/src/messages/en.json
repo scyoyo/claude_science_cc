@@ -63,6 +63,8 @@
     "name": "Team name",
     "description": "Description (optional)",
     "noTeams": "No teams yet. Create one to get started.",
+    "agentCount": "{count} agents",
+    "meetingCount": "{count} meetings",
     "deleteConfirm": "Delete this team and all its agents?",
     "createTeam": "Create Team",
     "importTeam": "Import Team",

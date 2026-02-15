@@ -1,23 +1,23 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
-from sqlalchemy import update
+from sqlalchemy import update, func
 from typing import List, Optional
 
 from app.database import get_db
 from app.models import Team, Agent, Meeting, MeetingMessage, CodeArtifact
 from app.core.prompt import generate_system_prompt
 from app.models.user import User, UserTeamRole
-from app.schemas.team import TeamCreate, TeamUpdate, TeamResponse, TeamWithAgents
+from app.schemas.team import TeamCreate, TeamUpdate, TeamResponse, TeamListResponse, TeamWithAgents
 from app.schemas.user import TeamRoleAssign, TeamRoleResponse
 from app.schemas.pagination import PaginatedResponse
 from app.core.auth import get_current_user
 from app.core.permissions import check_team_access
-from app.api.deps import pagination_params, build_paginated_response
+from app.api.deps import pagination_params
 
 router = APIRouter(prefix="/teams", tags=["teams"])
 
 
-@router.get("/", response_model=PaginatedResponse[TeamResponse])
+@router.get("/", response_model=PaginatedResponse[TeamListResponse])
 def list_teams(
     pagination: tuple[int, int] = Depends(pagination_params),
     db: Session = Depends(get_db),
@@ -26,19 +26,63 @@ def list_teams(
     """List teams with pagination. When auth enabled, shows user's teams + public teams."""
     skip, limit = pagination
     if current_user is None:
-        query = db.query(Team)
+        base_query = db.query(Team)
     else:
         user_team_ids = [
             r.team_id
             for r in db.query(UserTeamRole).filter(UserTeamRole.user_id == current_user.id).all()
         ]
-        query = db.query(Team).filter(
+        base_query = db.query(Team).filter(
+            (Team.owner_id == current_user.id)
+            | (Team.id.in_(user_team_ids) if user_team_ids else False)
+            | (Team.is_public == True)
+        )
+
+    agent_count_sq = (
+        db.query(Agent.team_id, func.count(Agent.id).label("cnt"))
+        .group_by(Agent.team_id)
+        .subquery()
+    )
+    meeting_count_sq = (
+        db.query(Meeting.team_id, func.count(Meeting.id).label("cnt"))
+        .group_by(Meeting.team_id)
+        .subquery()
+    )
+    query = (
+        db.query(
+            Team,
+            func.coalesce(agent_count_sq.c.cnt, 0).label("agent_count"),
+            func.coalesce(meeting_count_sq.c.cnt, 0).label("meeting_count"),
+        )
+        .outerjoin(agent_count_sq, Team.id == agent_count_sq.c.team_id)
+        .outerjoin(meeting_count_sq, Team.id == meeting_count_sq.c.team_id)
+    )
+    # Apply same filter as base_query
+    if current_user is not None:
+        query = query.filter(
             (Team.owner_id == current_user.id)
             | (Team.id.in_(user_team_ids) if user_team_ids else False)
             | (Team.is_public == True)
         )
     query = query.order_by(Team.updated_at.desc())
-    return build_paginated_response(query, skip, limit)
+
+    total = query.count()
+    rows = query.offset(skip).limit(limit).all()
+    items = [
+        TeamListResponse(
+            id=team.id,
+            name=team.name,
+            description=team.description or "",
+            is_public=team.is_public,
+            language=team.language or "en",
+            created_at=team.created_at,
+            updated_at=team.updated_at,
+            agent_count=int(agent_count),
+            meeting_count=int(meeting_count),
+        )
+        for team, agent_count, meeting_count in rows
+    ]
+    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
 
 
 @router.post("/", response_model=TeamResponse, status_code=status.HTTP_201_CREATED)

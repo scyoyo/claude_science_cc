@@ -29,6 +29,13 @@ class TeamResponse(TeamBase):
     updated_at: datetime
 
 
+class TeamListResponse(TeamResponse):
+    """Team with agent and meeting counts for list views."""
+
+    agent_count: int = 0
+    meeting_count: int = 0
+
+
 class TeamWithAgents(TeamResponse):
     agents: List["AgentResponse"] = []
 

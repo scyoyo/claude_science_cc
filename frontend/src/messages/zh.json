@@ -63,6 +63,8 @@
     "name": "团队名称",
     "description": "描述（可选）",
     "noTeams": "暂无团队，创建一个开始吧。",
+    "agentCount": "{count} 个智能体",
+    "meetingCount": "{count} 个会议",
     "deleteConfirm": "确定删除此团队及其所有智能体吗？",
     "createTeam": "创建团队",
     "importTeam": "导入团队",
