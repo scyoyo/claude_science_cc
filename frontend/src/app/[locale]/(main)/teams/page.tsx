@@ -279,18 +279,18 @@ export default function TeamsPage() {
                 }}
               >
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 min-w-0">
+                  <CardTitle className="flex items-start gap-2">
                     {selectMode && (
                       <input
                         type="checkbox"
                         checked={selectedIds.has(team.id)}
                         onChange={(e) => toggleSelect(e as unknown as React.MouseEvent, team.id)}
                         onClick={(e) => e.stopPropagation()}
-                        className="rounded shrink-0"
+                        className="rounded shrink-0 mt-0.5"
                       />
                     )}
-                    <Users className="h-4 w-4 shrink-0" />
-                    <span className="truncate min-w-0">{team.name}</span>
+                    <Users className="h-4 w-4 shrink-0 mt-0.5" />
+                    <span className="break-words flex-1">{team.name}</span>
                   </CardTitle>
                   {team.description && (
                     <CardDescription className="line-clamp-2">
