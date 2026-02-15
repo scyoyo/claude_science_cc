@@ -15,7 +15,7 @@ import { MarkdownContent } from "@/components/MarkdownContent";
 import { useMobileGesture } from "@/contexts/MobileGestureContext";
 import { useSwipeGesture } from "@/hooks/useSwipeGesture";
 import { EditAgentDialog } from "@/components/EditAgentDialog";
-import { getModelLabel } from "@/lib/models";
+import { getModelLabel, replaceModelIdsWithLabels } from "@/lib/models";
 import type {
   OnboardingStage,
   OnboardingChatMessage,
@@ -564,7 +564,7 @@ function MessageBubble({
           </div>
         ) : (
           <div className="rounded-lg border border-border/50 bg-muted/40 px-3 py-2 text-sm leading-relaxed text-justify [text-justify:inter-character]">
-            <MarkdownContent content={message.content} />
+            <MarkdownContent content={replaceModelIdsWithLabels(message.content)} />
           </div>
         )}
 
@@ -611,7 +611,7 @@ function MessageBubble({
                 </div>
                 {agent.model_reason && (
                   <p className="mt-1 text-[10px] text-muted-foreground/70 italic">
-                    {agent.model_reason}
+                    {replaceModelIdsWithLabels(agent.model_reason)}
                   </p>
                 )}
               </div>

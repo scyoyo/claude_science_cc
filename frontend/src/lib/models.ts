@@ -54,3 +54,16 @@ export function getModelLabel(value: string): string {
   const opt = MODEL_OPTIONS.find((o) => o.value === value);
   return opt ? opt.label : value;
 }
+
+/** Replace model IDs in text with display names (e.g. for AI message content in onboarding). */
+export function replaceModelIdsWithLabels(text: string): string {
+  if (!text) return text;
+  // Sort by value length descending so longer IDs (e.g. claude-opus-4-5-20250929) are replaced before shorter (e.g. gpt-4)
+  const sorted = [...MODEL_OPTIONS].sort((a, b) => b.value.length - a.value.length);
+  let out = text;
+  for (const { value, label } of sorted) {
+    const re = new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+    out = out.replace(re, label);
+  }
+  return out;
+}
