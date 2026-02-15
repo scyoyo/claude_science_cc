@@ -61,6 +61,7 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
         )
         .outerjoin(agent_count_sq, Team.id == agent_count_sq.c.team_id)
         .outerjoin(meeting_count_sq, Team.id == meeting_count_sq.c.team_id)
+        .order_by(Team.updated_at.desc())
         .all()
     )
     teams_overview = [
