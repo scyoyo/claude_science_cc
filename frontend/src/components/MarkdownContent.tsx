@@ -33,24 +33,24 @@ export function MarkdownContent({
   const replaceWithArtifactChip = codeBlockArtifacts && codeBlockArtifacts.length > 0 && onOpenArtifact;
 
   return (
-    <div className={`max-w-full break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 ${className}`}>
+    <div className={`max-w-full min-w-0 break-words overflow-wrap-anywhere [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 ${className}`}>
       <ReactMarkdown
         children={content}
         components={{
-          p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed break-words">{children}</p>,
-          strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
-          em: ({ children }) => <em>{children}</em>,
+          p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed break-words max-w-full overflow-wrap-anywhere">{children}</p>,
+          strong: ({ children }) => <strong className="font-semibold break-words">{children}</strong>,
+          em: ({ children }) => <em className="break-words">{children}</em>,
           pre: ({ children }) => {
             if (replaceWithArtifactChip) {
               const i = codeBlockIndexRef.current++;
               const artifact = codeBlockArtifacts![i];
               if (artifact) {
                 return (
-                  <span className="inline-flex my-1.5">
+                  <span className="inline-flex my-1.5 max-w-full">
                     <button
                       type="button"
                       onClick={() => onOpenArtifact!(artifact.id)}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm font-medium bg-muted hover:bg-muted/80 border border-border shadow-sm transition-colors"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm font-medium bg-muted hover:bg-muted/80 border border-border shadow-sm transition-colors max-w-full"
                     >
                       <FileCode className="h-4 w-4 shrink-0" />
                       <span className="truncate max-w-[200px] sm:max-w-[280px]">{artifact.filename}</span>
@@ -60,7 +60,7 @@ export function MarkdownContent({
               }
             }
             return (
-              <pre className="bg-muted/70 rounded-md p-2.5 overflow-x-auto text-xs my-2 max-w-full w-full min-w-0">
+              <pre className="bg-muted/70 rounded-md p-2.5 overflow-x-auto text-xs my-2 max-w-full w-full min-w-0 block">
                 {children}
               </pre>
             );
@@ -68,28 +68,48 @@ export function MarkdownContent({
           code: ({ children, className: codeClassName }) => {
             if (!codeClassName) {
               return (
-                <code className="bg-muted/70 rounded px-1 py-0.5 text-xs font-mono">
+                <code className="bg-muted/70 rounded px-1 py-0.5 text-xs font-mono break-words overflow-wrap-anywhere max-w-full">
                   {children}
                 </code>
               );
             }
-            return <code className={codeClassName}>{children}</code>;
+            return <code className={`${codeClassName} max-w-full break-words`}>{children}</code>;
           },
-          ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-0.5">{children}</ul>,
-          ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-0.5">{children}</ol>,
-          li: ({ children }) => <li>{children}</li>,
-          h1: ({ children }) => <p className="font-semibold mb-1">{children}</p>,
-          h2: ({ children }) => <p className="font-semibold mb-1">{children}</p>,
-          h3: ({ children }) => <p className="font-semibold mb-1">{children}</p>,
+          ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-0.5 max-w-full min-w-0">{children}</ul>,
+          ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-0.5 max-w-full min-w-0">{children}</ol>,
+          li: ({ children }) => <li className="break-words max-w-full overflow-wrap-anywhere">{children}</li>,
+          h1: ({ children }) => <p className="font-semibold mb-1 break-words max-w-full">{children}</p>,
+          h2: ({ children }) => <p className="font-semibold mb-1 break-words max-w-full">{children}</p>,
+          h3: ({ children }) => <p className="font-semibold mb-1 break-words max-w-full">{children}</p>,
           a: ({ href, children }) => (
-            <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline">
+            <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline break-words overflow-wrap-anywhere max-w-full">
               {children}
             </a>
           ),
           blockquote: ({ children }) => (
-            <blockquote className="border-l-2 border-muted-foreground/30 pl-3 my-2 italic">
+            <blockquote className="border-l-2 border-muted-foreground/30 pl-3 my-2 italic max-w-full min-w-0 break-words">
               {children}
             </blockquote>
+          ),
+          table: ({ children }) => (
+            <div className="overflow-x-auto my-2 max-w-full w-full min-w-0">
+              <table className="border-collapse border border-border text-xs min-w-full">
+                {children}
+              </table>
+            </div>
+          ),
+          thead: ({ children }) => <thead className="bg-muted/50">{children}</thead>,
+          tbody: ({ children }) => <tbody>{children}</tbody>,
+          tr: ({ children }) => <tr className="border-b border-border">{children}</tr>,
+          th: ({ children }) => (
+            <th className="border border-border px-2 py-1.5 text-left font-semibold break-words">
+              {children}
+            </th>
+          ),
+          td: ({ children }) => (
+            <td className="border border-border px-2 py-1.5 break-words">
+              {children}
+            </td>
           ),
         }}
       />

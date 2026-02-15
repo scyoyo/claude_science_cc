@@ -667,8 +667,8 @@ export default function MeetingDetailPage() {
             );
           })()}
 
-          <ScrollArea className="flex-1 min-h-[50vh] mb-2 sm:mb-3 min-w-0 overflow-x-hidden">
-            <div className="space-y-3 pr-2 sm:pr-4 min-w-0 w-full max-w-full">
+          <ScrollArea className="flex-1 min-h-[50vh] mb-2 sm:mb-3 min-w-0">
+            <div className="space-y-3 pr-2 sm:pr-4 min-w-0 max-w-full">
               {filteredMessages.length === 0 ? (
                 <p className="text-muted-foreground text-sm">{t("noMessages")}</p>
               ) : (
