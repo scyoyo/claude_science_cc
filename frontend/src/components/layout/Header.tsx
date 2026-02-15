@@ -56,7 +56,7 @@ export function Header() {
           </Button>
         )}
         <span className="font-mono text-xs tracking-wider text-muted-foreground uppercase shrink-0 hidden sm:inline">
-          Virtual Lab
+          Claude Science
         </span>
         {!isMobile && <Separator orientation="vertical" className="h-4" />}
         <span className="text-sm font-medium truncate">{breadcrumb}</span>
