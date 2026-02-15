@@ -120,9 +120,12 @@ export function WizardChat() {
     }
   }, [messages, isLoading]);
 
-  async function handleSend() {
-    const msg = input.trim();
-    if (!msg || isLoading) return;
+  /** Send user message, or explicit accept intent when user clicks Agree. */
+  async function handleSend(acceptIntent?: boolean) {
+    const isAccept = acceptIntent === true;
+    const msg = isAccept ? t("accepted") : input.trim();
+    if (!isAccept && (!msg || isLoading)) return;
+    if (isAccept && isLoading) return;
 
     setInput("");
     setMessages((prev) => [...prev, { role: "user", content: msg }]);
@@ -130,15 +133,16 @@ export function WizardChat() {
 
     const newHistory: OnboardingChatMessage[] = [
       ...history,
-      { role: "user", content: msg },
+      { role: "user", content: isAccept ? msg : msg },
     ];
 
     try {
       const response: OnboardingChatResponse = await onboardingAPI.chat({
-        message: msg,
+        message: isAccept ? "" : msg,
         conversation_history: newHistory,
         context,
         locale: locale === "zh" || locale === "en" ? locale : undefined,
+        intent: isAccept ? "accept" : undefined,
       });
 
       // Update history
@@ -307,6 +311,24 @@ export function WizardChat() {
       </div>
     </div>
   ) : (
+    <div className="space-y-2">
+      {/* Agree button when on final confirm step (team or mirror); rest is AI-interpreted from text */}
+      {(stage === "team_suggestion" && teamSuggestion) || stage === "mirror_config" ? (
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            className="shrink-0 h-10 px-4"
+            onClick={() => handleSend(true)}
+            disabled={isLoading}
+          >
+            <CheckCircle2 className="h-4 w-4 mr-1.5 shrink-0" />
+            {t("agree")}
+          </Button>
+          <span className="text-xs text-muted-foreground self-center hidden sm:inline">
+            {stage === "mirror_config" ? t("placeholderMirror") : t("placeholderReview")}
+          </span>
+        </div>
+      ) : null}
     <div className="flex gap-2">
       <div className="relative flex-1 min-w-0">
         <Textarea
@@ -355,7 +377,7 @@ export function WizardChat() {
       <Button
         size="icon"
         className="h-[52px] w-[52px] shrink-0 self-end"
-        onClick={handleSend}
+        onClick={() => handleSend(false)}
         disabled={!input.trim() || isLoading}
       >
         {isLoading ? (
@@ -364,6 +386,7 @@ export function WizardChat() {
           <Send className="h-4 w-4" />
         )}
       </Button>
+    </div>
     </div>
   );
 

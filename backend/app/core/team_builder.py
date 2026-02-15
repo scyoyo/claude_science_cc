@@ -95,6 +95,31 @@ Briefly explain how mirror agents would benefit this team and ask the user:
 
 Keep your explanation concise (2-3 sentences about the benefit, then the questions)."""
 
+TEAM_CONFIRM_INTERPRET_PROMPT = """You are helping interpret the user's response to a proposed virtual lab team.
+
+Given the conversation history and the user's latest message, decide their intent:
+- "accept": they are satisfied and want to proceed with creating this team (e.g. agree, looks good, yes, 可以, 同意).
+- "reject": they want changes (different agents, add/remove, modify roles, etc.).
+- "unclear": ambiguous or short; you need to ask them to either accept or describe what to change.
+
+If the decision is "unclear", also provide a brief follow-up question in the SAME language as the user (e.g. Chinese if they wrote in Chinese), asking them to either accept the team or describe what they'd like to modify. Keep it to one short sentence.
+
+Respond with ONLY a JSON object (no markdown, no code fences) with exactly these fields:
+- "decision": "accept" | "reject" | "unclear"
+- "follow_up_message": string or null (only set when decision is "unclear"; otherwise null)"""
+
+MIRROR_CONFIRM_INTERPRET_PROMPT = """You are helping interpret the user's response about enabling mirror agents.
+
+Mirror agents use a different model to verify the primary agents' outputs. The user was asked whether to enable them and which model to use.
+
+Decide:
+- "accept": they want to enable mirror agents (yes, enable, 启用, 好, etc.). If they mentioned a model name, extract it (e.g. deepseek-chat, gpt-4.1-mini).
+- "reject": they do not want mirror agents (no, skip, 不用, 跳过, disable, etc.).
+
+Respond with ONLY a JSON object (no markdown, no code fences):
+- "decision": "accept" | "reject"
+- "mirror_model": string or null (model id for mirrors when decision is "accept"; e.g. deepseek-chat; omit or null if not specified)"""
+
 # Role keyword → (model, reason) for template-based model assignment
 ROLE_MODEL_MAP: Dict[str, dict] = {
     "vision": {"model": "gpt-4.1", "reason": "GPT-4.1: latest multimodal model with strong vision/image analysis"},
@@ -434,7 +459,120 @@ class TeamBuilder:
             prompt = prompt + "\n\n" + language_instruction(preferred_lang)
         return self.llm_func(prompt, history)
 
+    def interpret_team_confirm(
+        self,
+        history: List[ChatMessage],
+        user_message: str,
+        preferred_lang: Optional[str] = None,
+    ) -> tuple[str, Optional[str]]:
+        """Use LLM to interpret user response to team proposal: accept, reject, or unclear.
+
+        Returns (decision, follow_up_message). follow_up_message is non-null only when decision is 'unclear'.
+        Falls back to keyword-based detection if no llm_func.
+        """
+        if not self.llm_func:
+            decision = _keyword_accept_reject(user_message or "")
+            if decision == "unclear":
+                lang = preferred_lang or "en"
+                follow = (
+                    "要**接受**当前团队并创建，还是**提出修改**？"
+                    "回复「接受」「可以」等以创建团队，或直接描述你想修改的内容。"
+                ) if lang == "zh" else (
+                    "Would you like to **accept** this team and create it, or **suggest changes**? "
+                    "Reply e.g. \"Accept\" / \"Looks good\" to create the team, or describe what you'd like to modify."
+                )
+                return "unclear", follow
+            return decision, None
+        messages = list(history)
+        if user_message:
+            messages.append(ChatMessage(role="user", content=user_message))
+        prompt = TEAM_CONFIRM_INTERPRET_PROMPT
+        if preferred_lang:
+            prompt = prompt + "\n\n" + language_instruction(preferred_lang)
+        response = self.llm_func(prompt, messages)
+        try:
+            cleaned = re.sub(r"^```(?:json)?\s*\n?", "", response.strip())
+            cleaned = re.sub(r"\n?```\s*$", "", cleaned)
+            data = json.loads(cleaned)
+            decision = (data.get("decision") or "unclear").lower()
+            if decision not in ("accept", "reject", "unclear"):
+                decision = "unclear"
+            follow_up = data.get("follow_up_message") if decision == "unclear" else None
+            if follow_up and isinstance(follow_up, str):
+                follow_up = follow_up.strip() or None
+            return decision, follow_up
+        except (json.JSONDecodeError, Exception):
+            decision = _keyword_accept_reject(user_message or "")
+            return decision, None
+
+    def interpret_mirror_confirm(
+        self,
+        user_message: str,
+        preferred_lang: Optional[str] = None,
+    ) -> tuple[str, Optional[str]]:
+        """Use LLM to interpret user response about mirror agents: accept or reject.
+
+        Returns (decision, mirror_model). mirror_model is set when decision is 'accept' and user specified a model.
+        """
+        if not self.llm_func:
+            decision = _keyword_accept_reject(user_message or "")
+            model = "deepseek-chat"
+            if decision == "accept" and user_message:
+                model = _extract_model_from_message(user_message) or model
+            return decision, model if decision == "accept" else None
+        prompt = MIRROR_CONFIRM_INTERPRET_PROMPT
+        if preferred_lang:
+            prompt = prompt + "\n\n" + language_instruction(preferred_lang)
+        messages = [ChatMessage(role="user", content=user_message or "(no message)")]
+        response = self.llm_func(prompt, messages)
+        try:
+            cleaned = re.sub(r"^```(?:json)?\s*\n?", "", response.strip())
+            cleaned = re.sub(r"\n?```\s*$", "", cleaned)
+            data = json.loads(cleaned)
+            decision = (data.get("decision") or "reject").lower()
+            if decision not in ("accept", "reject"):
+                decision = "reject"
+            model = data.get("mirror_model") if decision == "accept" else None
+            if model and isinstance(model, str):
+                model = model.strip() or None
+            if decision == "accept" and not model:
+                model = "deepseek-chat"
+            return decision, model
+        except (json.JSONDecodeError, Exception):
+            decision = _keyword_accept_reject(user_message or "")
+            return decision, ("deepseek-chat" if decision == "accept" else None)
+
     # ==================== Template-Based Methods (Fallback) ====================
+
+
+def _keyword_accept_reject(message: str) -> str:
+    """Keyword-based accept/reject/unclear (no LLM). Returns 'accept', 'reject', or 'unclear'."""
+    if not (message or "").strip():
+        return "unclear"
+    msg_lower = message.strip().lower()
+    accept = ["accept", "looks good", "yes", "ok", "sure", "是", "好", "同意", "可以", "确认", "没问题", "行"]
+    reject = ["reject", "no", "change", "modify", "different", "revise", "否", "不", "跳过", "不要", "不用", "取消"]
+    modify = ["add a", "add an", "remove ", "replace ", "换掉", "加一个", "去掉", "删掉", "改一下"]
+    if any(s in msg_lower for s in reject) or any(s in msg_lower for s in modify):
+        return "reject"
+    if any(s in msg_lower for s in accept):
+        return "accept"
+    return "unclear"
+
+
+def _extract_model_from_message(message: str) -> Optional[str]:
+    """Extract model id from user message (e.g. gpt-4, deepseek-chat)."""
+    import re
+    patterns = [
+        r"gpt-4[o\-a-z]*", r"gpt-3\.5[a-z\-]*",
+        r"claude-3[a-z\-]*", r"claude-sonnet[a-z\-]*", r"claude-opus[a-z\-]*",
+        r"deepseek[a-z\-]*",
+    ]
+    for p in patterns:
+        m = re.search(p, message, re.IGNORECASE)
+        if m:
+            return m.group(0).lower()
+    return None
 
     def analyze_problem(self, problem_description: str) -> DomainAnalysis:
         """Analyze a research problem and return domain analysis.

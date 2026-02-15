@@ -576,7 +576,22 @@ class TestOnboardingChatAPI:
         data = response.json()
         assert data["stage"] == "team_suggestion"
         assert data["next_stage"] == "team_suggestion"
-        assert "accept" in data["message"].lower() or "suggest" in data["message"].lower()
+        # Message may be in English or Chinese (AI/keyword follow-up)
+        msg_lower = data["message"].lower()
+        assert "accept" in msg_lower or "suggest" in msg_lower or "接受" in data["message"] or "修改" in data["message"]
+
+    def test_team_suggestion_intent_accept(self, client):
+        """When intent=accept (e.g. Agree button), proceed without parsing message."""
+        response = client.post("/api/onboarding/chat", json={
+            "stage": "team_suggestion",
+            "message": "",
+            "intent": "accept",
+            "context": {"team_suggestion": {"team_name": "Test", "agents": []}},
+        })
+        assert response.status_code == 200
+        data = response.json()
+        assert data["next_stage"] is None
+        assert "creating" in data["message"].lower() or "great" in data["message"].lower()
 
     def test_chat_omits_stage_infers_problem(self, client):
         """When stage is omitted, backend infers problem from empty context."""
@@ -842,8 +857,10 @@ class TestOnboardingChatLLMMode:
             ],
         }
 
+        # First call: interpret_team_confirm returns reject; second: propose_team_with_text returns revised team
         mock_llm = self._make_mock_llm([
-            f"Here's a revised team:\n```json\n{json.dumps(revised_team)}\n```"
+            '{"decision": "reject", "follow_up_message": null}',
+            f"Here's a revised team:\n```json\n{json.dumps(revised_team)}\n```",
         ])
 
         from app.api.onboarding import get_team_builder

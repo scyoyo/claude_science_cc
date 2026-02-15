@@ -201,6 +201,8 @@ export interface OnboardingChatRequest {
   context: Record<string, unknown>;
   /** System locale fallback for agent response language (e.g. "en", "zh"). */
   locale?: string;
+  /** Explicit intent e.g. "accept" when user clicks Agree (no keyword parsing). */
+  intent?: "accept" | null;
 }
 
 export interface OnboardingChatResponse {

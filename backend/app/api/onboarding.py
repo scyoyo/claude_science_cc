@@ -332,11 +332,26 @@ def _handle_team_suggestion_stage(
 ) -> OnboardingChatResponse:
     """Handle user's response to team suggestion.
 
-    Detect accept/reject:
-    - Accept → move to mirror_config (LLM explains mirrors or static message)
-    - Reject → re-propose team with feedback (loop back to clarification stage)
+    - Explicit intent 'accept' (e.g. Agree button) → proceed to create team.
+    - Otherwise use AI to interpret: accept / reject / unclear.
+    - Reject → re-propose team with feedback. Unclear → AI-generated follow-up.
     """
-    decision = _detect_accept_reject(request.message)
+    lang = _response_lang(request)
+    preferred_lang = lang if lang in ("zh", "en") else "en"
+
+    if getattr(request, "intent", None) == "accept":
+        return OnboardingChatResponse(
+            stage=OnboardingStage.team_suggestion,
+            next_stage=None,
+            message="Great! Creating your team now...",
+            data={"team_suggestion": request.context.get("team_suggestion", {})},
+        )
+
+    decision, follow_up_message = team_builder.interpret_team_confirm(
+        list(request.conversation_history),
+        request.message,
+        preferred_lang=preferred_lang,
+    )
 
     if decision == "reject":
         # Re-propose team with user feedback
@@ -369,19 +384,12 @@ def _handle_team_suggestion_stage(
             data={"team_suggestion": request.context.get("team_suggestion", {})},
         )
 
-    # Unclear: stay in team_suggestion and ask user to confirm or describe changes
+    # Unclear: use AI-generated follow-up or fallback
     if decision == "unclear":
-        lang = (request.context or {}).get("response_lang", "en")
-        if lang == "zh":
-            msg = (
-                "要**接受**当前团队并创建，还是**提出修改**？"
-                "回复「接受」「可以」等以创建团队，或直接描述你想修改的内容（例如增加工程师、更换角色）。"
-            )
-        else:
-            msg = (
-                "Would you like to **accept** this team and create it, or **suggest changes**? "
-                "Reply e.g. \"Accept\" / \"Looks good\" to create the team, or describe what you'd like to modify (e.g. add an engineer, change a role)."
-            )
+        msg = follow_up_message or (
+            "Would you like to **accept** this team and create it, or **suggest changes**? "
+            "Reply to accept or describe what you'd like to modify."
+        )
         return OnboardingChatResponse(
             stage=OnboardingStage.team_suggestion,
             next_stage=OnboardingStage.team_suggestion,
@@ -402,18 +410,21 @@ def _handle_mirror_config_stage(
     request: OnboardingChatRequest,
     team_builder: TeamBuilder,
 ) -> OnboardingChatResponse:
-    """Configure mirror agents based on user's response."""
+    """Configure mirror agents: intent 'accept' or AI-interpreted message."""
     team_data = request.context.get("team_suggestion", {})
 
-    # Parse user's response for yes/no
-    decision = _detect_accept_reject(request.message)
-    enable_mirrors = decision == "accept"
+    if getattr(request, "intent", None) == "accept":
+        decision, mirror_model = "accept", "deepseek-chat"
+    else:
+        lang = _response_lang(request)
+        preferred_lang = lang if lang in ("zh", "en") else "en"
+        decision, mirror_model = team_builder.interpret_mirror_confirm(
+            request.message,
+            preferred_lang=preferred_lang,
+        )
 
-    # Extract model preference from user's message (default: deepseek-chat)
-    mirror_model = "deepseek-chat"
-    parsed = _parse_preferences_from_message(request.message)
-    if parsed.get("model"):
-        mirror_model = parsed["model"]
+    enable_mirrors = decision == "accept"
+    mirror_model = mirror_model or "deepseek-chat"
 
     mirror_config = {
         "enabled": enable_mirrors,

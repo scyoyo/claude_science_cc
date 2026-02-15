@@ -26,6 +26,8 @@ class OnboardingChatRequest(BaseModel):
     conversation_history: List[ChatMessage] = []
     context: Dict = {}  # Stage-specific context (e.g., analysis results, preferences)
     locale: Optional[str] = None  # System locale fallback for agent language (e.g. "en", "zh")
+    """Explicit user intent: e.g. 'accept' when user clicks Agree (no keyword parsing)."""
+    intent: Optional[str] = None
 
 
 class OnboardingChatResponse(BaseModel):
