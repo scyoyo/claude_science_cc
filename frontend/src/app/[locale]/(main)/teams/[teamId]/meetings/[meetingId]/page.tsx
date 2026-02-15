@@ -154,9 +154,11 @@ export default function MeetingDetailPage() {
   }, []);
 
   const onRoundComplete = useCallback((round: number, totalRounds: number) => {
-    setMeeting((prev) =>
-      prev ? { ...prev, current_round: round, status: round >= totalRounds ? "completed" : "pending" } : prev
-    );
+    setMeeting((prev) => {
+      if (!prev) return prev;
+      const nextRound = Math.max(prev.current_round, round);
+      return { ...prev, current_round: nextRound, status: nextRound >= totalRounds ? "completed" : "pending" };
+    });
     setRunning(false);
   }, []);
 
@@ -191,9 +193,12 @@ export default function MeetingDetailPage() {
   }, [meetingId, scrollToBottom]);
 
   const onSSERoundComplete = useCallback((round: number, totalRounds: number) => {
-    setMeeting((prev) =>
-      prev ? { ...prev, current_round: round, status: round >= totalRounds ? "completed" : "pending" } : prev
-    );
+    setMeeting((prev) => {
+      if (!prev) return prev;
+      // Only ever increase current_round (round is 1-based, last completed round)
+      const nextRound = Math.max(prev.current_round, round);
+      return { ...prev, current_round: nextRound, status: nextRound >= totalRounds ? "completed" : "pending" };
+    });
   }, []);
 
   const onSSEComplete = useCallback(async () => {
@@ -201,7 +206,10 @@ export default function MeetingDetailPage() {
     setRunning(false);
     try {
       const data = await meetingsAPI.get(meetingId);
-      setMeeting(data);
+      setMeeting((prev) => {
+        const nextRound = prev ? Math.max(prev.current_round, data.current_round) : data.current_round;
+        return { ...data, current_round: nextRound };
+      });
       setLiveMessages([]);
       artifactsAPI.listByMeeting(meetingId).then(setChatArtifacts).catch(() => {});
     } catch {
@@ -297,9 +305,12 @@ export default function MeetingDetailPage() {
     meetingId,
     enabled: backgroundRunning && !sseConnected,
     onStatusChange: (s) => {
-      setMeeting((prev) =>
-        prev ? { ...prev, status: s.status as Meeting["status"], current_round: s.current_round } : prev
-      );
+      setMeeting((prev) => {
+        if (!prev) return prev;
+        // Never decrease current_round (avoid stale poll overwriting SSE updates)
+        const nextRound = Math.max(prev.current_round, s.current_round);
+        return { ...prev, status: s.status as Meeting["status"], current_round: nextRound };
+      });
     },
     onComplete: async () => {
       setBackgroundRunning(false);
@@ -307,7 +318,11 @@ export default function MeetingDetailPage() {
       // Refresh full meeting data and artifacts (auto-extract may have run)
       try {
         const data = await meetingsAPI.get(meetingId);
-        setMeeting(data);
+        setMeeting((prev) => {
+          // Keep the higher current_round in case fetch returned before backend commit
+          const nextRound = prev ? Math.max(prev.current_round, data.current_round) : data.current_round;
+          return { ...data, current_round: nextRound };
+        });
         setLiveMessages([]);
         artifactsAPI.listByMeeting(meetingId).then(setChatArtifacts).catch(() => {});
       } catch {
@@ -657,7 +672,7 @@ export default function MeetingDetailPage() {
                         </div>
                       )}
                       <div
-                        className={`p-3 sm:p-4 rounded-lg border break-words overflow-hidden ${
+                        className={`p-3 sm:p-4 rounded-lg border break-words overflow-hidden min-w-0 w-full max-w-full ${
                           isFinalSummary
                             ? "bg-primary/5 border-primary/30 ring-1 ring-primary/20"
                             : isCritic
@@ -691,34 +706,28 @@ export default function MeetingDetailPage() {
                           )}
                         </div>
                         {msg.role === "user" ? (
-                          <p className="text-sm text-muted-foreground whitespace-pre-wrap break-words">
+                          <p className="text-sm text-muted-foreground whitespace-pre-wrap break-words max-w-full">
                             {msg.content}
                           </p>
                         ) : (
                           <MarkdownContent
                             content={msg.content}
-                            className="text-sm text-muted-foreground"
+                            className="text-sm text-muted-foreground max-w-full"
+                            codeBlockArtifacts={
+                              messageArtifacts.length > 0
+                                ? messageArtifacts.map((a) => ({ id: a.id, filename: a.filename }))
+                                : undefined
+                            }
+                            onOpenArtifact={(id) => {
+                              const a = chatArtifacts.find((x) => x.id === id);
+                              if (a) {
+                                setViewerArtifact(a);
+                                setViewerOpen(true);
+                              }
+                            }}
                           />
                         )}
                       </div>
-                      {messageArtifacts.length > 0 && (
-                        <div className="mt-1.5 pl-1 flex flex-wrap gap-1.5">
-                          {messageArtifacts.map((a) => (
-                            <button
-                              key={a.id}
-                              type="button"
-                              onClick={() => {
-                                setViewerArtifact(a);
-                                setViewerOpen(true);
-                              }}
-                              className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs bg-muted/70 hover:bg-muted border border-transparent hover:border-border transition-colors min-h-8 touch-manipulation"
-                            >
-                              <FileCode className="h-3 w-3 shrink-0" />
-                              <span className="truncate max-w-[140px] sm:max-w-[240px]">{a.filename}</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
                     </div>
                   );
                 })
@@ -766,12 +775,15 @@ export default function MeetingDetailPage() {
             </div>
           </ScrollArea>
 
-          {/* Background progress indicator */}
-          {backgroundRunning && pollStatus && (
+          {/* Background progress indicator: use meeting when SSE (live), else pollStatus */}
+          {backgroundRunning && (
             <div className="shrink-0 flex items-center gap-2 px-3 py-2 bg-primary/5 border border-primary/20 rounded-lg text-sm">
               <Loader2 className="h-4 w-4 animate-spin text-primary" />
               <span>
-                {t("backgroundRunning")} — {t("round", { current: pollStatus.current_round, max: pollStatus.max_rounds })}
+                {t("backgroundRunning")} — {t("round", {
+                  current: sseConnected ? (meeting?.current_round ?? 0) : (pollStatus?.current_round ?? 0),
+                  max: meeting?.max_rounds ?? pollStatus?.max_rounds ?? 0,
+                })}
               </span>
             </div>
           )}
