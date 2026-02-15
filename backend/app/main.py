@@ -1,10 +1,12 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from app.config import settings
 from app.database import init_db
 from app.api import teams, agents, onboarding, llm, meetings, artifacts, export, auth, ws, search, templates, webhooks, dashboard
+from app.core.llm_client import LLMQuotaError
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.middleware.logging import LoggingMiddleware
 
@@ -69,6 +71,18 @@ for router in _api_routers:
     app.include_router(router, prefix="/api/v1")
 
 app.include_router(ws.router)
+
+
+@app.exception_handler(LLMQuotaError)
+def llm_quota_exception_handler(_request, exc: LLMQuotaError):
+    """Return 402 with provider so frontend can disable that provider's models."""
+    return JSONResponse(
+        status_code=402,
+        content={
+            "detail": str(exc) or "API quota exhausted. Please check your API key billing or switch to another provider in Settings.",
+            "provider": getattr(exc, "provider", None),
+        },
+    )
 
 
 @app.get("/")

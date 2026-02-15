@@ -14,6 +14,7 @@ export interface SSEMessage {
   total_rounds?: number;
   status?: string;
   detail?: string;
+  provider?: string;
 }
 
 interface UseMeetingSSEOptions {
@@ -22,7 +23,7 @@ interface UseMeetingSSEOptions {
   onMessage?: (msg: SSEMessage) => void;
   onRoundComplete?: (round: number, totalRounds: number) => void;
   onComplete?: () => void;
-  onError?: (detail: string) => void;
+  onError?: (detail: string, provider?: string) => void;
 }
 
 const RECONNECT_BASE_MS = 3000;
@@ -119,7 +120,7 @@ export function useMeetingSSE({
                   cleanup();
                   return;
                 case "error":
-                  onErrorRef.current?.(event.detail || "Unknown error");
+                  onErrorRef.current?.(event.detail || "Unknown error", event.provider);
                   cleanup();
                   return;
               }

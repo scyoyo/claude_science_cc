@@ -16,12 +16,13 @@ export interface WSMessage {
   status?: string;
   detail?: string;
   role?: string;
+  provider?: string;
 }
 
 interface UseMeetingWSOptions {
   meetingId: string;
   onMessage?: (msg: WSMessage) => void;
-  onError?: (error: string) => void;
+  onError?: (error: string, provider?: string) => void;
   onRoundComplete?: (round: number, totalRounds: number) => void;
   onMeetingComplete?: () => void;
   onConnectFailed?: () => void;
@@ -97,7 +98,7 @@ export function useMeetingWebSocket({
           onMeetingComplete?.();
           break;
         case "error":
-          onError?.(msg.detail || "Unknown error");
+          onError?.(msg.detail || "Unknown error", msg.provider);
           break;
       }
     };

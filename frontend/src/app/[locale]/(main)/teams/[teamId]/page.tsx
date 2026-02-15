@@ -32,7 +32,8 @@ import { Label } from "@/components/ui/label";
 import { ArrowLeft, Plus, Trash2, Pencil, Workflow, MessageSquare, Bot, Loader2, LayoutTemplate, CheckSquare, Download, PlayCircle, CopyPlus } from "lucide-react";
 import { SHOW_VISUAL_EDITOR, SHOW_EXPORT_TEAM } from "@/lib/feature-flags";
 import type { Agent } from "@/types";
-import { MODEL_OPTIONS, getModelLabel } from "@/lib/models";
+import { MODEL_OPTIONS, getModelLabel, getProviderForModel } from "@/lib/models";
+import { useQuotaExhausted } from "@/contexts/QuotaExhaustedContext";
 import { EditAgentDialog, type EditAgentFormData } from "@/components/EditAgentDialog";
 import { NewMeetingDialog } from "@/components/NewMeetingDialog";
 
@@ -42,6 +43,7 @@ export default function TeamDetailPage() {
   const teamId = params.teamId as string;
   const t = useTranslations("teamDetail");
   const tc = useTranslations("common");
+  const { exhaustedProviders } = useQuotaExhausted();
 
   const [team, setTeam] = useState<TeamWithAgents | null>(null);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
@@ -377,11 +379,15 @@ export default function TeamDetailPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {MODEL_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </SelectItem>
-                    ))}
+                    {MODEL_OPTIONS.map((opt) => {
+                      const provider = getProviderForModel(opt.value);
+                      const exhausted = provider != null && exhaustedProviders.has(provider);
+                      return (
+                        <SelectItem key={opt.value} value={opt.value} disabled={exhausted}>
+                          {opt.label}{exhausted ? ` (${tc("insufficientQuota")})` : ""}
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
                 <DialogFooter>

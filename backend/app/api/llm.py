@@ -160,10 +160,7 @@ def llm_chat(
             "usage": response.usage,
         }
     except LLMQuotaError:
-        raise HTTPException(
-            status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail="API quota exhausted. Please check your API key billing or add credits to your account.",
-        )
+        raise  # Handled by global exception handler (402 + provider)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,

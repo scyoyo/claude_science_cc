@@ -4,8 +4,9 @@ import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useTranslations, useLocale } from "next-intl";
 import { Link } from "@/i18n/navigation";
-import { meetingsAPI, agendaAPI, agentsAPI, artifactsAPI } from "@/lib/api";
+import { meetingsAPI, agendaAPI, agentsAPI, artifactsAPI, ApiError } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
+import { useQuotaExhausted } from "@/contexts/QuotaExhaustedContext";
 import { useMeetingPolling } from "@/hooks/useMeetingPolling";
 import { downloadBlob } from "@/lib/utils";
 import { useMeetingWebSocket, type WSMessage } from "@/hooks/useMeetingWebSocket";
@@ -67,6 +68,7 @@ export default function MeetingDetailPage() {
   const meetingId = params.meetingId as string;
   const t = useTranslations("meeting");
   const tc = useTranslations("common");
+  const { markExhausted } = useQuotaExhausted();
 
   const [meeting, setMeeting] = useState<MeetingWithMessages | null>(null);
   const [loading, setLoading] = useState(true);
@@ -148,10 +150,11 @@ export default function MeetingDetailPage() {
     }
   }, [meetingId, scrollToBottom]);
 
-  const onWSError = useCallback((detail: string) => {
+  const onWSError = useCallback((detail: string, provider?: string) => {
+    if (provider) markExhausted(provider);
     setError(detail);
     setRunning(false);
-  }, []);
+  }, [markExhausted]);
 
   const onRoundComplete = useCallback((round: number, totalRounds: number) => {
     setMeeting((prev) => {
@@ -217,11 +220,12 @@ export default function MeetingDetailPage() {
     }
   }, [meetingId]);
 
-  const onSSEError = useCallback((detail: string) => {
+  const onSSEError = useCallback((detail: string, provider?: string) => {
+    if (provider) markExhausted(provider);
     setError(detail);
     setBackgroundRunning(false);
     setRunning(false);
-  }, []);
+  }, [markExhausted]);
 
   const { connected: sseConnected } = useMeetingSSE({
     meetingId,
@@ -285,12 +289,14 @@ export default function MeetingDetailPage() {
       meetingsAPI
         .runBackground(meetingId, pending.rounds, pending.topic, pending.locale)
         .catch((err) => {
+          if (err instanceof ApiError && err.status === 402 && err.body?.provider)
+            markExhausted(String(err.body.provider));
           setError(getErrorMessage(err, "Failed to start run"));
           setBackgroundRunning(false);
         });
     }, sseConnected ? 0 : SSE_READY_MS);
     return () => clearTimeout(id);
-  }, [backgroundRunning, sseConnected, meetingId]);
+  }, [backgroundRunning, sseConnected, meetingId, markExhausted]);
 
   /** "Run 1 round" button */
   const handleRun = () => handleRunBackground(1);

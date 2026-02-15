@@ -25,6 +25,7 @@ import {
 import { Trash2, Plus, Key, Webhook, Pencil, Loader2 } from "lucide-react";
 import { llmAPI, webhooksAPI, type APIKeyInfo } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
+import { useQuotaExhausted } from "@/contexts/QuotaExhaustedContext";
 import type { Webhook as WebhookType } from "@/types";
 
 const WEBHOOK_EVENTS = [
@@ -39,6 +40,7 @@ export default function SettingsPage() {
   const t = useTranslations("settings");
   const tw = useTranslations("webhooks");
   const tc = useTranslations("common");
+  const { clearExhausted } = useQuotaExhausted();
   const [keys, setKeys] = useState<APIKeyInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -86,6 +88,7 @@ export default function SettingsPage() {
     if (!apiKey.trim()) return;
     try {
       await llmAPI.addKey(provider, apiKey);
+      clearExhausted(provider);
       setApiKey("");
       loadKeys();
     } catch (err) {

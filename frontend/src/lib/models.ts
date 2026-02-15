@@ -32,6 +32,22 @@ export const MODEL_OPTIONS: { value: string; label: string }[] = [
 
 export const DEFAULT_MODEL = "gpt-4.1";
 
+/** Provider for a model id (matches backend detect_provider). */
+const MODEL_PROVIDER_MAP: [string, string][] = [
+  ["gpt-", "openai"],
+  ["o1", "openai"],
+  ["claude-", "anthropic"],
+  ["deepseek-", "deepseek"],
+];
+
+export function getProviderForModel(model: string): string | null {
+  if (!model) return null;
+  for (const [prefix, provider] of MODEL_PROVIDER_MAP) {
+    if (model.startsWith(prefix)) return provider;
+  }
+  return null;
+}
+
 /** Display name for a model id (e.g. claude-sonnet-4-5-20250929 -> "Claude Sonnet 4.5"). */
 export function getModelLabel(value: string): string {
   if (!value) return value;

@@ -18,7 +18,8 @@
     "close": "Close",
     "add": "Add",
     "send": "Send",
-    "run": "Run"
+    "run": "Run",
+    "insufficientQuota": "Insufficient balance"
   },
   "nav": {
     "dashboard": "Dashboard",

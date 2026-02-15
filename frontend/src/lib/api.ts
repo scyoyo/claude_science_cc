@@ -42,6 +42,18 @@ const API_BASE =
     ? getApiBase()
     : (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api");
 
+/** Thrown by fetchAPI on non-ok response. status and body allow 402 + provider handling. */
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+    public body: Record<string, unknown> = {},
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: {
@@ -52,8 +64,9 @@ async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
     ...options,
   });
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(error.detail || `API error: ${res.status}`);
+    const body = await res.json().catch(() => ({ detail: res.statusText }));
+    const message = typeof body.detail === "string" ? body.detail : body.detail?.message ?? res.statusText;
+    throw new ApiError(message || `API error: ${res.status}`, res.status, body as Record<string, unknown>);
   }
   if (res.status === 204) return undefined as T;
   return res.json();
@@ -121,8 +134,9 @@ async function fetchRaw(path: string, options?: RequestInit): Promise<Response> 
     ...options,
   });
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(error.detail || `API error: ${res.status}`);
+    const body = await res.json().catch(() => ({ detail: res.statusText }));
+    const message = typeof body.detail === "string" ? body.detail : body.detail?.message ?? res.statusText;
+    throw new ApiError(message || `API error: ${res.status}`, res.status, body as Record<string, unknown>);
   }
   return res;
 }

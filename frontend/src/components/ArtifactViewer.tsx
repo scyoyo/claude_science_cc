@@ -32,9 +32,9 @@ export default function ArtifactViewer({ artifact, open, onOpenChange }: Artifac
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 flex-wrap">
+      <DialogContent className="w-[95vw] max-w-3xl h-[85dvh] max-h-[85dvh] flex flex-col p-3 sm:p-6">
+        <DialogHeader className="shrink-0 space-y-1">
+          <DialogTitle className="flex items-center gap-2 flex-wrap text-base sm:text-lg min-w-0">
             <span className="truncate">{artifact.filename}</span>
             <Badge variant="outline" className={langColor(artifact.language)}>
               {artifact.language}
@@ -45,10 +45,10 @@ export default function ArtifactViewer({ artifact, open, onOpenChange }: Artifac
           </DialogTitle>
         </DialogHeader>
         {artifact.description && (
-          <p className="text-sm text-muted-foreground">{artifact.description}</p>
+          <p className="text-sm text-muted-foreground shrink-0">{artifact.description}</p>
         )}
-        <ScrollArea className="flex-1 max-h-[60vh] rounded-md border bg-muted/30">
-          <pre className="text-xs p-4 overflow-x-auto">
+        <ScrollArea className="flex-1 min-h-0 rounded-md border bg-muted/30">
+          <pre className="text-xs p-3 sm:p-4 overflow-x-auto whitespace-pre-wrap break-words">
             <code>{artifact.content}</code>
           </pre>
         </ScrollArea>

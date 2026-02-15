@@ -18,7 +18,8 @@
     "close": "关闭",
     "add": "添加",
     "send": "发送",
-    "run": "运行"
+    "run": "运行",
+    "insufficientQuota": "余额不够了"
   },
   "nav": {
     "dashboard": "仪表盘",

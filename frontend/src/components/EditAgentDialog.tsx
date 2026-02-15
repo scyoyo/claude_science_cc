@@ -20,7 +20,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { MODEL_OPTIONS } from "@/lib/models";
+import { MODEL_OPTIONS, getProviderForModel } from "@/lib/models";
+import { useQuotaExhausted } from "@/contexts/QuotaExhaustedContext";
 import type { Agent } from "@/types";
 
 export type EditAgentFormData = Pick<
@@ -51,6 +52,7 @@ export function EditAgentDialog({
 }: EditAgentDialogProps) {
   const t = useTranslations("teamDetail");
   const tc = useTranslations("common");
+  const { exhaustedProviders } = useQuotaExhausted();
   const [form, setForm] = useState<EditAgentFormData>({
     name: "",
     title: "",
@@ -146,11 +148,15 @@ export function EditAgentDialog({
                   !form.model || MODEL_OPTIONS.some((o) => o.value === form.model)
                     ? MODEL_OPTIONS
                     : [{ value: form.model, label: form.model }, ...MODEL_OPTIONS]
-                ).map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
+                ).map((opt) => {
+                  const provider = getProviderForModel(opt.value);
+                  const exhausted = provider != null && exhaustedProviders.has(provider);
+                  return (
+                    <SelectItem key={opt.value} value={opt.value} disabled={exhausted}>
+                      {opt.label}{exhausted ? ` (${tc("insufficientQuota")})` : ""}
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           </div>

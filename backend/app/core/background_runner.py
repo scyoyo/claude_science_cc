@@ -246,11 +246,12 @@ def _run_meeting_thread(
         if meeting.status == MeetingStatus.completed.value:
             _auto_extract_artifacts(db, meeting_id)
 
-    except LLMQuotaError:
+    except LLMQuotaError as e:
         logger.warning("API quota exhausted for meeting %s", meeting_id)
         event_bus.publish(meeting_id, {
             "type": "error",
             "detail": "API quota exhausted. Please check your API key billing or switch provider.",
+            "provider": getattr(e, "provider", None),
         })
         try:
             meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()

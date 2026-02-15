@@ -8,8 +8,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "@/i18n/navigation";
-import { onboardingAPI } from "@/lib/api";
+import { onboardingAPI, ApiError } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
+import { useQuotaExhausted } from "@/contexts/QuotaExhaustedContext";
 import { MarkdownContent } from "@/components/MarkdownContent";
 import { useMobileGesture } from "@/contexts/MobileGestureContext";
 import { useSwipeGesture } from "@/hooks/useSwipeGesture";
@@ -67,6 +68,7 @@ function saveWizardState(state: WizardState) {
 export function WizardChat() {
   const t = useTranslations("wizard");
   const locale = useLocale();
+  const { markExhausted } = useQuotaExhausted();
   const saved = useRef(loadWizardState());
   const { isMobile, inputVisible, setInputVisible } = useMobileGesture();
 
@@ -200,7 +202,8 @@ export function WizardChat() {
             });
             setCreatedTeamId(team.id);
           } catch (err) {
-            // Show error to user instead of silently failing
+            if (err instanceof ApiError && err.status === 402 && err.body?.provider)
+              markExhausted(String(err.body.provider));
             setMessages((prev) => [
               ...prev,
               {
@@ -213,6 +216,8 @@ export function WizardChat() {
         setIsComplete(true);
       }
     } catch (error) {
+      if (error instanceof ApiError && error.status === 402 && error.body?.provider)
+        markExhausted(String(error.body.provider));
       setMessages((prev) => [
         ...prev,
         {

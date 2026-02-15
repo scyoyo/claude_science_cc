@@ -46,7 +46,10 @@ class LLMRateLimitError(LLMError):
 
 class LLMQuotaError(LLMError):
     """API quota/billing exhausted (not temporary — needs user action)."""
-    pass
+
+    def __init__(self, message: str, provider: str | None = None):
+        super().__init__(message)
+        self.provider = provider
 
 
 class LLMProviderError(LLMError):
@@ -144,7 +147,7 @@ class LLMProvider(ABC):
         elif response.status_code == 429:
             text = response.text
             if "insufficient_quota" in text or "billing" in text.lower():
-                raise LLMQuotaError(f"API quota exhausted: {text}")
+                raise LLMQuotaError(f"API quota exhausted: {text}", provider=getattr(self, "provider_name", None))
             raise LLMRateLimitError(f"Rate limit exceeded: {text}")
         elif response.status_code >= 500:
             raise LLMProviderError(f"Provider error ({response.status_code}): {response.text}")

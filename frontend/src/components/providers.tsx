@@ -3,6 +3,7 @@
 import { ThemeProvider } from "next-themes";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { MobileGestureProvider } from "@/contexts/MobileGestureContext";
+import { QuotaExhaustedProvider } from "@/contexts/QuotaExhaustedContext";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -13,7 +14,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
       disableTransitionOnChange
     >
       <TooltipProvider delayDuration={200}>
-        <MobileGestureProvider>{children}</MobileGestureProvider>
+        <QuotaExhaustedProvider>
+          <MobileGestureProvider>{children}</MobileGestureProvider>
+        </QuotaExhaustedProvider>
       </TooltipProvider>
     </ThemeProvider>
   );

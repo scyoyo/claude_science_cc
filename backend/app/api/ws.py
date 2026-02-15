@@ -240,12 +240,13 @@ async def _handle_start_round(websocket: WebSocket, db: Session, meeting: Meetin
             _auto_extract_artifacts(db, meeting.id)
             await websocket.send_json({"type": "meeting_complete", "status": "completed"})
 
-    except LLMQuotaError:
+    except LLMQuotaError as e:
         meeting.status = MeetingStatus.failed.value
         db.commit()
         await websocket.send_json({
             "type": "error",
             "detail": "API quota exhausted. Please check your API key billing or switch to another provider in Settings.",
+            "provider": getattr(e, "provider", None),
         })
     except Exception as e:
         meeting.status = MeetingStatus.failed.value

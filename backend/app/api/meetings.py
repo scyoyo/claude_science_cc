@@ -195,10 +195,7 @@ def agenda_auto_generate(request: AgendaAutoRequest, db: Session = Depends(get_d
             prev_meetings=prev_meetings or None,
         )
     except LLMQuotaError:
-        raise HTTPException(
-            status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail="API quota exhausted. Please check your API key billing or switch to another provider in Settings.",
-        )
+        raise  # Handled by global exception handler (402 + provider)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"LLM call failed: {e}")
     return AgendaAutoResponse(**result)
@@ -229,10 +226,7 @@ def agenda_agent_voting(request: AgentVotingRequest, db: Session = Depends(get_d
     try:
         result = proposer.agent_voting(agents=agent_dicts, topic=request.topic)
     except LLMQuotaError:
-        raise HTTPException(
-            status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail="API quota exhausted. Please check your API key billing or switch to another provider in Settings.",
-        )
+        raise  # Handled by global exception handler (402 + provider)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"LLM call failed: {e}")
     return AgentVotingResponse(
@@ -260,10 +254,7 @@ def agenda_chain_recommend(request: ChainRecommendRequest, db: Session = Depends
     try:
         result = proposer.chain_recommend(prev_meeting_summaries=summaries)
     except LLMQuotaError:
-        raise HTTPException(
-            status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail="API quota exhausted. Please check your API key billing or switch to another provider in Settings.",
-        )
+        raise  # Handled by global exception handler (402 + provider)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"LLM call failed: {e}")
     return AgendaAutoResponse(**result)
@@ -953,10 +944,7 @@ def run_meeting(
     except LLMQuotaError:
         meeting.status = MeetingStatus.failed.value
         db.commit()
-        raise HTTPException(
-            status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail="API quota exhausted. Please check your API key billing or switch to another provider in Settings.",
-        )
+        raise  # Handled by global exception handler (402 + provider)
     except Exception as e:
         meeting.status = MeetingStatus.failed.value
         db.commit()
