@@ -149,48 +149,52 @@ export default function MeetingsPage() {
       ) : (
         <div className="space-y-4">
           {filtered.map((meeting) => (
-            <Card key={meeting.id} className="hover:border-primary/50 transition-colors">
-              <CardHeader className="py-4">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <Link
-                    href={`/teams/${meeting.team_id}/meetings/${meeting.id}`}
-                    className="flex flex-1 min-w-0 items-center gap-2 cursor-pointer hover:text-primary"
-                  >
-                    <MessageSquare className="h-4 w-4 shrink-0" />
-                    <CardTitle className="text-base truncate">{meeting.title}</CardTitle>
-                  </Link>
-                  <div className="flex flex-wrap items-center gap-2 shrink-0">
-                    {meeting.meeting_type && meeting.meeting_type !== "team" && (
-                      <Badge variant="outline" className="text-xs capitalize">
-                        {meeting.meeting_type === "individual" ? <User className="h-3 w-3 mr-1" /> : <GitMerge className="h-3 w-3 mr-1" />}
-                        {meeting.meeting_type}
+            <Link
+              key={meeting.id}
+              href={`/teams/${meeting.team_id}/meetings/${meeting.id}`}
+              className="block"
+            >
+              <Card className="hover:border-primary/50 transition-colors cursor-pointer">
+                <CardHeader className="py-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex flex-1 min-w-0 items-center gap-2">
+                      <MessageSquare className="h-4 w-4 shrink-0" />
+                      <CardTitle className="text-base truncate">{meeting.title}</CardTitle>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
+                      {meeting.meeting_type && meeting.meeting_type !== "team" && (
+                        <Badge variant="outline" className="text-xs capitalize whitespace-nowrap">
+                          {meeting.meeting_type === "individual" ? <User className="h-3 w-3 mr-1" /> : <GitMerge className="h-3 w-3 mr-1" />}
+                          {meeting.meeting_type}
+                        </Badge>
+                      )}
+                      <Badge variant={statusVariant(meeting.status)} className="whitespace-nowrap">
+                        {t(`status.${meeting.status}`)}
                       </Badge>
-                    )}
-                    <Badge variant={statusVariant(meeting.status)}>
-                      {t(`status.${meeting.status}`)}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground">
-                      {t("round", { current: Math.min(meeting.current_round + 1, meeting.max_rounds), max: meeting.max_rounds })}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {new Date(meeting.updated_at).toLocaleDateString()}
-                    </span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(e, meeting.id);
-                      }}
-                    >
-                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                    </Button>
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                        {t("round", { current: Math.min(meeting.current_round + 1, meeting.max_rounds), max: meeting.max_rounds })}
+                      </span>
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                        {new Date(meeting.updated_at).toLocaleDateString()}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 shrink-0"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleDelete(e, meeting.id);
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              </CardHeader>
-            </Card>
+                </CardHeader>
+              </Card>
+            </Link>
           ))}
         </div>
       )}

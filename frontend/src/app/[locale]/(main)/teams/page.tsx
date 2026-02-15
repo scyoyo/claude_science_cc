@@ -17,7 +17,7 @@ import {
   DialogFooter,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Trash2, Users, Upload } from "lucide-react";
+import { Plus, Trash2, Users, Upload, CheckSquare } from "lucide-react";
 import { SHOW_IMPORT_TEAM } from "@/lib/feature-flags";
 
 export default function TeamsPage() {
@@ -30,6 +30,10 @@ export default function TeamsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [newTeamName, setNewTeamName] = useState("");
   const [newTeamDesc, setNewTeamDesc] = useState("");
+
+  // Select mode state
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // Import state
   const [showImport, setShowImport] = useState(false);
@@ -69,7 +73,9 @@ export default function TeamsPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
     if (!confirm(t("deleteConfirm"))) return;
     try {
       await teamsAPI.delete(id);
@@ -78,6 +84,33 @@ export default function TeamsPage() {
       setError(getErrorMessage(err, "Failed to delete team"));
     }
   };
+
+  const handleBatchDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(t("batchDeleteConfirm", { count: selectedIds.size }))) return;
+    try {
+      await Promise.all([...selectedIds].map((id) => teamsAPI.delete(id)));
+      setSelectedIds(new Set());
+      setSelectMode(false);
+      loadTeams();
+    } catch (err) {
+      setError(getErrorMessage(err, "Failed to delete teams"));
+    }
+  };
+
+  const toggleSelect = (e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAll = () => setSelectedIds(new Set(teams.map((t) => t.id)));
+  const deselectAll = () => setSelectedIds(new Set());
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -123,6 +156,16 @@ export default function TeamsPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold">{t("title")}</h1>
         <div className="flex flex-col sm:flex-row gap-2">
+          {teams.length > 0 && (
+            <Button
+              size="sm"
+              variant={selectMode ? "default" : "outline"}
+              onClick={() => { setSelectMode(!selectMode); setSelectedIds(new Set()); }}
+            >
+              <CheckSquare className="h-4 w-4 mr-1" />
+              {t("selectTeams")}
+            </Button>
+          )}
           {SHOW_IMPORT_TEAM && (
             <Dialog open={showImport} onOpenChange={(open) => {
               setShowImport(open);
@@ -206,48 +249,79 @@ export default function TeamsPage() {
       ) : teams.length === 0 ? (
         <p className="text-muted-foreground">{t("noTeams")}</p>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {teams.map((team) => (
-            <Card
-              key={team.id}
-              className="hover:border-primary/50 transition-colors cursor-pointer h-full"
-              onClick={() => router.push(`/teams/${team.id}`)}
-            >
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="h-4 w-4" />
-                  {team.name}
-                </CardTitle>
-                {team.description && (
-                  <CardDescription className="line-clamp-2">
-                    {team.description}
-                  </CardDescription>
-                )}
-                <CardAction>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-xs"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDelete(team.id);
-                    }}
-                  >
-                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                  </Button>
-                </CardAction>
-              </CardHeader>
-              <div className="px-6 pb-4 flex items-center justify-between gap-2">
-                <span className="text-xs text-muted-foreground">
-                  {t("agentCount", { count: team.agent_count ?? 0 })} · {t("meetingCount", { count: team.meeting_count ?? 0 })}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {new Date(team.created_at).toLocaleDateString()}
-                </span>
-              </div>
-            </Card>
-          ))}
-        </div>
+        <>
+          {/* Batch action bar */}
+          {selectMode && teams.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 p-2 rounded-md bg-muted min-w-0 max-w-full">
+              <Button size="sm" variant="outline" onClick={selectedIds.size === teams.length ? deselectAll : selectAll} className="shrink-0">
+                {selectedIds.size === teams.length ? t("deselectAll") : t("selectAll")}
+              </Button>
+              {selectedIds.size > 0 && (
+                <Button size="sm" variant="destructive" onClick={handleBatchDelete} className="shrink-0">
+                  <Trash2 className="h-4 w-4 mr-1 shrink-0" />
+                  <span className="whitespace-nowrap">{t("batchDelete", { count: selectedIds.size })}</span>
+                </Button>
+              )}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {teams.map((team) => (
+              <Card
+                key={team.id}
+                className={`hover:border-primary/50 transition-colors cursor-pointer h-full ${selectMode && selectedIds.has(team.id) ? "border-primary ring-1 ring-primary" : ""}`}
+                onClick={(e) => {
+                  if (selectMode) {
+                    toggleSelect(e, team.id);
+                  } else {
+                    router.push(`/teams/${team.id}`);
+                  }
+                }}
+              >
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    {selectMode && (
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(team.id)}
+                        onChange={(e) => toggleSelect(e as unknown as React.MouseEvent, team.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="rounded shrink-0"
+                      />
+                    )}
+                    <Users className="h-4 w-4 shrink-0" />
+                    <span className="truncate">{team.name}</span>
+                  </CardTitle>
+                  {team.description && (
+                    <CardDescription className="line-clamp-2">
+                      {team.description}
+                    </CardDescription>
+                  )}
+                  {!selectMode && (
+                    <CardAction>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        onClick={(e) => handleDelete(e, team.id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                      </Button>
+                    </CardAction>
+                  )}
+                </CardHeader>
+                <div className="px-6 pb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                  <span className="text-xs text-muted-foreground">
+                    {t("agentCount", { count: team.agent_count ?? 0 })} · {t("meetingCount", { count: team.meeting_count ?? 0 })}
+                  </span>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    {new Date(team.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
