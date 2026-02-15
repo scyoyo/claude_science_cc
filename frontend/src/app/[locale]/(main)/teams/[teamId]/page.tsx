@@ -560,7 +560,7 @@ export default function TeamDetailPage() {
                           {meeting.status}
                         </Badge>
                         <span className="text-xs text-muted-foreground">
-                          {t("round")} {meeting.current_round}/{meeting.max_rounds}
+                          {t("round")} {Math.min(meeting.current_round + 1, meeting.max_rounds)}/{meeting.max_rounds}
                         </span>
                       </div>
                     </div>

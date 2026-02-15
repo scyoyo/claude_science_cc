@@ -171,7 +171,7 @@ export default function MeetingsPage() {
                         {t(`status.${meeting.status}`)}
                       </Badge>
                       <span className="text-xs text-muted-foreground">
-                        {t("round", { current: meeting.current_round, max: meeting.max_rounds })}
+                        {t("round", { current: Math.min(meeting.current_round + 1, meeting.max_rounds), max: meeting.max_rounds })}
                       </span>
                       <span className="text-xs text-muted-foreground">
                         {new Date(meeting.updated_at).toLocaleDateString()}

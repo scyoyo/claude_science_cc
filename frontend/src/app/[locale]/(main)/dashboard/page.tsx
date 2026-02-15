@@ -281,7 +281,7 @@ export default function DashboardPage() {
                         <div className="flex items-center gap-2 shrink-0 ml-3">
                           <Badge variant={statusVariant(m.status)}>{m.status}</Badge>
                           <span className="text-xs text-muted-foreground">
-                            {m.current_round}/{m.max_rounds}
+                            {Math.min(m.current_round + 1, m.max_rounds)}/{m.max_rounds}
                           </span>
                         </div>
                       </Link>

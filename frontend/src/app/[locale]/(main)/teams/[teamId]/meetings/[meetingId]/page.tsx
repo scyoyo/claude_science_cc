@@ -93,6 +93,12 @@ export default function MeetingDetailPage() {
   /** Pending run to start only after SSE is connected, so we don't miss real-time events. */
   const pendingRunRef = useRef<{ rounds: number; topic?: string; locale?: string } | null>(null);
 
+  /** Display round number (1-based): "current round we're on" so first round shows as 1/3 not 0/3 */
+  const displayRoundCurrent = useMemo(
+    () => Math.min((meeting?.current_round ?? 0) + 1, meeting?.max_rounds ?? 1),
+    [meeting?.current_round, meeting?.max_rounds]
+  );
+
   /** Assign each artifact to the first assistant message whose content contains that artifact's code. */
   const artifactsByMessageId = useMemo(() => {
     const map = new Map<string, CodeArtifact[]>();
@@ -531,7 +537,7 @@ export default function MeetingDetailPage() {
         )}
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-sm text-muted-foreground mr-auto">
-            {t("round", { current: meeting.current_round, max: meeting.max_rounds })}
+            {t("round", { current: displayRoundCurrent, max: meeting.max_rounds })}
             {meeting.description && <> &mdash; {meeting.description}</>}
           </p>
           <div className="flex items-center gap-1">
@@ -804,7 +810,11 @@ export default function MeetingDetailPage() {
               <Loader2 className="h-4 w-4 animate-spin text-primary" />
               <span>
                 {t("backgroundRunning")} — {t("round", {
-                  current: sseConnected ? (meeting?.current_round ?? 0) : (pollStatus?.current_round ?? 0),
+                  current: (() => {
+                    const cr = sseConnected ? (meeting?.current_round ?? 0) : (pollStatus?.current_round ?? 0);
+                    const mr = meeting?.max_rounds ?? pollStatus?.max_rounds ?? 0;
+                    return Math.min(cr + 1, mr || 1);
+                  })(),
                   max: meeting?.max_rounds ?? pollStatus?.max_rounds ?? 0,
                 })}
               </span>
