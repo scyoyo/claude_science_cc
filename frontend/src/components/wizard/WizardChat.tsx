@@ -81,6 +81,7 @@ export function WizardChat() {
   const [input, setInput] = useState("");
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isComplete, setIsComplete] = useState(saved.current.isComplete || false);
   const [createdTeamId, setCreatedTeamId] = useState<string | null>(saved.current.createdTeamId || null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -100,6 +101,15 @@ export function WizardChat() {
   useEffect(() => {
     persistState();
   }, [persistState]);
+
+  // Auto-grow textarea for long text input (mobile-friendly)
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const newHeight = Math.min(Math.max(el.scrollHeight, 52), 280);
+    el.style.height = `${newHeight}px`;
+  }, [input]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -295,6 +305,7 @@ export function WizardChat() {
     <div className="flex gap-2">
       <div className="relative flex-1 min-w-0">
         <Textarea
+          ref={textareaRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -312,7 +323,7 @@ export function WizardChat() {
                     ? t("placeholderMirror")
                     : t("placeholder")
           }
-          className="min-h-[52px] max-h-[120px] resize-none text-sm py-2.5"
+          className="min-h-[52px] max-h-[280px] resize-none overflow-y-auto text-sm py-2.5"
           rows={1}
           disabled={isLoading}
         />
@@ -424,7 +435,7 @@ export function WizardChat() {
           className={`overflow-hidden transition-[max-height,opacity] duration-300 ease-out ${
             isMobile && !isComplete && !inputVisible
               ? "max-h-0 opacity-0 pointer-events-none"
-              : "max-h-[220px] opacity-100"
+              : "max-h-[320px] opacity-100"
           }`}
           {...(isMobile && !isComplete && inputVisible ? inputSwipeDown : {})}
         >
@@ -517,16 +528,14 @@ function MessageBubble({
 
       {/* Content */}
       <div
-        className={`min-w-0 max-w-[85%] space-y-3 ${
-          isUser ? "text-right" : "text-left"
-        }`}
+        className={`min-w-0 max-w-[85%] space-y-3 text-left`}
       >
         {isUser ? (
-          <div className="inline-block rounded-lg px-3 py-2 text-sm leading-relaxed bg-primary text-primary-foreground whitespace-pre-wrap">
+          <div className="inline-block rounded-lg px-3 py-2 text-sm leading-relaxed bg-primary text-primary-foreground whitespace-pre-wrap text-justify [text-justify:inter-character]">
             {message.content}
           </div>
         ) : (
-          <div className="text-sm leading-relaxed">
+          <div className="text-sm leading-relaxed text-justify [text-justify:inter-character]">
             <MarkdownContent content={message.content} />
           </div>
         )}
