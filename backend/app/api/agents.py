@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
@@ -79,7 +79,7 @@ def batch_create_agents(
 
 @router.delete("/batch", status_code=status.HTTP_200_OK)
 def batch_delete_agents(
-    agent_ids: List[str],
+    agent_ids: List[str] = Body(..., embed=False),
     db: Session = Depends(get_db),
 ):
     """Delete multiple agents by IDs. Returns count of deleted agents."""

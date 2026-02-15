@@ -568,7 +568,7 @@ export default function MeetingDetailPage() {
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
-                <DropdownMenuItem variant="destructive" onClick={handleDelete}>
+                <DropdownMenuItem variant="destructive" onSelect={() => handleDelete()}>
                   <Trash2 className="h-4 w-4 mr-2" />
                   {t("delete")}
                 </DropdownMenuItem>
