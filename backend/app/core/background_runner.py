@@ -133,6 +133,28 @@ def _run_meeting_thread(
                 )
 
         use_structured = bool(meeting.agenda)
+        meeting_type = getattr(meeting, "meeting_type", "team") or "team"
+
+        # Individual meeting: replace agent_dicts with [agent, synthetic_critic]
+        if meeting_type == "individual":
+            from app.core.meeting_engine import build_individual_agents
+            ind_agent_id = getattr(meeting, "individual_agent_id", None)
+            if ind_agent_id:
+                ind_agents = [a for a in agents if str(a.id) == str(ind_agent_id)]
+                if ind_agents:
+                    ind_a = ind_agents[0]
+                    ind_dict = {
+                        "id": str(ind_a.id), "name": ind_a.name,
+                        "system_prompt": ind_a.system_prompt, "model": ind_a.model,
+                        "title": ind_a.title or "", "role": getattr(ind_a, "role", "") or "",
+                    }
+                else:
+                    ind_dict = agent_dicts[0]
+            else:
+                ind_dict = agent_dicts[0]
+            agent_dicts = build_individual_agents(ind_dict)
+            use_structured = True  # Force structured path
+
         from app.core.lang_detect import meeting_preferred_lang
         from app.models import Team as TeamModel
         team_obj = db.query(TeamModel).filter(TeamModel.id == meeting.team_id).first()

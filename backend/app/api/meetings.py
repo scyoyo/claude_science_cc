@@ -854,7 +854,7 @@ def run_meeting(
         )
 
         if meeting_type == "individual":
-            # Individual meeting: single agent + scientific critic
+            # Individual meeting: routes through structured engine via [agent, synthetic_critic]
             ind_agent_id = getattr(meeting, "individual_agent_id", None)
             if ind_agent_id:
                 ind_agent = db.query(Agent).filter(Agent.id == ind_agent_id).first()
@@ -865,9 +865,10 @@ def run_meeting(
                     "name": ind_agent.name,
                     "system_prompt": ind_agent.system_prompt,
                     "model": ind_agent.model,
+                    "title": ind_agent.title or "",
+                    "role": getattr(ind_agent, "role", "") or "",
                 }
             else:
-                # Fallback to first agent
                 agent_dict = agent_dicts[0]
 
             all_rounds = engine.run_individual_meeting(
@@ -877,8 +878,10 @@ def run_meeting(
                 agenda=meeting.agenda or "",
                 agenda_questions=meeting.agenda_questions or [],
                 agenda_rules=meeting.agenda_rules or [],
+                output_type=meeting.output_type or "report",
                 context_summaries=context_summaries,
                 preferred_lang=preferred_lang,
+                round_plans=getattr(meeting, "round_plans", None) or [],
             )
         elif meeting_type == "merge":
             # Merge meeting: synthesize source meetings

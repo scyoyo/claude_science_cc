@@ -219,13 +219,13 @@ class TestIndividualMeetingEngine:
         assert len(call_log) == 3
 
     def test_individual_meeting_single_round(self):
-        """Single round: agent only (it's both the first and final round)."""
+        """Single round: agent + critic (structured path requires num_rounds > 1 for final-only)."""
         engine = MeetingEngine(llm_call=lambda s, m: "OK")
         agent = {"id": "a1", "name": "Agent", "system_prompt": "Prompt", "model": "gpt-4"}
 
         all_rounds = engine.run_individual_meeting(agent=agent, conversation_history=[], rounds=1)
         assert len(all_rounds) == 1
-        assert len(all_rounds[0]) == 1  # Agent only, no critic
+        assert len(all_rounds[0]) == 2  # Agent + Scientific Critic
 
 
 class TestIndividualMeetingAPI:
@@ -278,8 +278,9 @@ class TestIndividualMeetingAPI:
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "completed"
-        # Round 1: agent + critic = 2, Round 2 (final): agent only = 1 → 3 messages
-        assert len(data["messages"]) == 3
+        # output_type defaults to "code" in DB, so integrator step runs
+        # Round 1: agent + critic + integrator = 3, Round 2 (final): agent only = 1 → 4 messages
+        assert len(data["messages"]) == 4
 
     @patch("app.api.meetings.resolve_llm_call")
     def test_individual_meeting_has_critic_messages(self, mock_llm, client, team_with_agent):

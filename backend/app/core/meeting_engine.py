@@ -38,6 +38,25 @@ from app.core.agent_roles import sort_agents_for_meeting, is_coding_role, detect
 LLMCallable = Callable[[str, List[ChatMessage]], str]
 
 
+def build_individual_agents(agent: Dict) -> List[Dict]:
+    """Construct [agent, synthetic_critic] for individual meeting via structured path.
+
+    The agent becomes Team Lead, and a synthetic Scientific Critic is injected.
+    sort_agents_for_meeting() will detect the critic by the 'role' field.
+    """
+    return [
+        agent,
+        {
+            "id": None,
+            "name": SCIENTIFIC_CRITIC["name"],
+            "system_prompt": SCIENTIFIC_CRITIC["system_prompt"],
+            "model": agent.get("model", "gpt-4"),
+            "title": "Scientific Critic",
+            "role": "critic",
+        },
+    ]
+
+
 class MeetingEngine:
     """Orchestrates multi-agent meeting conversations.
 
@@ -426,88 +445,32 @@ class MeetingEngine:
         agenda_rules: Optional[List[str]] = None,
         context_summaries: Optional[List[Dict]] = None,
         preferred_lang: Optional[str] = None,
+        output_type: str = "report",
+        round_plans: Optional[List[Dict]] = None,
     ) -> List[List[Dict]]:
-        """Run an individual meeting: agent responds, critic critiques, agent revises.
+        """Run an individual meeting: agent + synthetic Scientific Critic.
 
-        Round 0: Agent responds to agenda, Critic critiques.
-        Round 1+: Agent revises based on critique, Critic critiques again.
-        Final round: Agent only (final revised answer).
+        Now routes through the structured meeting engine. The agent becomes
+        Team Lead, and a synthetic Scientific Critic is injected. This gives
+        individual meetings all team meeting features (integrator, round_plans,
+        SSE streaming via background runner, etc.).
 
         Returns:
             List of rounds, each containing a list of messages.
         """
-        questions = agenda_questions or []
-        rules = agenda_rules or []
-        critic = SCIENTIFIC_CRITIC
-        all_rounds = []
-        current_history = list(conversation_history)
-
-        # Inject context from previous meetings
-        if context_summaries:
-            ctx_prompt = previous_context_prompt(context_summaries)
-            if ctx_prompt:
-                current_history.append(ChatMessage(role="user", content=ctx_prompt))
-
-        # Inject meeting start
-        start_prompt = individual_meeting_start_prompt(
-            agent_name=agent["name"],
+        agents = build_individual_agents(agent)
+        return self.run_structured_meeting(
+            agents=agents,
+            conversation_history=conversation_history,
+            rounds=rounds,
             agenda=agenda,
-            questions=questions,
-            rules=rules,
-            num_rounds=rounds,
+            agenda_questions=agenda_questions,
+            agenda_rules=agenda_rules,
+            output_type=output_type,
+            context_summaries=context_summaries,
             preferred_lang=preferred_lang,
+            round_plans=round_plans,
         )
-        current_history.append(ChatMessage(role="user", content=start_prompt))
-
-        for round_idx in range(rounds):
-            round_messages = []
-            is_final = round_idx == rounds - 1
-
-            # Agent speaks
-            if round_idx == 0:
-                agent_prompt = (
-                    f"{agent['name']}, please provide your detailed response to the agenda."
-                )
-            else:
-                agent_prompt = individual_meeting_agent_revision_prompt(
-                    critic_name=critic["name"], agent_name=agent["name"]
-                )
-
-            messages = list(current_history)
-            messages.append(ChatMessage(role="user", content=agent_prompt))
-            agent_response = self.llm_call(agent["system_prompt"], messages)
-            round_messages.append({
-                "agent_id": agent["id"],
-                "agent_name": agent["name"],
-                "role": "assistant",
-                "content": agent_response,
-            })
-
-            current_history.append(ChatMessage(
-                role="user", content=f"[{agent['name']}]: {agent_response}"
-            ))
-
-            # Critic speaks (unless final round)
-            if not is_final:
-                critic_prompt = individual_meeting_critic_prompt(
-                    critic_name=critic["name"], agent_name=agent["name"]
-                )
-                messages = list(current_history)
-                messages.append(ChatMessage(role="user", content=critic_prompt))
-                critic_response = self.llm_call(critic["system_prompt"], messages)
-                round_messages.append({
-                    "agent_id": None,
-                    "agent_name": critic["name"],
-                    "role": "assistant",
-                    "content": critic_response,
-                })
-                current_history.append(ChatMessage(
-                    role="user", content=f"[{critic['name']}]: {critic_response}"
-                ))
-
-            all_rounds.append(round_messages)
-
-        return all_rounds
 
     # ==================== Merge Meeting ====================
 
