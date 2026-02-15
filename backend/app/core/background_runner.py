@@ -174,21 +174,49 @@ def _run_meeting_thread(
             if isinstance(rp, dict):
                 plans_by_round[rp.get("round", 0)] = rp
 
-        # Run round by round, committing after each
+        # Run round by round, committing after each.
+        # Callbacks stream events to the frontend in real time as each agent responds.
         for round_idx in range(rounds_to_run):
             current_round_num = meeting.current_round + 1
             total_rounds = meeting.max_rounds
 
-            # Notify frontend that an agent is about to think
-            if agent_dicts:
+            # --- Real-time callbacks for per-agent streaming ---
+            def _on_agent_start(agent: dict) -> None:
+                """Publish 'agent_speaking' so frontend shows who is thinking."""
                 event_bus.publish(meeting_id, {
                     "type": "agent_speaking",
-                    "agent_name": agent_dicts[0]["name"],
-                    "agent_id": agent_dicts[0]["id"],
+                    "agent_name": agent["name"],
+                    "agent_id": agent.get("id"),
                 })
 
+            def _on_agent_done(msg_data: dict, _round=current_round_num) -> None:
+                """Save message to DB and publish it immediately so frontend can render."""
+                message = MeetingMessage(
+                    meeting_id=meeting_id,
+                    agent_id=msg_data["agent_id"],
+                    role=msg_data["role"],
+                    agent_name=msg_data["agent_name"],
+                    content=msg_data["content"],
+                    round_number=_round,
+                )
+                db.add(message)
+                db.flush()
+                db.commit()
+                event_bus.publish(meeting_id, {
+                    "type": "message",
+                    "id": message.id,
+                    "agent_id": msg_data["agent_id"],
+                    "agent_name": msg_data["agent_name"],
+                    "role": msg_data["role"],
+                    "content": msg_data["content"],
+                    "round_number": _round,
+                })
+                conversation_history.append(
+                    ChatMessage(role="user", content=f"[{msg_data['agent_name']}]: {msg_data['content']}")
+                )
+
             if use_structured:
-                round_messages = engine.run_structured_round(
+                engine.run_structured_round(
                     agents=agent_dicts,
                     conversation_history=conversation_history,
                     round_num=current_round_num,
@@ -199,46 +227,25 @@ def _run_meeting_thread(
                     output_type=meeting.output_type or "code",
                     preferred_lang=preferred_lang,
                     round_plan=plans_by_round.get(current_round_num),
+                    on_agent_start=_on_agent_start,
+                    on_agent_done=_on_agent_done,
                 )
             else:
                 round_topic = topic if round_idx == 0 else None
-                round_messages = engine.run_round(
+                engine.run_round(
                     agent_dicts, conversation_history, round_topic,
                     preferred_lang=preferred_lang if round_idx == 0 else None,
+                    on_agent_start=_on_agent_start,
+                    on_agent_done=_on_agent_done,
                 )
 
-            round_number = meeting.current_round + 1
-            for msg_data in round_messages:
-                message = MeetingMessage(
-                    meeting_id=meeting_id,
-                    agent_id=msg_data["agent_id"],
-                    role=msg_data["role"],
-                    agent_name=msg_data["agent_name"],
-                    content=msg_data["content"],
-                    round_number=round_number,
-                )
-                db.add(message)
-                db.flush()
-                db.commit()
-                # Publish SSE event for this message
-                event_bus.publish(meeting_id, {
-                    "type": "message",
-                    "id": message.id,
-                    "agent_id": msg_data["agent_id"],
-                    "agent_name": msg_data["agent_name"],
-                    "role": msg_data["role"],
-                    "content": msg_data["content"],
-                    "round_number": round_number,
-                })
-                conversation_history.append(
-                    ChatMessage(role="user", content=f"[{msg_data['agent_name']}]: {msg_data['content']}")
-                )
-
-            meeting.current_round = round_number
+            # Messages already saved via _on_agent_done callback above;
+            # just update the round counter.
+            meeting.current_round = current_round_num
             db.commit()
             event_bus.publish(meeting_id, {
                 "type": "round_complete",
-                "round": round_number,
+                "round": current_round_num,
                 "total_rounds": meeting.max_rounds,
             })
 

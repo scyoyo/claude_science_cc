@@ -141,6 +141,7 @@ export default function MeetingDetailPage() {
 
   const onWSMessage = useCallback((msg: WSMessage) => {
     if (msg.type === "message" || msg.type === "message_saved") {
+      const roundNum = msg.round || 0;
       const newMsg: MeetingMessage = {
         id: `live-${Date.now()}-${Math.random()}`,
         meeting_id: meetingId,
@@ -148,10 +149,14 @@ export default function MeetingDetailPage() {
         role: msg.role || (msg.agent_name ? "assistant" : "user"),
         agent_name: msg.agent_name || null,
         content: msg.content || "",
-        round_number: msg.round || 0,
+        round_number: roundNum,
         created_at: new Date().toISOString(),
       };
       setLiveMessages((prev) => [...prev, newMsg]);
+      // Auto-switch to the round of incoming messages so user sees them in real time
+      if (roundNum > 0) {
+        setSelectedRound(roundNum);
+      }
       setTimeout(scrollToBottom, 50);
     }
   }, [meetingId, scrollToBottom]);
@@ -192,6 +197,7 @@ export default function MeetingDetailPage() {
     const msgId = msg.id || "";
     if (msgId && seenSSEIds.current.has(msgId)) return; // deduplicate
     if (msgId) seenSSEIds.current.add(msgId);
+    const roundNum = msg.round_number || 0;
     const newMsg: MeetingMessage = {
       id: msgId || `sse-${Date.now()}-${Math.random()}`,
       meeting_id: meetingId,
@@ -199,10 +205,14 @@ export default function MeetingDetailPage() {
       role: msg.role || "assistant",
       agent_name: msg.agent_name || null,
       content: msg.content || "",
-      round_number: msg.round_number || 0,
+      round_number: roundNum,
       created_at: new Date().toISOString(),
     };
     setLiveMessages((prev) => [...prev, newMsg]);
+    // Auto-switch to the round of incoming messages so user sees them in real time
+    if (roundNum > 0) {
+      setSelectedRound(roundNum);
+    }
     setTimeout(scrollToBottom, 50);
   }, [meetingId, scrollToBottom]);
 
