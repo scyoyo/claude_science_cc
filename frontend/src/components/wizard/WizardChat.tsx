@@ -14,6 +14,7 @@ import { MarkdownContent } from "@/components/MarkdownContent";
 import { useMobileGesture } from "@/contexts/MobileGestureContext";
 import { useSwipeGesture } from "@/hooks/useSwipeGesture";
 import { EditAgentDialog } from "@/components/EditAgentDialog";
+import { getModelLabel } from "@/lib/models";
 import type {
   OnboardingStage,
   OnboardingChatMessage,
@@ -568,7 +569,7 @@ function MessageBubble({
                     {agent.expertise}
                   </Badge>
                   <Badge variant="outline" className="text-[10px] font-normal">
-                    {agent.model}
+                    {getModelLabel(agent.model)}
                   </Badge>
                 </div>
                 {agent.model_reason && (

@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { templatesAPI } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
 import type { AgentTemplate } from "@/types";
+import { getModelLabel } from "@/lib/models";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -82,7 +83,7 @@ export default function TemplatesBrowser({ teamId, onApplied }: TemplatesBrowser
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm">{tmpl.name}</CardTitle>
-                <Badge variant="outline" className="text-[10px] shrink-0">{tmpl.model}</Badge>
+                <Badge variant="outline" className="text-[10px] shrink-0">{getModelLabel(tmpl.model)}</Badge>
               </div>
               <CardDescription className="text-xs">{tmpl.title}</CardDescription>
             </CardHeader>

@@ -31,3 +31,10 @@ export const MODEL_OPTIONS: { value: string; label: string }[] = [
 ];
 
 export const DEFAULT_MODEL = "gpt-4.1";
+
+/** Display name for a model id (e.g. claude-sonnet-4-5-20250929 -> "Claude Sonnet 4.5"). */
+export function getModelLabel(value: string): string {
+  if (!value) return value;
+  const opt = MODEL_OPTIONS.find((o) => o.value === value);
+  return opt ? opt.label : value;
+}

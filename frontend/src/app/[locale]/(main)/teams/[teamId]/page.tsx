@@ -32,7 +32,7 @@ import { Label } from "@/components/ui/label";
 import { ArrowLeft, Plus, Trash2, Pencil, Workflow, MessageSquare, Bot, Loader2, LayoutTemplate, CheckSquare, Download, PlayCircle, CopyPlus } from "lucide-react";
 import { SHOW_VISUAL_EDITOR, SHOW_EXPORT_TEAM } from "@/lib/feature-flags";
 import type { Agent } from "@/types";
-import { MODEL_OPTIONS } from "@/lib/models";
+import { MODEL_OPTIONS, getModelLabel } from "@/lib/models";
 import { EditAgentDialog, type EditAgentFormData } from "@/components/EditAgentDialog";
 import { NewMeetingDialog } from "@/components/NewMeetingDialog";
 
@@ -464,7 +464,7 @@ export default function TeamDetailPage() {
                   <div className="mt-3 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Badge variant="outline" className="text-[10px] font-normal max-w-[100px] truncate rounded-full px-2">
-                        {agent.model}
+                        {getModelLabel(agent.model)}
                       </Badge>
                       {agentMetricsMap[agent.id] && (
                         <span className="text-[10px] text-muted-foreground">

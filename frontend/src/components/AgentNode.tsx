@@ -3,6 +3,7 @@
 import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Badge } from "@/components/ui/badge";
+import { getModelLabel } from "@/lib/models";
 
 export interface AgentNodeData {
   agent_id: string;
@@ -32,7 +33,7 @@ function AgentNode({ data }: NodeProps) {
       <div className="text-xs text-muted-foreground">{nodeData.title}</div>
       <div className="mt-1 flex items-center gap-1">
         <Badge variant="outline" className="text-[10px] px-2 py-0 rounded-full max-w-[90px] truncate">
-          {nodeData.model}
+          {getModelLabel(nodeData.model)}
         </Badge>
         {nodeData.is_mirror && (
           <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
