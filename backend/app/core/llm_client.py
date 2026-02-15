@@ -40,7 +40,12 @@ class LLMAuthError(LLMError):
 
 
 class LLMRateLimitError(LLMError):
-    """Rate limit exceeded."""
+    """Rate limit exceeded (temporary)."""
+    pass
+
+
+class LLMQuotaError(LLMError):
+    """API quota/billing exhausted (not temporary — needs user action)."""
     pass
 
 
@@ -118,6 +123,8 @@ class LLMProvider(ABC):
                 time.sleep(delay)
             except LLMAuthError:
                 raise  # Don't retry auth errors
+            except LLMQuotaError:
+                raise  # Don't retry quota errors — needs user action
 
         raise last_error  # type: ignore
 
@@ -135,7 +142,10 @@ class LLMProvider(ABC):
         if response.status_code == 401 or response.status_code == 403:
             raise LLMAuthError(f"Authentication failed: {response.text}")
         elif response.status_code == 429:
-            raise LLMRateLimitError(f"Rate limit exceeded: {response.text}")
+            text = response.text
+            if "insufficient_quota" in text or "billing" in text.lower():
+                raise LLMQuotaError(f"API quota exhausted: {text}")
+            raise LLMRateLimitError(f"Rate limit exceeded: {text}")
         elif response.status_code >= 500:
             raise LLMProviderError(f"Provider error ({response.status_code}): {response.text}")
         elif response.status_code != 200:
@@ -335,7 +345,8 @@ def resolve_llm_call(db: Session) -> Callable[[str, List[ChatMessage]], str]:
     }
 
     def llm_call(system_prompt: str, messages: List[ChatMessage]) -> str:
-        for provider_name in ["openai", "anthropic", "deepseek"]:
+        last_error: Exception | None = None
+        for provider_name in ["deepseek", "anthropic", "openai"]:
             api_key_record = (
                 db.query(APIKey)
                 .filter(APIKey.provider == provider_name, APIKey.is_active == True)
@@ -346,10 +357,20 @@ def resolve_llm_call(db: Session) -> Callable[[str, List[ChatMessage]], str]:
             else:
                 key = env_keys.get(provider_name, "")
             if key:
-                provider = create_provider(provider_name, key)
-                all_messages = [ChatMessage(role="system", content=system_prompt)] + list(messages)
-                response = provider.chat(all_messages, model_map[provider_name])
-                return response.content
+                try:
+                    provider = create_provider(provider_name, key)
+                    all_messages = [ChatMessage(role="system", content=system_prompt)] + list(messages)
+                    response = provider.chat(all_messages, model_map[provider_name])
+                    return response.content
+                except Exception as e:
+                    last_error = e
+                    import logging
+                    logging.getLogger(__name__).warning(
+                        "Provider %s failed, trying next: %s", provider_name, e
+                    )
+                    continue
+        if last_error:
+            raise last_error
         raise RuntimeError(
             "No active API key found for any LLM provider. Add one in Settings or set environment variables."
         )

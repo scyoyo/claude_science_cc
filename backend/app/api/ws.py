@@ -23,7 +23,7 @@ from app.schemas.onboarding import ChatMessage
 from app.core.meeting_engine import MeetingEngine
 from app.core.meeting_prompts import content_for_user_message
 from app.core.lang_detect import meeting_preferred_lang
-from app.core.llm_client import resolve_llm_call
+from app.core.llm_client import resolve_llm_call, LLMQuotaError
 from app.core.code_extractor import extract_from_meeting_messages
 
 router = APIRouter(tags=["websocket"])
@@ -240,6 +240,13 @@ async def _handle_start_round(websocket: WebSocket, db: Session, meeting: Meetin
             _auto_extract_artifacts(db, meeting.id)
             await websocket.send_json({"type": "meeting_complete", "status": "completed"})
 
+    except LLMQuotaError:
+        meeting.status = MeetingStatus.failed.value
+        db.commit()
+        await websocket.send_json({
+            "type": "error",
+            "detail": "API quota exhausted. Please check your API key billing or switch to another provider in Settings.",
+        })
     except Exception as e:
         meeting.status = MeetingStatus.failed.value
         db.commit()

@@ -15,7 +15,7 @@ from app.models import Meeting, MeetingMessage, MeetingStatus, Agent, CodeArtifa
 from app.schemas.onboarding import ChatMessage
 from app.core.meeting_engine import MeetingEngine
 from app.core.meeting_prompts import content_for_user_message
-from app.core.llm_client import resolve_llm_call
+from app.core.llm_client import resolve_llm_call, LLMQuotaError
 from app.core.code_extractor import extract_from_meeting_messages
 
 logger = logging.getLogger(__name__)
@@ -190,6 +190,16 @@ def _run_meeting_thread(
         if meeting.status == MeetingStatus.completed.value:
             _auto_extract_artifacts(db, meeting_id)
 
+    except LLMQuotaError:
+        logger.warning("API quota exhausted for meeting %s", meeting_id)
+        try:
+            meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+            if meeting:
+                meeting.status = MeetingStatus.failed.value
+                meeting.description = (meeting.description or "") + "\n[ERROR] API quota exhausted. Please check your API key billing or switch provider."
+                db.commit()
+        except Exception:
+            logger.exception("Failed to mark meeting %s as failed", meeting_id)
     except Exception:
         logger.exception("Background meeting run failed for %s", meeting_id)
         try:

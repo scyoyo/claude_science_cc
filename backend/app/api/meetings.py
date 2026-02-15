@@ -5,6 +5,7 @@ from typing import List
 
 from app.database import get_db
 from app.models import Team, Agent, Meeting, MeetingMessage, MeetingStatus, CodeArtifact
+from app.core.llm_client import LLMQuotaError
 from app.core.code_extractor import extract_from_meeting_messages
 from app.schemas.meeting import (
     MeetingCreate,
@@ -182,12 +183,20 @@ def agenda_auto_generate(request: AgendaAutoRequest, db: Session = Depends(get_d
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No API key configured")
 
     proposer = AgendaProposer(llm_call=llm_call)
-    result = proposer.auto_generate(
-        agents=agent_dicts,
-        team_desc=team.description or team.name,
-        goal=request.goal or "",
-        prev_meetings=prev_meetings or None,
-    )
+    try:
+        result = proposer.auto_generate(
+            agents=agent_dicts,
+            team_desc=team.description or team.name,
+            goal=request.goal or "",
+            prev_meetings=prev_meetings or None,
+        )
+    except LLMQuotaError:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="API quota exhausted. Please check your API key billing or switch to another provider in Settings.",
+        )
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"LLM call failed: {e}")
     return AgendaAutoResponse(**result)
 
 
@@ -213,7 +222,15 @@ def agenda_agent_voting(request: AgentVotingRequest, db: Session = Depends(get_d
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No API key configured")
 
     proposer = AgendaProposer(llm_call=llm_call)
-    result = proposer.agent_voting(agents=agent_dicts, topic=request.topic)
+    try:
+        result = proposer.agent_voting(agents=agent_dicts, topic=request.topic)
+    except LLMQuotaError:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="API quota exhausted. Please check your API key billing or switch to another provider in Settings.",
+        )
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"LLM call failed: {e}")
     return AgentVotingResponse(
         proposals=[AgentProposal(**p) for p in result["proposals"]],
         merged_agenda=result["merged_agenda"],
@@ -236,7 +253,15 @@ def agenda_chain_recommend(request: ChainRecommendRequest, db: Session = Depends
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No API key configured")
 
     proposer = AgendaProposer(llm_call=llm_call)
-    result = proposer.chain_recommend(prev_meeting_summaries=summaries)
+    try:
+        result = proposer.chain_recommend(prev_meeting_summaries=summaries)
+    except LLMQuotaError:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="API quota exhausted. Please check your API key billing or switch to another provider in Settings.",
+        )
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"LLM call failed: {e}")
     return AgendaAutoResponse(**result)
 
 
@@ -859,6 +884,13 @@ def run_meeting(
         if meeting.status == MeetingStatus.completed.value:
             _auto_extract_artifacts(db, meeting_id)
 
+    except LLMQuotaError:
+        meeting.status = MeetingStatus.failed.value
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="API quota exhausted. Please check your API key billing or switch to another provider in Settings.",
+        )
     except Exception as e:
         meeting.status = MeetingStatus.failed.value
         db.commit()

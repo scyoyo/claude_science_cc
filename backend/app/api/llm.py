@@ -8,6 +8,7 @@ from app.database import get_db
 from app.models import APIKey
 from app.schemas.api_key import APIKeyCreate, APIKeyUpdate, APIKeyResponse
 from app.core.encryption import encrypt_api_key, decrypt_api_key
+from app.core.llm_client import LLMQuotaError
 from app.core.llm_client import (
     LLMResponse,
     create_provider,
@@ -158,6 +159,11 @@ def llm_chat(
             "provider": response.provider,
             "usage": response.usage,
         }
+    except LLMQuotaError:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="API quota exhausted. Please check your API key billing or add credits to your account.",
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
