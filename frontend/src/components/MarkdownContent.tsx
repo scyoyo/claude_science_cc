@@ -60,7 +60,7 @@ export function MarkdownContent({
               }
             }
             return (
-              <pre className="bg-muted/70 rounded-md p-2.5 overflow-x-auto text-xs my-2 max-w-full">
+              <pre className="bg-muted/70 rounded-md p-2.5 overflow-x-auto text-xs my-2 max-w-full w-full min-w-0">
                 {children}
               </pre>
             );

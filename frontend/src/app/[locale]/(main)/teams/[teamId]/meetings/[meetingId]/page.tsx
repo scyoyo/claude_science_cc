@@ -85,7 +85,7 @@ export default function MeetingDetailPage() {
   const [rewriteFeedback, setRewriteFeedback] = useState("");
   const [rewriting, setRewriting] = useState(false);
   const [agents, setAgents] = useState<Agent[]>([]);
-  const [selectedRound, setSelectedRound] = useState(0); // 0 = show all
+  const [selectedRound, setSelectedRound] = useState<number | null>(null); // null = not initialized yet
   const [chatArtifacts, setChatArtifacts] = useState<CodeArtifact[]>([]);
   const [viewerArtifact, setViewerArtifact] = useState<CodeArtifact | null>(null);
   const [viewerOpen, setViewerOpen] = useState(false);
@@ -274,6 +274,19 @@ export default function MeetingDetailPage() {
   useEffect(() => {
     artifactsAPI.listByMeeting(meetingId).then(setChatArtifacts).catch(() => setChatArtifacts([]));
   }, [meetingId]);
+
+  // Set initial selected round to current round (or last round with messages)
+  useEffect(() => {
+    if (!meeting || selectedRound !== null) return;
+    const allMsgs = meeting.messages || [];
+    if (allMsgs.length === 0) {
+      setSelectedRound(0); // No messages yet, show all
+      return;
+    }
+    // Find the latest round with messages
+    const maxRound = Math.max(...allMsgs.map((m) => m.round_number));
+    setSelectedRound(maxRound > 0 ? maxRound : 0);
+  }, [meeting, selectedRound]);
 
   useEffect(() => {
     if (meeting && meeting.status !== "completed") {
@@ -464,9 +477,10 @@ export default function MeetingDetailPage() {
 
   const isCompleted = meeting.status === "completed";
   const allMessages = [...(meeting.messages || []), ...liveMessages];
-  const filteredMessages = selectedRound === 0
-    ? allMessages
-    : allMessages.filter((msg) => msg.round_number === selectedRound);
+  // Filter messages by selected round (fallback to all if not initialized)
+  const filteredMessages = selectedRound && selectedRound > 0
+    ? allMessages.filter((msg) => msg.round_number === selectedRound)
+    : allMessages;
 
   const statusVariant = (status: string) => {
     switch (status) {
@@ -604,14 +618,6 @@ export default function MeetingDetailPage() {
           {/* Round Selector */}
           {meeting.max_rounds > 1 && (
             <div className="shrink-0 flex items-center gap-1 mb-2 overflow-x-auto pb-1 -mx-1 px-1 min-h-9">
-              <Button
-                variant={selectedRound === 0 ? "default" : "outline"}
-                size="sm"
-                className="shrink-0 h-8 min-w-[2.5rem] px-2.5 text-xs touch-manipulation"
-                onClick={() => setSelectedRound(0)}
-              >
-                {t("roundAll")}
-              </Button>
               {Array.from({ length: meeting.max_rounds }, (_, i) => i + 1).map((r) => {
                 const plan = (meeting.round_plans as RoundPlan[] | undefined)?.find((p) => p.round === r);
                 const phase = getMeetingPhase(r, meeting.max_rounds);
@@ -666,7 +672,7 @@ export default function MeetingDetailPage() {
               {filteredMessages.length === 0 ? (
                 <p className="text-muted-foreground text-sm">{t("noMessages")}</p>
               ) : (
-                filteredMessages.map((msg, idx) => {
+                filteredMessages.map((msg) => {
                   const isFinalSummary =
                     isCompleted &&
                     meeting.agenda &&
@@ -674,35 +680,12 @@ export default function MeetingDetailPage() {
                     msg.role === "assistant";
                   const isCritic = msg.agent_name === "Scientific Critic";
                   const agentTitle = msg.role !== "user" ? agentTitleByKey(msg) : null;
-
-                  // Round divider in "All" mode
-                  const showDivider = selectedRound === 0 &&
-                    msg.round_number > 0 &&
-                    (idx === 0 || filteredMessages[idx - 1].round_number !== msg.round_number);
-
-                  const roundPlan = showDivider
-                    ? (meeting.round_plans as RoundPlan[] | undefined)?.find((p) => p.round === msg.round_number)
-                    : null;
-                  const dividerPhase = showDivider
-                    ? getPhaseLabel(getMeetingPhase(msg.round_number, meeting.max_rounds), t)
-                    : "";
-                  const dividerGoal = roundPlan?.goal || "";
                   const messageArtifacts = msg.role === "assistant" ? (artifactsByMessageId.map.get(msg.id) ?? []) : [];
 
                   return (
                     <div key={msg.id} className="min-w-0">
-                      {showDivider && (
-                        <div className="flex items-center gap-2 my-2 text-xs text-muted-foreground">
-                          <div className="flex-1 border-t min-w-0" />
-                          <span className="shrink-0 font-medium">
-                            R{msg.round_number} · {dividerPhase}
-                            {dividerGoal && `: ${dividerGoal}`}
-                          </span>
-                          <div className="flex-1 border-t min-w-0" />
-                        </div>
-                      )}
                       <div
-                        className={`p-3 sm:p-4 rounded-lg border break-words overflow-hidden min-w-0 w-full max-w-full ${
+                        className={`p-3 sm:p-4 rounded-lg border break-words min-w-0 w-full max-w-full ${
                           isFinalSummary
                             ? "bg-primary/5 border-primary/30 ring-1 ring-primary/20"
                             : isCritic
@@ -727,11 +710,6 @@ export default function MeetingDetailPage() {
                           {isFinalSummary && (
                             <Badge variant="default" className="text-xs">
                               {t("finalSummary")}
-                            </Badge>
-                          )}
-                          {msg.round_number > 0 && selectedRound === 0 && (
-                            <Badge variant="outline" className="text-xs">
-                              R{msg.round_number}
                             </Badge>
                           )}
                         </div>
