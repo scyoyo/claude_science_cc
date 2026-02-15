@@ -22,7 +22,12 @@ _auth_limiter = RateLimiter(max_requests=settings.RATE_LIMIT_AUTH_MAX_REQUESTS, 
 
 
 def _get_client_key(request: Request) -> str:
-    """Extract rate limit key: user ID from JWT or client IP."""
+    """Extract rate limit key: user ID from JWT or real client IP.
+
+    On Railway/proxy setups, request.client.host is always 127.0.0.1.
+    We use X-Forwarded-For to get the real client IP so each user gets
+    their own rate limit bucket instead of sharing one.
+    """
     # Check for Authorization header to get user identity
     auth = request.headers.get("authorization", "")
     if auth.startswith("Bearer "):
@@ -35,7 +40,13 @@ def _get_client_key(request: Request) -> str:
                 return f"user:{user_id}"
         except Exception:
             pass
-    # Fall back to IP
+    # Use X-Forwarded-For for real client IP behind proxy
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        # X-Forwarded-For: client, proxy1, proxy2 — take the first (client) IP
+        ip = forwarded.split(",")[0].strip()
+        return f"ip:{ip}"
+    # Fall back to direct connection IP
     client = request.client
     ip = client.host if client else "unknown"
     return f"ip:{ip}"

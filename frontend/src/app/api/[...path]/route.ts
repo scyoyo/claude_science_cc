@@ -18,6 +18,9 @@ async function proxy(req: Request, { params }: { params: Promise<{ path: string[
   if (ct) headers["Content-Type"] = ct;
   const auth = req.headers.get("authorization");
   if (auth) headers["Authorization"] = auth;
+  // Forward client IP so backend rate limiter can identify real users
+  const xff = req.headers.get("x-forwarded-for");
+  if (xff) headers["X-Forwarded-For"] = xff;
 
   // Read body once as Blob so it can be re-sent on 307/308 redirects
   // (raw ArrayBuffer gets detached after the first fetch attempt)
