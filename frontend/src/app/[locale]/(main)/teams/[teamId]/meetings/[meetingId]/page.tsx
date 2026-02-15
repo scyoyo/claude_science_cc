@@ -266,23 +266,12 @@ export default function MeetingDetailPage() {
     setBackgroundRunning(true);  // SSE connects; once connected we fire run-background in effect below
   };
 
-  // Start run after SSE is connected so messages stream in real time; fallback after 8s if SSE never connects
+  // Start run after a short delay so SSE has time to connect first (stream in real time)
+  const SSE_READY_MS = 600;
   useEffect(() => {
     if (!backgroundRunning || !pendingRunRef.current) return;
     const pending = pendingRunRef.current;
-
-    if (sseConnected) {
-      pendingRunRef.current = null;
-      meetingsAPI
-        .runBackground(meetingId, pending.rounds, pending.topic, pending.locale)
-        .catch((err) => {
-          setError(getErrorMessage(err, "Failed to start run"));
-          setBackgroundRunning(false);
-        });
-      return;
-    }
-
-    const fallback = setTimeout(() => {
+    const id = setTimeout(() => {
       if (!pendingRunRef.current) return;
       pendingRunRef.current = null;
       meetingsAPI
@@ -291,8 +280,8 @@ export default function MeetingDetailPage() {
           setError(getErrorMessage(err, "Failed to start run"));
           setBackgroundRunning(false);
         });
-    }, 8000);
-    return () => clearTimeout(fallback);
+    }, sseConnected ? 0 : SSE_READY_MS);
+    return () => clearTimeout(id);
   }, [backgroundRunning, sseConnected, meetingId]);
 
   /** "Run 1 round" button */
@@ -444,9 +433,9 @@ export default function MeetingDetailPage() {
   };
 
   return (
-    <div className="flex flex-col min-h-0 w-full max-w-full overflow-x-hidden h-[calc(100dvh-theme(spacing.16))] sm:h-[calc(100vh-120px)]">
-      {/* Header */}
-      <div className="shrink-0 space-y-2 mb-3 sm:mb-4 min-w-0 px-1 sm:px-0">
+    <div className="flex flex-col min-h-0 w-full max-w-full overflow-x-hidden h-[calc(100dvh-2.5rem)] sm:h-[calc(100vh-5rem)] max-h-[100dvh]">
+      {/* Header: compact so chat area gets more height */}
+      <div className="shrink-0 space-y-1.5 sm:space-y-2 mb-2 sm:mb-3 min-w-0 px-1 sm:px-0">
         <button
           type="button"
           onClick={() => router.back()}
@@ -569,7 +558,7 @@ export default function MeetingDetailPage() {
         <TabsContent value="chat" className="flex-1 flex flex-col min-h-0 min-w-0">
           {/* Round Selector */}
           {meeting.max_rounds > 1 && (
-            <div className="shrink-0 flex items-center gap-1 mb-3 overflow-x-auto pb-1 -mx-1 px-1 min-h-10">
+            <div className="shrink-0 flex items-center gap-1 mb-2 overflow-x-auto pb-1 -mx-1 px-1 min-h-9">
               <Button
                 variant={selectedRound === 0 ? "default" : "outline"}
                 size="sm"
@@ -607,7 +596,7 @@ export default function MeetingDetailPage() {
             const phase = getMeetingPhase(selectedRound, meeting.max_rounds);
             const phaseLabel = getPhaseLabel(phase, t);
             return (
-              <div className="shrink-0 mb-3 p-3 bg-muted/50 rounded-lg border text-sm space-y-1">
+              <div className="shrink-0 mb-2 p-2.5 sm:p-3 bg-muted/50 rounded-lg border text-sm space-y-1">
                 <div className="font-medium">
                   {t("round", { current: selectedRound, max: meeting.max_rounds })}
                   {" · "}{phaseLabel}
@@ -627,7 +616,7 @@ export default function MeetingDetailPage() {
             );
           })()}
 
-          <ScrollArea className="flex-1 mb-3 sm:mb-4 min-w-0 overflow-x-hidden">
+          <ScrollArea className="flex-1 min-h-[50vh] mb-2 sm:mb-3 min-w-0 overflow-x-hidden">
             <div className="space-y-3 pr-2 sm:pr-4 min-w-0 w-full max-w-full">
               {filteredMessages.length === 0 ? (
                 <p className="text-muted-foreground text-sm">{t("noMessages")}</p>
@@ -709,8 +698,6 @@ export default function MeetingDetailPage() {
                           <MarkdownContent
                             content={msg.content}
                             className="text-sm text-muted-foreground"
-                            hideCodeBlocks={messageArtifacts.length > 0}
-                            codeBlockPlaceholder={t("codeBlockPlaceholder")}
                           />
                         )}
                       </div>

@@ -103,6 +103,8 @@ export function useMeetingSSE({
             try {
               const event: SSEMessage = JSON.parse(line.slice(6));
               switch (event.type) {
+                case "stream_start":
+                  break;
                 case "message":
                   onMessageRef.current?.(event);
                   break;

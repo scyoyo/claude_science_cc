@@ -443,6 +443,8 @@ async def stream_meeting(meeting_id: str, db: Session = Depends(get_db)):
 
     async def event_generator():
         try:
+            # Send immediately so client fetch resolves and proxies don't buffer
+            yield f"data: {json.dumps({'type': 'stream_start', 'meeting_id': meeting_id})}\n\n"
             while True:
                 try:
                     event = await asyncio.to_thread(q.get, timeout=1.0)
