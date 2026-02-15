@@ -17,6 +17,7 @@ from app.core.meeting_engine import MeetingEngine
 from app.core.meeting_prompts import content_for_user_message
 from app.core.llm_client import resolve_llm_call, LLMQuotaError
 from app.core.code_extractor import extract_from_meeting_messages
+from app.core import event_bus
 
 logger = logging.getLogger(__name__)
 
@@ -172,12 +173,29 @@ def _run_meeting_thread(
                     round_number=round_number,
                 )
                 db.add(message)
+                db.flush()
+                db.commit()
+                # Publish SSE event for this message
+                event_bus.publish(meeting_id, {
+                    "type": "message",
+                    "id": message.id,
+                    "agent_id": msg_data["agent_id"],
+                    "agent_name": msg_data["agent_name"],
+                    "role": msg_data["role"],
+                    "content": msg_data["content"],
+                    "round_number": round_number,
+                })
                 conversation_history.append(
                     ChatMessage(role="user", content=f"[{msg_data['agent_name']}]: {msg_data['content']}")
                 )
 
             meeting.current_round = round_number
             db.commit()
+            event_bus.publish(meeting_id, {
+                "type": "round_complete",
+                "round": round_number,
+                "total_rounds": meeting.max_rounds,
+            })
 
         # Final status
         if meeting.current_round >= meeting.max_rounds:
@@ -186,12 +204,21 @@ def _run_meeting_thread(
             meeting.status = MeetingStatus.pending.value
         db.commit()
 
+        event_bus.publish(meeting_id, {
+            "type": "meeting_complete",
+            "status": meeting.status,
+        })
+
         # Auto-extract artifacts on completion
         if meeting.status == MeetingStatus.completed.value:
             _auto_extract_artifacts(db, meeting_id)
 
     except LLMQuotaError:
         logger.warning("API quota exhausted for meeting %s", meeting_id)
+        event_bus.publish(meeting_id, {
+            "type": "error",
+            "detail": "API quota exhausted. Please check your API key billing or switch provider.",
+        })
         try:
             meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
             if meeting:
@@ -202,6 +229,10 @@ def _run_meeting_thread(
             logger.exception("Failed to mark meeting %s as failed", meeting_id)
     except Exception:
         logger.exception("Background meeting run failed for %s", meeting_id)
+        event_bus.publish(meeting_id, {
+            "type": "error",
+            "detail": "Meeting execution failed",
+        })
         try:
             meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
             if meeting:

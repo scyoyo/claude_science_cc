@@ -9,6 +9,7 @@ import { getErrorMessage } from "@/lib/utils";
 import { useMeetingPolling } from "@/hooks/useMeetingPolling";
 import { downloadBlob } from "@/lib/utils";
 import { useMeetingWebSocket, type WSMessage } from "@/hooks/useMeetingWebSocket";
+import { useMeetingSSE, type SSEMessage } from "@/hooks/useMeetingSSE";
 import type { Meeting, MeetingWithMessages, MeetingMessage, Agent } from "@/types";
 import MeetingSummaryPanel from "@/components/MeetingSummaryPanel";
 import ArtifactsPanel from "@/components/ArtifactsPanel";
@@ -132,7 +133,7 @@ export default function MeetingDetailPage() {
     setRunning(false);
   }, []);
 
-  const { connected, speaking, connect, disconnect, sendUserMessage, startRound } =
+  const { connected: wsConnected, speaking, connect, disconnect, sendUserMessage, startRound } =
     useMeetingWebSocket({
       meetingId,
       onMessage: onWSMessage,
@@ -140,6 +141,57 @@ export default function MeetingDetailPage() {
       onRoundComplete,
       onMeetingComplete,
     });
+
+  // SSE real-time streaming (works through HTTP proxy, unlike WS on Railway)
+  const onSSEMessage = useCallback((msg: SSEMessage) => {
+    const newMsg: MeetingMessage = {
+      id: msg.id || `sse-${Date.now()}-${Math.random()}`,
+      meeting_id: meetingId,
+      agent_id: msg.agent_id || null,
+      role: msg.role || "assistant",
+      agent_name: msg.agent_name || null,
+      content: msg.content || "",
+      round_number: msg.round_number || 0,
+      created_at: new Date().toISOString(),
+    };
+    setLiveMessages((prev) => [...prev, newMsg]);
+    setTimeout(scrollToBottom, 50);
+  }, [meetingId, scrollToBottom]);
+
+  const onSSERoundComplete = useCallback((round: number, totalRounds: number) => {
+    setMeeting((prev) =>
+      prev ? { ...prev, current_round: round, status: round >= totalRounds ? "completed" : "pending" } : prev
+    );
+  }, []);
+
+  const onSSEComplete = useCallback(async () => {
+    setBackgroundRunning(false);
+    setRunning(false);
+    try {
+      const data = await meetingsAPI.get(meetingId);
+      setMeeting(data);
+      setLiveMessages([]);
+    } catch {
+      // ignore
+    }
+  }, [meetingId]);
+
+  const onSSEError = useCallback((detail: string) => {
+    setError(detail);
+    setBackgroundRunning(false);
+    setRunning(false);
+  }, []);
+
+  const { connected: sseConnected } = useMeetingSSE({
+    meetingId,
+    enabled: backgroundRunning,
+    onMessage: onSSEMessage,
+    onRoundComplete: onSSERoundComplete,
+    onComplete: onSSEComplete,
+    onError: onSSEError,
+  });
+
+  const connected = wsConnected || sseConnected;
 
   useEffect(() => {
     (async () => {
@@ -212,10 +264,10 @@ export default function MeetingDetailPage() {
     },
   });
 
-  // When background run is in progress, poll full meeting so new messages appear incrementally
+  // Fallback: poll full meeting data at slow interval (SSE handles real-time)
   useEffect(() => {
-    if (!backgroundRunning || !meetingId) return;
-    const intervalMs = 2000;
+    if (!backgroundRunning || !meetingId || sseConnected) return;
+    const intervalMs = 5000;
     const t = setInterval(async () => {
       try {
         const data = await meetingsAPI.get(meetingId);
@@ -225,7 +277,7 @@ export default function MeetingDetailPage() {
       }
     }, intervalMs);
     return () => clearInterval(t);
-  }, [backgroundRunning, meetingId]);
+  }, [backgroundRunning, meetingId, sseConnected]);
 
   // On initial load, check if meeting is already running in background
   useEffect(() => {

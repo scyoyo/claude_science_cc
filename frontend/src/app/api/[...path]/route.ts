@@ -57,6 +57,11 @@ async function proxy(req: Request, { params }: { params: Promise<{ path: string[
   if (resCt) responseHeaders.set("Content-Type", resCt);
   const resCd = res.headers.get("content-disposition");
   if (resCd) responseHeaders.set("Content-Disposition", resCd);
+  // SSE: disable caching and proxy buffering so events stream immediately
+  const resCc = res.headers.get("cache-control");
+  if (resCc) responseHeaders.set("Cache-Control", resCc);
+  const resXab = res.headers.get("x-accel-buffering");
+  if (resXab) responseHeaders.set("X-Accel-Buffering", resXab);
 
   return new Response(res.body, {
     status: res.status,

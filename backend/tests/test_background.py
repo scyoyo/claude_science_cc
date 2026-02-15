@@ -17,6 +17,7 @@ from app.core.background_runner import (
     _running,
     _lock,
 )
+from app.core.event_bus import subscribe, unsubscribe, clear_all as clear_event_bus
 
 
 TEST_DATABASE_URL = "sqlite:///./test.db"
@@ -149,6 +150,97 @@ class TestBackgroundRunnerDirect:
         meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
         assert meeting.status == MeetingStatus.failed.value
         db.close()
+
+    def test_publishes_sse_events(self, client):
+        """Background run publishes message, round_complete, meeting_complete events."""
+        _, meeting_id = _create_team_and_meeting(client)
+        session_factory = _get_session_factory()
+
+        clear_event_bus()
+        q = subscribe(meeting_id)
+
+        call_count = 0
+        def mock_llm(system_prompt, messages):
+            nonlocal call_count
+            call_count += 1
+            return f"Response {call_count}"
+
+        start_background_run(
+            meeting_id=meeting_id,
+            session_factory=session_factory,
+            rounds=1,
+            topic="SSE test",
+            llm_call_override=mock_llm,
+        )
+
+        for _ in range(50):
+            if not is_running(meeting_id):
+                break
+            time.sleep(0.1)
+
+        # Collect all events
+        events = []
+        from queue import Empty
+        while True:
+            try:
+                events.append(q.get(timeout=0.5))
+            except Empty:
+                break
+
+        unsubscribe(meeting_id, q)
+        clear_event_bus()
+
+        # Should have message events (2 agents) + round_complete + meeting_complete
+        types = [e["type"] for e in events]
+        assert types.count("message") == 2
+        assert "round_complete" in types
+        assert "meeting_complete" in types
+
+        # Verify message event structure
+        msg_events = [e for e in events if e["type"] == "message"]
+        for e in msg_events:
+            assert "agent_name" in e
+            assert "content" in e
+            assert "round_number" in e
+
+    def test_publishes_error_event_on_failure(self, client):
+        """Background run publishes error event when LLM fails."""
+        _, meeting_id = _create_team_and_meeting(client)
+        session_factory = _get_session_factory()
+
+        clear_event_bus()
+        q = subscribe(meeting_id)
+
+        def failing_llm(system_prompt, messages):
+            raise RuntimeError("LLM exploded")
+
+        start_background_run(
+            meeting_id=meeting_id,
+            session_factory=session_factory,
+            rounds=1,
+            llm_call_override=failing_llm,
+        )
+
+        for _ in range(50):
+            if not is_running(meeting_id):
+                break
+            time.sleep(0.1)
+
+        events = []
+        from queue import Empty
+        while True:
+            try:
+                events.append(q.get(timeout=0.5))
+            except Empty:
+                break
+
+        unsubscribe(meeting_id, q)
+        clear_event_bus()
+
+        types = [e["type"] for e in events]
+        assert "error" in types
+        error_event = next(e for e in events if e["type"] == "error")
+        assert "detail" in error_event
 
     def test_max_rounds_respected(self, client):
         """Background run respects max_rounds and sets completed."""

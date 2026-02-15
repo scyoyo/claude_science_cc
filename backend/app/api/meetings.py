@@ -1,5 +1,9 @@
+import asyncio
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import PlainTextResponse
+from starlette.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List
 
@@ -418,6 +422,46 @@ def get_meeting_status(meeting_id: str, db: Session = Depends(get_db)):
         "message_count": message_count,
         "background_running": is_running(meeting_id),
     }
+
+
+@router.get("/{meeting_id}/stream")
+async def stream_meeting(meeting_id: str, db: Session = Depends(get_db)):
+    """SSE endpoint: streams meeting events in real time.
+
+    Events: message, round_complete, meeting_complete, error.
+    Sends keepalive comments every second to prevent proxy timeouts.
+    """
+    from app.core import event_bus
+
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    if not meeting:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+
+    q = event_bus.subscribe(meeting_id)
+
+    async def event_generator():
+        try:
+            while True:
+                try:
+                    event = await asyncio.to_thread(q.get, timeout=1.0)
+                    yield f"data: {json.dumps(event)}\n\n"
+                    # Close stream on terminal events
+                    if event.get("type") in ("meeting_complete", "error"):
+                        return
+                except Exception:
+                    # queue.Empty on timeout — send keepalive
+                    yield ": keepalive\n\n"
+        finally:
+            event_bus.unsubscribe(meeting_id, q)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.get("/{meeting_id}", response_model=MeetingWithMessages)
