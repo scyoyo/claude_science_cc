@@ -491,7 +491,7 @@ export default function MeetingDetailPage() {
           {tc("back")}
         </button>
         <div className="flex flex-wrap items-center gap-2 min-w-0">
-          <h1 className="text-xl sm:text-2xl font-bold truncate min-w-0 max-w-full">{meeting.title}</h1>
+          <h1 className="text-xl sm:text-2xl font-bold break-words min-w-0 max-w-full">{meeting.title}</h1>
           {meeting.meeting_type && meeting.meeting_type !== "team" && (
             <Badge variant="outline" className="capitalize">
               {meeting.meeting_type === "individual" ? <User className="h-3 w-3 mr-1 inline" /> : <GitMerge className="h-3 w-3 mr-1 inline" />}
@@ -584,17 +584,17 @@ export default function MeetingDetailPage() {
 
       {/* Tabs */}
       <Tabs defaultValue="chat" className="flex-1 flex flex-col min-h-0 min-w-0">
-        <TabsList className="shrink-0 flex w-full overflow-x-auto min-h-11 p-1">
-          <TabsTrigger value="chat" className="flex-1 sm:flex-initial min-h-11 px-2 sm:px-3 text-xs sm:text-sm">
-            <MessageSquare className="h-4 w-4 mr-1 shrink-0" />
+        <TabsList variant="line" className="shrink-0 flex w-full overflow-x-auto border-b mb-3">
+          <TabsTrigger value="chat" className="flex-1 sm:flex-initial px-3 sm:px-4 py-2.5 text-sm">
+            <MessageSquare className="h-4 w-4 mr-2 shrink-0" />
             {t("tabChat")}
           </TabsTrigger>
-          <TabsTrigger value="summary" className="flex-1 sm:flex-initial min-h-11 px-2 sm:px-3 text-xs sm:text-sm">
-            <BarChart3 className="h-4 w-4 mr-1 shrink-0" />
+          <TabsTrigger value="summary" className="flex-1 sm:flex-initial px-3 sm:px-4 py-2.5 text-sm">
+            <BarChart3 className="h-4 w-4 mr-2 shrink-0" />
             {t("tabSummary")}
           </TabsTrigger>
-          <TabsTrigger value="artifacts" className="flex-1 sm:flex-initial min-h-11 px-2 sm:px-3 text-xs sm:text-sm">
-            <Code className="h-4 w-4 mr-1 shrink-0" />
+          <TabsTrigger value="artifacts" className="flex-1 sm:flex-initial px-3 sm:px-4 py-2.5 text-sm">
+            <Code className="h-4 w-4 mr-2 shrink-0" />
             {t("tabArtifacts")}
           </TabsTrigger>
         </TabsList>

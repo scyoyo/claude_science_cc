@@ -6,10 +6,9 @@ import { artifactsAPI, exportAPI } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
 import { downloadBlob } from "@/lib/utils";
 import type { CodeArtifact } from "@/types";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import FileTree from "@/components/FileTree";
+import ArtifactViewer from "@/components/ArtifactViewer";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,10 +20,9 @@ import {
   Download,
   FileCode,
   ChevronDown,
-  ChevronRight,
   Wand2,
   Loader2,
-  Trash2,
+  Archive,
 } from "lucide-react";
 
 interface ArtifactsPanelProps {
@@ -39,8 +37,9 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
   const [loading, setLoading] = useState(true);
   const [extracting, setExtracting] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [viewerArtifact, setViewerArtifact] = useState<CodeArtifact | null>(null);
+  const [viewerOpen, setViewerOpen] = useState(false);
 
   const loadArtifacts = async () => {
     try {
@@ -73,12 +72,18 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
   };
 
   const handleDelete = async (id: string) => {
+    if (!confirm("Delete this file?")) return;
     try {
       await artifactsAPI.delete(id);
       setArtifacts((prev) => prev.filter((a) => a.id !== id));
     } catch (err) {
       setError(getErrorMessage(err, "Failed to delete"));
     }
+  };
+
+  const handleViewFile = (artifact: CodeArtifact) => {
+    setViewerArtifact(artifact);
+    setViewerOpen(true);
   };
 
   const handleExportZip = async () => {
@@ -134,17 +139,6 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
     }
   };
 
-  const langColor = (lang: string) => {
-    const colors: Record<string, string> = {
-      python: "bg-blue-500/10 text-blue-600",
-      javascript: "bg-yellow-500/10 text-yellow-600",
-      typescript: "bg-blue-600/10 text-blue-700",
-      bash: "bg-green-500/10 text-green-600",
-      shell: "bg-green-500/10 text-green-600",
-    };
-    return colors[lang.toLowerCase()] || "";
-  };
-
   if (loading) return <p className="text-muted-foreground text-sm py-4">{tc("loading")}</p>;
 
   return (
@@ -154,99 +148,66 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
       )}
 
       {/* Actions bar */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <Button size="sm" variant="outline" onClick={handleExtract} disabled={extracting}>
           {extracting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Wand2 className="h-4 w-4 mr-1" />}
           {extracting ? t("extracting") : t("extractArtifacts")}
         </Button>
 
         {artifacts.length > 0 && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm" variant="outline" disabled={exporting}>
-                {exporting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Download className="h-4 w-4 mr-1" />}
-                {exporting ? t("exporting") : "Export"}
-                <ChevronDown className="h-3 w-3 ml-1" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={handleExportZip}>
-                <Download className="h-4 w-4 mr-2" />
-                {t("exportZip")}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleExportNotebook}>
-                <FileCode className="h-4 w-4 mr-2" />
-                {t("exportNotebook")}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleExportGithub}>
-                <Code className="h-4 w-4 mr-2" />
-                {t("exportGithub")}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleExportJson}>
-                <FileCode className="h-4 w-4 mr-2" />
-                {t("exportJson")}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <>
+            <Button size="sm" onClick={handleExportZip} disabled={exporting}>
+              {exporting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Archive className="h-4 w-4 mr-1" />}
+              {exporting ? t("exporting") : t("exportZip")}
+            </Button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline" disabled={exporting}>
+                  <Download className="h-4 w-4 mr-1" />
+                  {t("moreExports") || "More"}
+                  <ChevronDown className="h-3 w-3 ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={handleExportNotebook}>
+                  <FileCode className="h-4 w-4 mr-2" />
+                  {t("exportNotebook")}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportGithub}>
+                  <Code className="h-4 w-4 mr-2" />
+                  {t("exportGithub")}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportJson}>
+                  <FileCode className="h-4 w-4 mr-2" />
+                  {t("exportJson")}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
         )}
       </div>
 
-      {/* Artifacts list */}
+      {/* File tree */}
       {artifacts.length === 0 ? (
         <p className="text-muted-foreground text-sm">{t("noArtifacts")}</p>
       ) : (
-        <div className="space-y-2">
-          {artifacts.map((artifact) => (
-            <Card key={artifact.id}>
-              <CardHeader
-                className="py-3 cursor-pointer"
-                onClick={() => setExpandedId(expandedId === artifact.id ? null : artifact.id)}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    {expandedId === artifact.id ? (
-                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                    )}
-                    <FileCode className="h-4 w-4 text-muted-foreground" />
-                    <CardTitle className="text-sm font-medium">{artifact.filename}</CardTitle>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className={langColor(artifact.language)}>
-                      {artifact.language}
-                    </Badge>
-                    <Badge variant="outline" className="text-xs">v{artifact.version}</Badge>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(artifact.id);
-                      }}
-                    >
-                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              {expandedId === artifact.id && (
-                <CardContent className="pt-0">
-                  {artifact.description && (
-                    <p className="text-xs text-muted-foreground mb-2">{artifact.description}</p>
-                  )}
-                  <ScrollArea className="max-h-80">
-                    <pre className="text-xs bg-muted p-3 rounded-md overflow-x-auto">
-                      <code>{artifact.content}</code>
-                    </pre>
-                  </ScrollArea>
-                </CardContent>
-              )}
-            </Card>
-          ))}
-        </div>
+        <FileTree
+          artifacts={artifacts}
+          onViewFile={handleViewFile}
+          onDeleteFile={handleDelete}
+        />
       )}
+
+      {/* Artifact viewer */}
+      <ArtifactViewer
+        artifact={viewerArtifact}
+        open={viewerOpen}
+        onOpenChange={(open) => {
+          setViewerOpen(open);
+          if (!open) setViewerArtifact(null);
+        }}
+      />
     </div>
   );
 }
