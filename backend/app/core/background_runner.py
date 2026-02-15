@@ -112,6 +112,10 @@ def _run_meeting_thread(
         meeting.status = MeetingStatus.running.value
         db.commit()
 
+        # Clear any stale replay buffer from a previous run
+        from app.core import event_bus
+        event_bus.clear_replay_buffer(meeting_id)
+
         # Build conversation history
         existing_messages = (
             db.query(MeetingMessage)

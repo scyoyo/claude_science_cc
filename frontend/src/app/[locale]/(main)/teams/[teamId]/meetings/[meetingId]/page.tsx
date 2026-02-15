@@ -180,9 +180,14 @@ export default function MeetingDetailPage() {
     });
 
   // SSE real-time streaming (works through HTTP proxy, unlike WS on Railway)
+  // Track seen message ids to deduplicate (replay buffer may duplicate live events)
+  const seenSSEIds = useRef(new Set<string>());
   const onSSEMessage = useCallback((msg: SSEMessage) => {
+    const msgId = msg.id || "";
+    if (msgId && seenSSEIds.current.has(msgId)) return; // deduplicate
+    if (msgId) seenSSEIds.current.add(msgId);
     const newMsg: MeetingMessage = {
-      id: msg.id || `sse-${Date.now()}-${Math.random()}`,
+      id: msgId || `sse-${Date.now()}-${Math.random()}`,
       meeting_id: meetingId,
       agent_id: msg.agent_id || null,
       role: msg.role || "assistant",
@@ -207,6 +212,7 @@ export default function MeetingDetailPage() {
   const onSSEComplete = useCallback(async () => {
     setBackgroundRunning(false);
     setRunning(false);
+    seenSSEIds.current.clear();
     try {
       const data = await meetingsAPI.get(meetingId);
       setMeeting((prev) => {
@@ -278,12 +284,14 @@ export default function MeetingDetailPage() {
     setBackgroundRunning(true);  // SSE connects; once connected we fire run-background in effect below
   };
 
-  // Start run after a short delay so SSE has time to connect first (stream in real time)
-  const SSE_READY_MS = 600;
+  // Start run once SSE is connected (so messages stream in real time).
+  // If SSE doesn't connect within the fallback timeout, start anyway (polling will take over).
+  const SSE_FALLBACK_MS = 3000;
   useEffect(() => {
     if (!backgroundRunning || !pendingRunRef.current) return;
     const pending = pendingRunRef.current;
-    const id = setTimeout(() => {
+
+    const fireRun = () => {
       if (!pendingRunRef.current) return;
       pendingRunRef.current = null;
       meetingsAPI
@@ -294,7 +302,16 @@ export default function MeetingDetailPage() {
           setError(getErrorMessage(err, "Failed to start run"));
           setBackgroundRunning(false);
         });
-    }, sseConnected ? 0 : SSE_READY_MS);
+    };
+
+    if (sseConnected) {
+      // SSE is ready — fire immediately
+      fireRun();
+      return;
+    }
+    // Wait for SSE to connect (effect re-runs when sseConnected flips true)
+    // but set a fallback timeout so we don't wait forever
+    const id = setTimeout(fireRun, SSE_FALLBACK_MS);
     return () => clearTimeout(id);
   }, [backgroundRunning, sseConnected, meetingId, markExhausted]);
 
