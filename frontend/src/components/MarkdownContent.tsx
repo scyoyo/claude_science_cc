@@ -60,7 +60,7 @@ export function MarkdownContent({
               }
             }
             return (
-              <pre className="bg-muted/70 rounded-md p-2.5 overflow-x-auto text-xs my-2 max-w-full w-full min-w-0 block">
+              <pre className="bg-muted/70 rounded-md p-2.5 overflow-x-auto text-xs my-2 max-w-full min-w-0 block">
                 {children}
               </pre>
             );
@@ -73,7 +73,7 @@ export function MarkdownContent({
                 </code>
               );
             }
-            return <code className={`${codeClassName} max-w-full break-words`}>{children}</code>;
+            return <code className={`${codeClassName} whitespace-pre`}>{children}</code>;
           },
           ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-0.5 max-w-full min-w-0">{children}</ul>,
           ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-0.5 max-w-full min-w-0">{children}</ol>,
