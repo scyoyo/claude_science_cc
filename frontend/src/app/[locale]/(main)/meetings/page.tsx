@@ -147,7 +147,7 @@ export default function MeetingsPage() {
           )}
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-4">
           {filtered.map((meeting) => (
             <Card key={meeting.id} className="hover:border-primary/50 transition-colors">
               <CardHeader className="py-4">
