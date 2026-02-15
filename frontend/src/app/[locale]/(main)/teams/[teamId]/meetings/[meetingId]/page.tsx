@@ -642,14 +642,15 @@ export default function MeetingDetailPage() {
           )}
 
           {/* Round Header (when specific round selected) */}
-          {selectedRound > 0 && (() => {
-            const plan = (meeting.round_plans as RoundPlan[] | undefined)?.find((p) => p.round === selectedRound);
-            const phase = getMeetingPhase(selectedRound, meeting.max_rounds);
+          {selectedRound != null && selectedRound > 0 && (() => {
+            const round = selectedRound;
+            const plan = (meeting.round_plans as RoundPlan[] | undefined)?.find((p) => p.round === round);
+            const phase = getMeetingPhase(round, meeting.max_rounds);
             const phaseLabel = getPhaseLabel(phase, t);
             return (
               <div className="shrink-0 mb-2 p-2.5 sm:p-3 bg-muted/50 rounded-lg border text-sm space-y-1">
                 <div className="font-medium">
-                  {t("round", { current: selectedRound, max: meeting.max_rounds })}
+                  {t("round", { current: round, max: meeting.max_rounds })}
                   {" · "}{phaseLabel}
                   {plan?.title && <> — {plan.title}</>}
                 </div>
