@@ -668,8 +668,8 @@ export default function MeetingDetailPage() {
             );
           })()}
 
-          <ScrollArea className="flex-1 min-h-[50vh] mb-2 sm:mb-3 min-w-0">
-            <div className="space-y-3 pr-2 sm:pr-4 min-w-0 max-w-full">
+          <ScrollArea className="flex-1 min-h-[50vh] mb-2 sm:mb-3 min-w-0 overflow-hidden">
+            <div className="space-y-3 pr-2 sm:pr-4 min-w-0 max-w-full overflow-hidden">
               {filteredMessages.length === 0 ? (
                 <p className="text-muted-foreground text-sm">{t("noMessages")}</p>
               ) : (
@@ -684,9 +684,9 @@ export default function MeetingDetailPage() {
                   const messageArtifacts = msg.role === "assistant" ? (artifactsByMessageId.map.get(msg.id) ?? []) : [];
 
                   return (
-                    <div key={msg.id} className="min-w-0">
+                    <div key={msg.id} className="min-w-0 max-w-full overflow-hidden">
                       <div
-                        className={`p-3 sm:p-4 rounded-lg border break-words min-w-0 w-full max-w-full ${
+                        className={`p-3 sm:p-4 rounded-lg border break-words min-w-0 w-full max-w-full overflow-hidden ${
                           isFinalSummary
                             ? "bg-primary/5 border-primary/30 ring-1 ring-primary/20"
                             : isCritic
@@ -715,7 +715,7 @@ export default function MeetingDetailPage() {
                           )}
                         </div>
                         {msg.role === "user" ? (
-                          <p className="text-sm text-muted-foreground whitespace-pre-wrap break-words max-w-full">
+                          <p className="text-sm text-muted-foreground whitespace-pre-wrap break-words max-w-full overflow-wrap-anywhere">
                             {msg.content}
                           </p>
                         ) : (

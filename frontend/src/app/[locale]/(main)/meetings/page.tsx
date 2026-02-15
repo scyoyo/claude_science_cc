@@ -154,12 +154,12 @@ export default function MeetingsPage() {
               href={`/teams/${meeting.team_id}/meetings/${meeting.id}`}
               className="block"
             >
-              <Card className="hover:border-primary/50 transition-colors cursor-pointer">
+              <Card className="hover:border-primary/50 transition-colors cursor-pointer overflow-hidden">
                 <CardHeader className="py-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="flex flex-1 items-start gap-2">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between min-w-0">
+                    <div className="flex flex-1 items-start gap-2 min-w-0 overflow-hidden">
                       <MessageSquare className="h-4 w-4 shrink-0 mt-0.5" />
-                      <CardTitle className="text-base break-words flex-1">{meeting.title}</CardTitle>
+                      <CardTitle className="text-base break-words flex-1 min-w-0">{meeting.title}</CardTitle>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 shrink-0">
                       {meeting.meeting_type && meeting.meeting_type !== "team" && (
