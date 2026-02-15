@@ -134,6 +134,33 @@ export default function MeetingDetailPage() {
     setRunning(false);
   }, []);
 
+  // WS connection failed (timeout or error) — fall back to HTTP if user wanted to run
+  const onConnectFailed = useCallback(() => {
+    if (runAfterConnect) {
+      setRunAfterConnect(false);
+      // Auto-fallback: run via HTTP instead
+      (async () => {
+        try {
+          setRunning(true);
+          setError(null);
+          const data = await meetingsAPI.run(
+            meetingId,
+            1,
+            pendingTopicRef.current || undefined,
+            locale === "zh" || locale === "en" ? locale : undefined
+          );
+          setMeeting(data);
+          setLiveMessages([]);
+          setTopic("");
+        } catch (err) {
+          setError(getErrorMessage(err, "Failed to run meeting"));
+        } finally {
+          setRunning(false);
+        }
+      })();
+    }
+  }, [runAfterConnect, meetingId, locale]);
+
   const { connected, speaking, connect, disconnect, sendUserMessage, startRound } =
     useMeetingWebSocket({
       meetingId,
@@ -141,6 +168,7 @@ export default function MeetingDetailPage() {
       onError: onWSError,
       onRoundComplete,
       onMeetingComplete,
+      onConnectFailed,
     });
 
   useEffect(() => {

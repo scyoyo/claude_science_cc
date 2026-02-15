@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getWebSocketBase } from "@/lib/auth";
 
+/** Connection timeout in ms — if WS doesn't open within this, give up. */
+const CONNECT_TIMEOUT_MS = 5000;
+
 export interface WSMessage {
   type: string;
   agent_name?: string;
@@ -21,6 +24,7 @@ interface UseMeetingWSOptions {
   onError?: (error: string) => void;
   onRoundComplete?: (round: number, totalRounds: number) => void;
   onMeetingComplete?: () => void;
+  onConnectFailed?: () => void;
 }
 
 export function useMeetingWebSocket({
@@ -29,18 +33,48 @@ export function useMeetingWebSocket({
   onError,
   onRoundComplete,
   onMeetingComplete,
+  onConnectFailed,
 }: UseMeetingWSOptions) {
   const wsRef = useRef<WebSocket | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [connected, setConnected] = useState(false);
   const [speaking, setSpeaking] = useState<string | null>(null);
 
+  const clearConnectTimeout = useCallback(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  }, []);
+
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
+    // Close any lingering connection attempt
+    if (wsRef.current) {
+      wsRef.current.onopen = null;
+      wsRef.current.onclose = null;
+      wsRef.current.onerror = null;
+      wsRef.current.close();
+      wsRef.current = null;
+    }
 
     const wsBase = getWebSocketBase();
     const ws = new WebSocket(`${wsBase}/ws/meetings/${meetingId}`);
 
-    ws.onopen = () => setConnected(true);
+    // Timeout: if onopen doesn't fire within CONNECT_TIMEOUT_MS, give up
+    timeoutRef.current = setTimeout(() => {
+      if (ws.readyState !== WebSocket.OPEN) {
+        ws.close();
+        wsRef.current = null;
+        setConnected(false);
+        onConnectFailed?.();
+      }
+    }, CONNECT_TIMEOUT_MS);
+
+    ws.onopen = () => {
+      clearConnectTimeout();
+      setConnected(true);
+    };
 
     ws.onmessage = (event) => {
       const msg: WSMessage = JSON.parse(event.data);
@@ -69,23 +103,28 @@ export function useMeetingWebSocket({
     };
 
     ws.onclose = () => {
+      clearConnectTimeout();
       setConnected(false);
       setSpeaking(null);
     };
 
     ws.onerror = () => {
-      onError?.("WebSocket connection failed");
+      clearConnectTimeout();
+      wsRef.current = null;
+      setConnected(false);
+      onConnectFailed?.();
     };
 
     wsRef.current = ws;
-  }, [meetingId, onMessage, onError, onRoundComplete, onMeetingComplete]);
+  }, [meetingId, onMessage, onError, onRoundComplete, onMeetingComplete, onConnectFailed, clearConnectTimeout]);
 
   const disconnect = useCallback(() => {
+    clearConnectTimeout();
     wsRef.current?.close();
     wsRef.current = null;
     setConnected(false);
     setSpeaking(null);
-  }, []);
+  }, [clearConnectTimeout]);
 
   const sendUserMessage = useCallback((content: string) => {
     if (wsRef.current?.readyState !== WebSocket.OPEN) return;
@@ -107,9 +146,10 @@ export function useMeetingWebSocket({
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      clearConnectTimeout();
       wsRef.current?.close();
     };
-  }, []);
+  }, [clearConnectTimeout]);
 
   return {
     connected,
