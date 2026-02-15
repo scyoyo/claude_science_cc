@@ -33,7 +33,7 @@ from app.core.llm_client import create_provider, detect_provider, resolve_llm_ca
 from app.core.lang_detect import meeting_preferred_lang
 from app.core.context_extractor import extract_relevant_context, extract_keywords_from_agenda
 from app.core.agenda_proposer import AgendaProposer
-from app.core.meeting_prompts import rewrite_meeting_prompt
+from app.core.meeting_prompts import content_for_user_message, rewrite_meeting_prompt
 from app.core.background_runner import start_background_run, is_running
 from app.schemas.onboarding import ChatMessage
 from app.schemas.pagination import PaginatedResponse
@@ -715,7 +715,10 @@ def run_meeting(
     conversation_history = []
     for msg in existing_messages:
         if msg.role == "user":
-            conversation_history.append(ChatMessage(role="user", content=msg.content))
+            content = content_for_user_message(
+                msg.role, getattr(msg, "agent_id", None), getattr(msg, "agent_name", None), msg.content
+            )
+            conversation_history.append(ChatMessage(role="user", content=content))
         else:
             label = msg.agent_name or "Assistant"
             conversation_history.append(

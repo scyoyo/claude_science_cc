@@ -11,6 +11,31 @@ Adapted from virtual-lab (zou-group) prompt design. Provides:
 
 from typing import Dict, List, Optional
 
+# Prefix for user messages from humans (not from an agent) so the model treats them as high-priority feedback
+HUMAN_FEEDBACK_PREFIX = "**Human feedback:** "
+
+
+def content_for_user_message(
+    role: str,
+    agent_id: Optional[str],
+    agent_name: Optional[str],
+    content: str,
+) -> str:
+    """Format user message content for conversation_history. Prefix human feedback so agents recognize it."""
+    if role != "user":
+        return content
+    if _is_human_feedback(agent_id, agent_name):
+        return HUMAN_FEEDBACK_PREFIX + content
+    return content
+
+
+def _is_human_feedback(agent_id: Optional[str], agent_name: Optional[str]) -> bool:
+    """True if this user message is from a human (no agent_id, and agent_name is User/Human Expert or empty)."""
+    if agent_id and str(agent_id).strip():
+        return False
+    name = (agent_name or "").strip()
+    return name in ("", "User", "Human Expert")
+
 
 # ==================== Predefined Rules ====================
 
@@ -20,7 +45,8 @@ CODING_RULES = [
     "Your code may not include any pseudocode; it must be fully functioning code.",
     "Your code may not include any hard-coded examples.",
     "If your code needs user-provided values, write code to parse those values from the command line.",
-    "Your code must be high quality, well-engineered, efficient, and well-documented.",
+    "Your code must be high quality, well-engineered, efficient, and well-documented "
+    "(including docstrings, comments, and Python type hints if using Python).",
 ]
 
 REPORT_RULES = [
@@ -56,6 +82,9 @@ def get_default_rules(output_type: str) -> List[str]:
 def previous_context_prompt(summaries: List[Dict]) -> str:
     """Generate context from previous meeting summaries.
 
+    Uses explicit [begin summary N] / [end summary N] boundaries (virtual-lab style)
+    so the model can distinguish each meeting's excerpt.
+
     Args:
         summaries: List of dicts with 'title' and 'summary' keys.
 
@@ -70,11 +99,18 @@ def previous_context_prompt(summaries: List[Dict]) -> str:
         "",
     ]
     for i, s in enumerate(summaries, 1):
+        parts.append(f"[begin summary {i}]")
         parts.append(f"### Meeting {i}: {s['title']}")
+        parts.append("")
         parts.append(s["summary"])
         parts.append("")
+        parts.append(f"[end summary {i}]")
+        parts.append("")
 
-    parts.append("Use the above context to inform this meeting's discussion.")
+    parts.append(
+        "The above are relevant excerpts from previous discussions. "
+        "Use them to inform your responses in this meeting."
+    )
     return "\n".join(parts)
 
 
@@ -114,6 +150,12 @@ def meeting_start_prompt(
         parts.append(f"## Rules")
         for rule in agenda_rules:
             parts.append(f"- {rule}")
+
+    parts.append(f"")
+    parts.append(
+        "If there are messages labeled as human expert feedback, treat them as "
+        "high-priority input and address them in your response."
+    )
 
     if preferred_lang:
         parts.append(f"")
@@ -210,18 +252,48 @@ def team_member_prompt(
 # ==================== Output Structure Templates ====================
 
 def output_structure_prompt(output_type: str, has_questions: bool) -> str:
-    """Return the expected output structure based on output_type."""
+    """Return the expected output structure based on output_type.
+
+    Includes Team Member Input and Recommendation (virtual-lab style) and
+    Answer + Justification per agenda question.
+    """
+    _agenda = [
+        "### Agenda",
+        "Restate the meeting agenda and goals.",
+        "",
+    ]
+    _team_input = [
+        "### Team Member Input",
+        "Summarize the key points raised by each team member. Preserve important "
+        "details for future meetings.",
+        "",
+    ]
+    _recommendation = [
+        "### Recommendation",
+        "Provide your expert recommendation regarding the agenda. Consider each "
+        "member's input but use your expertise to make a final decision; the "
+        "recommendation can conflict with some members if well justified. Give a "
+        "clear, specific, actionable recommendation and justify it.",
+        "",
+    ]
+    _summary = [
+        "### Summary of Discussion",
+        "Key decisions and rationale.",
+        "",
+    ]
+    _answers_block = (
+        [
+            "### Answers to Agenda Questions",
+            "For each agenda question provide:",
+            "Answer: A specific answer based on the discussion and your recommendation.",
+            "Justification: A brief explanation of why you provided that answer.",
+            "",
+        ]
+        if has_questions
+        else []
+    )
     sections = {
-        "code": [
-            "### Agenda",
-            "Restate the meeting agenda and goals.",
-            "",
-            "### Summary of Discussion",
-            "Key decisions and rationale.",
-            "",
-            *( ["### Answers to Agenda Questions",
-                "Answer each question with references to the discussion.",
-                ""] if has_questions else []),
+        "code": _agenda + _team_input + _recommendation + _summary + _answers_block + [
             "### Code Artifacts",
             "Complete, runnable code with comments.",
             "",
@@ -231,16 +303,7 @@ def output_structure_prompt(output_type: str, has_questions: bool) -> str:
             "### Next Steps",
             "Remaining tasks and follow-up items.",
         ],
-        "report": [
-            "### Agenda",
-            "Restate the meeting agenda and goals.",
-            "",
-            "### Summary of Discussion",
-            "Key decisions and rationale.",
-            "",
-            *( ["### Answers to Agenda Questions",
-                "Answer each question with references to the discussion.",
-                ""] if has_questions else []),
+        "report": _agenda + _team_input + _recommendation + _summary + _answers_block + [
             "### Findings",
             "Detailed findings with supporting evidence.",
             "",
@@ -253,16 +316,7 @@ def output_structure_prompt(output_type: str, has_questions: bool) -> str:
             "### Next Steps",
             "Remaining tasks and follow-up items.",
         ],
-        "paper": [
-            "### Agenda",
-            "Restate the meeting agenda and goals.",
-            "",
-            "### Summary of Discussion",
-            "Key decisions and rationale.",
-            "",
-            *( ["### Answers to Agenda Questions",
-                "Answer each question with references to the discussion.",
-                ""] if has_questions else []),
+        "paper": _agenda + _team_input + _recommendation + _summary + _answers_block + [
             "### Abstract",
             "Concise summary of the work.",
             "",
@@ -287,10 +341,15 @@ SCIENTIFIC_CRITIC = {
     "system_prompt": (
         "You are a Scientific Critic. Your role is to critically evaluate scientific "
         "proposals, methodologies, and results. You should:\n"
-        "- Identify potential flaws in reasoning or methodology.\n"
-        "- Suggest improvements with specific, actionable feedback.\n"
-        "- Point out missing controls, confounding variables, or alternative explanations.\n"
+        "- Suggest improvements that directly address the agenda and any agenda questions.\n"
+        "- Prioritize simple solutions over unnecessarily complex ones; demand more "
+        "detail where detail is lacking.\n"
+        "- Validate whether the answer strictly adheres to the agenda and agenda "
+        "questions; provide corrective feedback if it does not.\n"
+        "- Identify potential flaws in reasoning or methodology, and point out missing "
+        "controls, confounding variables, or alternative explanations.\n"
         "- Be constructive but rigorous—every critique should include a suggestion.\n"
+        "- Only provide feedback; do not implement the answer yourself.\n"
         "- Be direct and concise."
     ),
 }
@@ -341,19 +400,24 @@ def individual_meeting_start_prompt(
 
 
 def individual_meeting_critic_prompt(critic_name: str, agent_name: str) -> str:
-    """Prompt for the critic to evaluate the agent's response."""
+    """Prompt for the critic to evaluate the agent's response (virtual-lab style)."""
     return (
         f"{critic_name}, please critically evaluate {agent_name}'s response. "
-        f"Identify strengths, weaknesses, and areas for improvement. "
-        f"Provide specific, actionable suggestions."
+        "In your critique, suggest improvements that directly address the agenda and "
+        "any agenda questions. Prioritize simple solutions over unnecessarily complex "
+        "ones, but demand more detail where detail is lacking. Additionally, validate "
+        "whether the answer strictly adheres to the agenda and any agenda questions "
+        "and provide corrective feedback if it does not. Only provide feedback; "
+        "do not implement the answer yourself. Be specific and actionable."
     )
 
 
 def individual_meeting_agent_revision_prompt(critic_name: str, agent_name: str) -> str:
-    """Prompt for the agent to revise based on critic feedback."""
+    """Prompt for the agent to revise based on critic feedback (virtual-lab style)."""
     return (
         f"{agent_name}, please revise your response based on {critic_name}'s feedback. "
-        f"Address each critique point and improve your answer."
+        "Address each critique point and improve your answer. Remember that your "
+        "ultimate goal is to make improvements that better address the agenda."
     )
 
 
@@ -389,7 +453,9 @@ def create_merge_prompt(
     parts.append(
         "Synthesize the best components from each discussion. "
         "Identify areas of agreement and resolve disagreements. "
-        "Produce a unified, high-quality answer."
+        "Produce a unified, high-quality answer using the same format as the "
+        "individual answers. Additionally, explain which components of your "
+        "answer came from which discussion and why you chose to include them."
     )
 
     if questions:
@@ -442,7 +508,8 @@ def rewrite_meeting_prompt(
 
     parts.append(
         "Revise and improve the original output, addressing all feedback points. "
-        "Maintain what was good and fix what was identified as needing improvement."
+        "Maintain what was good and fix what was identified as needing improvement. "
+        "Do not change anything else beyond addressing the feedback."
     )
 
     return "\n".join(parts)

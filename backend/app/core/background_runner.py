@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.models import Meeting, MeetingMessage, MeetingStatus, Agent, CodeArtifact
 from app.schemas.onboarding import ChatMessage
 from app.core.meeting_engine import MeetingEngine
+from app.core.meeting_prompts import content_for_user_message
 from app.core.llm_client import resolve_llm_call
 from app.core.code_extractor import extract_from_meeting_messages
 
@@ -117,7 +118,10 @@ def _run_meeting_thread(
         conversation_history: list[ChatMessage] = []
         for msg in existing_messages:
             if msg.role == "user":
-                conversation_history.append(ChatMessage(role="user", content=msg.content))
+                content = content_for_user_message(
+                    msg.role, getattr(msg, "agent_id", None), getattr(msg, "agent_name", None), msg.content
+                )
+                conversation_history.append(ChatMessage(role="user", content=content))
             else:
                 label = msg.agent_name or "Assistant"
                 conversation_history.append(

@@ -21,6 +21,7 @@ from app.database import get_db, SessionLocal
 from app.models import Meeting, Agent, MeetingMessage, MeetingStatus, CodeArtifact
 from app.schemas.onboarding import ChatMessage
 from app.core.meeting_engine import MeetingEngine
+from app.core.meeting_prompts import content_for_user_message
 from app.core.lang_detect import meeting_preferred_lang
 from app.core.llm_client import resolve_llm_call
 from app.core.code_extractor import extract_from_meeting_messages
@@ -137,7 +138,10 @@ async def _handle_start_round(websocket: WebSocket, db: Session, meeting: Meetin
     history = []
     for msg in existing:
         if msg.role == "user":
-            history.append(ChatMessage(role="user", content=msg.content))
+            content = content_for_user_message(
+                msg.role, getattr(msg, "agent_id", None), getattr(msg, "agent_name", None), msg.content
+            )
+            history.append(ChatMessage(role="user", content=content))
         else:
             label = msg.agent_name or "Assistant"
             history.append(ChatMessage(role="user", content=f"[{label}]: {msg.content}"))
