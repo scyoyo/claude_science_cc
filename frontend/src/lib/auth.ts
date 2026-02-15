@@ -8,6 +8,17 @@ export function getApiBase(): string {
   return process.env.NEXT_PUBLIC_API_URL || "/api";
 }
 
+/** WebSocket origin (ws/wss + host) derived from API base. Use for meeting WS. */
+export function getWebSocketBase(): string {
+  const base = getApiBase();
+  if (typeof window === "undefined") {
+    const url = new URL(base.startsWith("http") ? base : "http://localhost:8000/api");
+    return url.protocol === "https:" ? `wss://${url.host}` : `ws://${url.host}`;
+  }
+  const url = new URL(base, window.location.origin);
+  return url.protocol === "https:" ? `wss://${url.host}` : `ws://${url.host}`;
+}
+
 export function getAccessToken(): string | null {
   if (typeof window === "undefined") return null;
   return localStorage.getItem(TOKEN_KEY);

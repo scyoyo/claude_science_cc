@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getWebSocketBase } from "@/lib/auth";
 
 export interface WSMessage {
   type: string;
@@ -36,9 +37,8 @@ export function useMeetingWebSocket({
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const host = window.location.host;
-    const ws = new WebSocket(`${protocol}//${host}/ws/meetings/${meetingId}`);
+    const wsBase = getWebSocketBase();
+    const ws = new WebSocket(`${wsBase}/ws/meetings/${meetingId}`);
 
     ws.onopen = () => setConnected(true);
 

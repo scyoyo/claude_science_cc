@@ -35,7 +35,7 @@ interface EditAgentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   agent: EditAgentDialogAgent | null;
-  /** Full: team page (model Select + system_prompt). Suggestion: onboarding (model Input only). */
+  /** Full: team page (includes system_prompt field). Suggestion: onboarding (no system_prompt). Model is always a Select. */
   variant: "full" | "suggestion";
   onSave: (data: EditAgentFormData) => void;
   saving?: boolean;
@@ -134,29 +134,25 @@ export function EditAgentDialog({
           </div>
           <div className="space-y-1">
             <Label>{t("model")}</Label>
-            {variant === "full" ? (
-              <Select
-                value={form.model}
-                onValueChange={(v) => setForm((f) => ({ ...f, model: v }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {MODEL_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <Input
-                value={form.model}
-                onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))}
-                required
-              />
-            )}
+            <Select
+              value={form.model}
+              onValueChange={(v) => setForm((f) => ({ ...f, model: v }))}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(
+                  !form.model || MODEL_OPTIONS.some((o) => o.value === form.model)
+                    ? MODEL_OPTIONS
+                    : [{ value: form.model, label: form.model }, ...MODEL_OPTIONS]
+                ).map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           {variant === "full" && (
             <div className="space-y-1">
