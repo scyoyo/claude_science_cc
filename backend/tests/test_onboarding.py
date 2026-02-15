@@ -565,6 +565,19 @@ class TestOnboardingChatAPI:
         assert data["next_stage"] == "team_suggestion"  # loops back
         assert "modify" in data["message"].lower() or "change" in data["message"].lower()
 
+    def test_team_suggestion_unclear_stays_and_asks(self, client):
+        """When message is neither accept nor reject, stay in team_suggestion and ask to confirm or describe changes."""
+        response = client.post("/api/onboarding/chat", json={
+            "stage": "team_suggestion",
+            "message": "嗯",
+            "context": {"team_suggestion": {"team_name": "Test", "agents": []}},
+        })
+        assert response.status_code == 200
+        data = response.json()
+        assert data["stage"] == "team_suggestion"
+        assert data["next_stage"] == "team_suggestion"
+        assert "accept" in data["message"].lower() or "suggest" in data["message"].lower()
+
     def test_chat_omits_stage_infers_problem(self, client):
         """When stage is omitted, backend infers problem from empty context."""
         response = client.post("/api/onboarding/chat", json={

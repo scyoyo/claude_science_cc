@@ -50,6 +50,12 @@ REJECT_SIGNALS = [
     "reject", "no", "change", "modify", "different", "revise", "redo", "not good", "disagree",
     "否", "不", "跳过", "不要", "不用", "取消", "skip", "disable",
 ]
+# Modification intent: user wants to edit the team (treat like reject for routing).
+# Use clear modification verbs/phrases only; avoid "agent" so "mirror agents" isn't treated as modify.
+MODIFY_SIGNALS = [
+    "add a", "add an", "add one", "remove ", "replace ", "换掉", "换成", "换一个",
+    "加一个", "加个", "去掉", "删掉", "减少", "增加", "调整一下", "改一下",
+]
 
 
 def _create_onboarding_llm_func():
@@ -119,14 +125,20 @@ def _strip_json_block(text: str) -> str:
 
 
 def _detect_accept_reject(message: str) -> str:
-    """Detect whether the user accepts or rejects the team proposal.
+    """Detect whether the user accepts, rejects, or wants to modify the team proposal.
 
     Returns 'accept', 'reject', or 'unclear'.
+    - reject: explicit reject or modification intent (e.g. add/remove agents) → re-propose team
+    - accept: explicit accept → proceed to create team
+    - unclear: neither → stay in team_suggestion and ask user to confirm or describe changes
     """
-    msg_lower = message.lower()
+    if not (message or "").strip():
+        return "unclear"
+    msg_lower = message.strip().lower()
     accept_score = sum(1 for s in ACCEPT_SIGNALS if s in msg_lower)
     reject_score = sum(1 for s in REJECT_SIGNALS if s in msg_lower)
-    if reject_score > accept_score:
+    modify_score = sum(1 for s in MODIFY_SIGNALS if s in msg_lower)
+    if reject_score > accept_score or modify_score > 0:
         return "reject"
     if accept_score > 0:
         return "accept"
@@ -357,8 +369,27 @@ def _handle_team_suggestion_stage(
             data={"team_suggestion": request.context.get("team_suggestion", {})},
         )
 
-    # Accept (or unclear → default to accept and proceed)
-    # Skip mirror_config stage — mirrors can be added later from the team page
+    # Unclear: stay in team_suggestion and ask user to confirm or describe changes
+    if decision == "unclear":
+        lang = (request.context or {}).get("response_lang", "en")
+        if lang == "zh":
+            msg = (
+                "要**接受**当前团队并创建，还是**提出修改**？"
+                "回复「接受」「可以」等以创建团队，或直接描述你想修改的内容（例如增加工程师、更换角色）。"
+            )
+        else:
+            msg = (
+                "Would you like to **accept** this team and create it, or **suggest changes**? "
+                "Reply e.g. \"Accept\" / \"Looks good\" to create the team, or describe what you'd like to modify (e.g. add an engineer, change a role)."
+            )
+        return OnboardingChatResponse(
+            stage=OnboardingStage.team_suggestion,
+            next_stage=OnboardingStage.team_suggestion,
+            message=msg,
+            data={"team_suggestion": request.context.get("team_suggestion", {})},
+        )
+
+    # Accept: proceed to create team (skip mirror_config; mirrors can be added later from team page)
     return OnboardingChatResponse(
         stage=OnboardingStage.team_suggestion,
         next_stage=None,
