@@ -37,6 +37,7 @@ def list_teams(
             | (Team.id.in_(user_team_ids) if user_team_ids else False)
             | (Team.is_public == True)
         )
+    query = query.order_by(Team.updated_at.desc())
     return build_paginated_response(query, skip, limit)
 
 
