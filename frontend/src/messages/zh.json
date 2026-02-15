@@ -71,7 +71,12 @@
     "importFile": "选择 JSON 文件",
     "importPreview": "{name} — {count} 个智能体",
     "importConfirm": "导入",
-    "importError": "无效的团队文件"
+    "importError": "无效的团队文件",
+    "selectTeams": "选择",
+    "selectAll": "全选",
+    "deselectAll": "取消全选",
+    "batchDelete": "删除所选 ({count})",
+    "batchDeleteConfirm": "确定删除 {count} 个选中的团队吗？"
   },
   "teamDetail": {
     "backToTeams": "返回团队列表",

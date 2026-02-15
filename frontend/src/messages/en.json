@@ -71,7 +71,12 @@
     "importFile": "Select JSON file",
     "importPreview": "{name} — {count} agents",
     "importConfirm": "Import",
-    "importError": "Invalid team file"
+    "importError": "Invalid team file",
+    "selectTeams": "Select",
+    "selectAll": "Select All",
+    "deselectAll": "Deselect All",
+    "batchDelete": "Delete Selected ({count})",
+    "batchDeleteConfirm": "Delete {count} selected teams?"
   },
   "teamDetail": {
     "backToTeams": "Back to Teams",
