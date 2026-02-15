@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useTranslations, useLocale } from "next-intl";
 import { Link } from "@/i18n/navigation";
@@ -90,6 +90,29 @@ export default function MeetingDetailPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   /** Pending run to start only after SSE is connected, so we don't miss real-time events. */
   const pendingRunRef = useRef<{ rounds: number; topic?: string; locale?: string } | null>(null);
+
+  /** Assign each artifact to the first assistant message whose content contains that artifact's code. */
+  const artifactsByMessageId = useMemo(() => {
+    const map = new Map<string, CodeArtifact[]>();
+    const assigned = new Set<string>();
+    const all = [...(meeting?.messages ?? []), ...liveMessages];
+    const norm = (s: string) => s.replace(/\s+/g, " ").trim();
+    for (const artifact of chatArtifacts) {
+      const needle = norm(artifact.content).slice(0, 120);
+      if (!needle) continue;
+      for (const msg of all) {
+        if (msg.role !== "assistant") continue;
+        if (norm(msg.content).includes(needle)) {
+          const list = map.get(msg.id) ?? [];
+          list.push(artifact);
+          map.set(msg.id, list);
+          assigned.add(artifact.id);
+          break;
+        }
+      }
+    }
+    return { map, assigned };
+  }, [chatArtifacts, meeting?.messages, liveMessages]);
 
   const agentTitleByKey = (msg: MeetingMessage): string | null => {
     if (msg.role === "user") return null;
@@ -421,9 +444,9 @@ export default function MeetingDetailPage() {
   };
 
   return (
-    <div className="flex flex-col min-h-0 h-[calc(100dvh-theme(spacing.16))] sm:h-[calc(100vh-120px)]">
+    <div className="flex flex-col min-h-0 w-full max-w-full overflow-x-hidden h-[calc(100dvh-theme(spacing.16))] sm:h-[calc(100vh-120px)]">
       {/* Header */}
-      <div className="shrink-0 space-y-2 mb-3 sm:mb-4">
+      <div className="shrink-0 space-y-2 mb-3 sm:mb-4 min-w-0 px-1 sm:px-0">
         <button
           type="button"
           onClick={() => router.back()}
@@ -433,8 +456,8 @@ export default function MeetingDetailPage() {
           <ArrowLeft className="h-3.5 w-3.5" />
           {tc("back")}
         </button>
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-xl sm:text-2xl font-bold truncate">{meeting.title}</h1>
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold truncate min-w-0 max-w-full">{meeting.title}</h1>
           {meeting.meeting_type && meeting.meeting_type !== "team" && (
             <Badge variant="outline" className="capitalize">
               {meeting.meeting_type === "individual" ? <User className="h-3 w-3 mr-1 inline" /> : <GitMerge className="h-3 w-3 mr-1 inline" />}
@@ -453,9 +476,9 @@ export default function MeetingDetailPage() {
           </span>
         </div>
         {meeting.agenda && (
-          <div className="flex items-center gap-2 text-sm">
-            <span className="font-medium">{t("agenda")}:</span>
-            <span className="text-muted-foreground">{meeting.agenda}</span>
+          <div className="flex flex-wrap items-start gap-2 text-sm min-w-0">
+            <span className="font-medium shrink-0">{t("agenda")}:</span>
+            <span className="text-muted-foreground break-words min-w-0">{meeting.agenda}</span>
             {meeting.output_type && meeting.output_type !== "code" && (
               <Badge variant="outline" className="text-xs">{meeting.output_type}</Badge>
             )}
@@ -526,7 +549,7 @@ export default function MeetingDetailPage() {
       )}
 
       {/* Tabs */}
-      <Tabs defaultValue="chat" className="flex-1 flex flex-col min-h-0">
+      <Tabs defaultValue="chat" className="flex-1 flex flex-col min-h-0 min-w-0">
         <TabsList className="shrink-0 flex w-full overflow-x-auto min-h-11 p-1">
           <TabsTrigger value="chat" className="flex-1 sm:flex-initial min-h-11 px-2 sm:px-3 text-xs sm:text-sm">
             <MessageSquare className="h-4 w-4 mr-1 shrink-0" />
@@ -543,7 +566,7 @@ export default function MeetingDetailPage() {
         </TabsList>
 
         {/* Chat Tab */}
-        <TabsContent value="chat" className="flex-1 flex flex-col min-h-0">
+        <TabsContent value="chat" className="flex-1 flex flex-col min-h-0 min-w-0">
           {/* Round Selector */}
           {meeting.max_rounds > 1 && (
             <div className="shrink-0 flex items-center gap-1 mb-3 overflow-x-auto pb-1 -mx-1 px-1 min-h-10">
@@ -604,31 +627,8 @@ export default function MeetingDetailPage() {
             );
           })()}
 
-          {/* Generated files in this meeting — open in same-page viewer */}
-          {chatArtifacts.length > 0 && (
-            <div className="shrink-0 mb-3 p-3 rounded-lg border bg-muted/30">
-              <p className="text-xs font-medium text-muted-foreground mb-2">{t("generatedFiles")}</p>
-              <div className="flex flex-wrap gap-2">
-                {chatArtifacts.map((a) => (
-                  <button
-                    key={a.id}
-                    type="button"
-                    onClick={() => {
-                      setViewerArtifact(a);
-                      setViewerOpen(true);
-                    }}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm bg-background border hover:bg-accent hover:text-accent-foreground transition-colors"
-                  >
-                    <FileCode className="h-3.5 w-3.5 shrink-0" />
-                    <span className="truncate max-w-[180px] sm:max-w-[240px]">{a.filename}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <ScrollArea className="flex-1 mb-3 sm:mb-4">
-            <div className="space-y-3 pr-2 sm:pr-4">
+          <ScrollArea className="flex-1 mb-3 sm:mb-4 min-w-0 overflow-x-hidden">
+            <div className="space-y-3 pr-2 sm:pr-4 min-w-0 w-full max-w-full">
               {filteredMessages.length === 0 ? (
                 <p className="text-muted-foreground text-sm">{t("noMessages")}</p>
               ) : (
@@ -653,21 +653,22 @@ export default function MeetingDetailPage() {
                     ? getPhaseLabel(getMeetingPhase(msg.round_number, meeting.max_rounds), t)
                     : "";
                   const dividerGoal = roundPlan?.goal || "";
+                  const messageArtifacts = msg.role === "assistant" ? (artifactsByMessageId.map.get(msg.id) ?? []) : [];
 
                   return (
-                    <div key={msg.id}>
+                    <div key={msg.id} className="min-w-0">
                       {showDivider && (
                         <div className="flex items-center gap-2 my-2 text-xs text-muted-foreground">
-                          <div className="flex-1 border-t" />
+                          <div className="flex-1 border-t min-w-0" />
                           <span className="shrink-0 font-medium">
                             R{msg.round_number} · {dividerPhase}
                             {dividerGoal && `: ${dividerGoal}`}
                           </span>
-                          <div className="flex-1 border-t" />
+                          <div className="flex-1 border-t min-w-0" />
                         </div>
                       )}
                       <div
-                        className={`p-3 sm:p-4 rounded-lg border break-words ${
+                        className={`p-3 sm:p-4 rounded-lg border break-words overflow-hidden ${
                           isFinalSummary
                             ? "bg-primary/5 border-primary/30 ring-1 ring-primary/20"
                             : isCritic
@@ -701,20 +702,43 @@ export default function MeetingDetailPage() {
                           )}
                         </div>
                         {msg.role === "user" ? (
-                          <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                          <p className="text-sm text-muted-foreground whitespace-pre-wrap break-words">
                             {msg.content}
                           </p>
                         ) : (
-                          <MarkdownContent content={msg.content} className="text-sm text-muted-foreground" />
+                          <MarkdownContent
+                            content={msg.content}
+                            className="text-sm text-muted-foreground"
+                            hideCodeBlocks={messageArtifacts.length > 0}
+                            codeBlockPlaceholder={t("codeBlockPlaceholder")}
+                          />
                         )}
                       </div>
+                      {messageArtifacts.length > 0 && (
+                        <div className="mt-1.5 pl-1 flex flex-wrap gap-1.5">
+                          {messageArtifacts.map((a) => (
+                            <button
+                              key={a.id}
+                              type="button"
+                              onClick={() => {
+                                setViewerArtifact(a);
+                                setViewerOpen(true);
+                              }}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs bg-muted/70 hover:bg-muted border border-transparent hover:border-border transition-colors min-h-8 touch-manipulation"
+                            >
+                              <FileCode className="h-3 w-3 shrink-0" />
+                              <span className="truncate max-w-[140px] sm:max-w-[240px]">{a.filename}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   );
                 })
               )}
 
               {speaking && (
-                <div className="p-4 rounded-lg bg-muted border animate-pulse">
+                <div className="p-3 sm:p-4 rounded-lg bg-muted border animate-pulse">
                   <span className="text-sm text-muted-foreground">
                     {t("thinking", {
                       agent: (() => {
@@ -723,6 +747,31 @@ export default function MeetingDetailPage() {
                       })(),
                     })}
                   </span>
+                </div>
+              )}
+
+              {/* Unassigned artifacts (no matching message) */}
+              {chatArtifacts.filter((a) => !artifactsByMessageId.assigned.has(a.id)).length > 0 && (
+                <div className="mt-3 pt-2 border-t">
+                  <p className="text-xs text-muted-foreground mb-2">{t("generatedFiles")}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {chatArtifacts
+                      .filter((a) => !artifactsByMessageId.assigned.has(a.id))
+                      .map((a) => (
+                        <button
+                          key={a.id}
+                          type="button"
+                          onClick={() => {
+                            setViewerArtifact(a);
+                            setViewerOpen(true);
+                          }}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs bg-muted/70 hover:bg-muted border min-h-8 touch-manipulation"
+                        >
+                          <FileCode className="h-3 w-3 shrink-0" />
+                          <span className="truncate max-w-[140px] sm:max-w-[240px]">{a.filename}</span>
+                        </button>
+                      ))}
+                  </div>
                 </div>
               )}
 

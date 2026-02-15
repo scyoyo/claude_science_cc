@@ -197,6 +197,7 @@
     "noSummary": "Run a meeting round first to generate a summary.",
     "noArtifacts": "No code artifacts yet.",
     "generatedFiles": "Generated files",
+    "codeBlockPlaceholder": "Code block — see generated files below.",
     "viewFile": "View file",
     "extractArtifacts": "Extract Code",
     "extracting": "Extracting...",
