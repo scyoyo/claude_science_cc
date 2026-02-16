@@ -116,23 +116,12 @@ export function parseCodeFilesJson(content: string): {
     // ignore
   }
 
-  // 3) Find {...} containing "files" (e.g. text before/after JSON)
+  // 3) Find {...} containing "files", with text before/after. Match braces while skipping inside strings.
   const idx = text.indexOf("files");
   if (idx === -1) return null;
   let start = text.lastIndexOf("{", idx);
   if (start === -1) return null;
-  let depth = 0;
-  let end = -1;
-  for (let i = start; i < text.length; i++) {
-    if (text[i] === "{") depth++;
-    else if (text[i] === "}") {
-      depth--;
-      if (depth === 0) {
-        end = i;
-        break;
-      }
-    }
-  }
+  const end = findJsonObjectEnd(text, start);
   if (end === -1) return null;
   try {
     const data = JSON.parse(text.slice(start, end + 1));
@@ -145,4 +134,46 @@ export function parseCodeFilesJson(content: string): {
     // ignore
   }
   return null;
+}
+
+/**
+ * Find the index of the closing "}" for the JSON object starting at start.
+ * Skips braces inside double-quoted strings (handles \", \\, etc.).
+ */
+function findJsonObjectEnd(text: string, start: number): number {
+  let depth = 0;
+  let i = start;
+  const n = text.length;
+  while (i < n) {
+    const ch = text[i];
+    if (ch === '"') {
+      i++;
+      while (i < n) {
+        const c = text[i];
+        if (c === "\\") {
+          i += 2;
+          continue;
+        }
+        if (c === '"') {
+          i++;
+          break;
+        }
+        i++;
+      }
+      continue;
+    }
+    if (ch === "{") {
+      depth++;
+      i++;
+      continue;
+    }
+    if (ch === "}") {
+      depth--;
+      if (depth === 0) return i;
+      i++;
+      continue;
+    }
+    i++;
+  }
+  return -1;
 }
