@@ -62,6 +62,8 @@ export default function TeamDetailPage() {
     model: "gpt-4",
   });
   const [showTemplates, setShowTemplates] = useState(false);
+  const [showEditTeam, setShowEditTeam] = useState(false);
+  const [editTeamForm, setEditTeamForm] = useState({ name: "", description: "" });
   const [teamStats, setTeamStats] = useState<TeamStats | null>(null);
   const [agentMetricsMap, setAgentMetricsMap] = useState<Record<string, AgentMetrics>>({});
 
@@ -220,6 +222,24 @@ export default function TeamDetailPage() {
     setShowNewMeeting(true);
   };
 
+  const openEditTeam = () => {
+    if (team) {
+      setEditTeamForm({ name: team.name, description: team.description || "" });
+      setShowEditTeam(true);
+    }
+  };
+
+  const handleEditTeamSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await teamsAPI.update(teamId, { name: editTeamForm.name.trim(), description: editTeamForm.description.trim() || undefined });
+      setShowEditTeam(false);
+      await loadData();
+    } catch (err) {
+      setError(getErrorMessage(err, "Failed to update team"));
+    }
+  };
+
   const newMeetingInitialTitle =
     participantIdsForNewMeeting?.length && team
       ? `${t("meetingWith")} ${participantIdsForNewMeeting.map((id) => team.agents.find((a) => a.id === id)?.name).filter(Boolean).join(", ")}`
@@ -246,7 +266,18 @@ export default function TeamDetailPage() {
           {t("backToTeams")}
         </Link>
         <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-3">
-          <h1 className="text-2xl font-bold">{team.name}</h1>
+          <div className="flex items-center gap-2 min-w-0">
+            <h1 className="text-2xl font-bold truncate">{team.name}</h1>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              onClick={openEditTeam}
+              title={t("editTeam")}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+          </div>
           {(SHOW_VISUAL_EDITOR || SHOW_EXPORT_TEAM) && (
             <div className="flex flex-col sm:flex-row gap-2">
               {SHOW_VISUAL_EDITOR && (
@@ -571,6 +602,43 @@ export default function TeamDetailPage() {
           </div>
         )}
       </section>
+
+      {/* Edit Team Dialog */}
+      <Dialog open={showEditTeam} onOpenChange={setShowEditTeam}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t("editTeam")}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEditTeamSave} className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="edit-team-name">{t("teamName")}</Label>
+              <Input
+                id="edit-team-name"
+                value={editTeamForm.name}
+                onChange={(e) => setEditTeamForm((f) => ({ ...f, name: e.target.value }))}
+                placeholder={t("teamName")}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-team-desc">{t("teamDescription")}</Label>
+              <Textarea
+                id="edit-team-desc"
+                value={editTeamForm.description}
+                onChange={(e) => setEditTeamForm((f) => ({ ...f, description: e.target.value }))}
+                placeholder={t("teamDescription")}
+                rows={3}
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setShowEditTeam(false)}>
+                {tc("cancel")}
+              </Button>
+              <Button type="submit">{tc("save")}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Agent Dialog — shared with onboarding */}
       <EditAgentDialog
