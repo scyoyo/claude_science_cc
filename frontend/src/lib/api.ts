@@ -29,6 +29,7 @@ import type {
   ContextPreviewResponse,
 } from "@/types";
 import { getAuthHeaders, getApiBase } from "@/lib/auth";
+import { downloadBlob } from "@/lib/utils";
 
 // Backend paginated response shape
 interface PaginatedResponse<T> {
@@ -271,6 +272,20 @@ export const exportAPI = {
   json: async (meetingId: string): Promise<Blob> => {
     const res = await fetchRaw(`/export/meeting/${meetingId}/json`);
     return res.blob();
+  },
+  paper: (meetingId: string) =>
+    fetchAPI<{ content: string; title: string }>(`/export/meeting/${meetingId}/paper`),
+  blog: (meetingId: string) =>
+    fetchAPI<{ content: string; title: string }>(`/export/meeting/${meetingId}/blog`),
+  paperDownload: async (meetingId: string, filename: string): Promise<void> => {
+    const res = await fetchRaw(`/export/meeting/${meetingId}/paper?download=1`);
+    const blob = await res.blob();
+    downloadBlob(blob, `${filename.replace(/\s+/g, "_")}_paper.md`);
+  },
+  blogDownload: async (meetingId: string, filename: string): Promise<void> => {
+    const res = await fetchRaw(`/export/meeting/${meetingId}/blog?download=1`);
+    const blob = await res.blob();
+    downloadBlob(blob, `${filename.replace(/\s+/g, "_")}_blog.md`);
   },
 };
 

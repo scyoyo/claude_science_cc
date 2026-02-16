@@ -224,3 +224,138 @@ def export_as_github_files(
         files.append({"path": "requirements.txt", "content": requirements})
 
     return files
+
+
+def _escape_md_code(s: str) -> str:
+    """Escape content for use inside markdown code blocks."""
+    return s.replace("```", "` ` `")
+
+
+def export_as_paper(
+    meeting_title: str,
+    meeting_description: str | None,
+    messages: list[dict],
+    artifacts: list[dict],
+    summary: str | None = None,
+) -> str:
+    """Export meeting as an academic-style paper (markdown).
+
+    Structure: title, abstract, discussion sections by round, code references, appendix (code).
+    """
+    title = meeting_title or "Meeting Output"
+    lines = [
+        f"# {title}",
+        "",
+        "*Generated from Virtual Lab meeting*",
+        "",
+        "---",
+        "",
+        "## Abstract",
+        "",
+        (meeting_description or summary or "This document summarizes the discussion and outputs from a virtual lab meeting.").strip(),
+        "",
+        "---",
+        "",
+        "## Discussion",
+        "",
+    ]
+
+    current_round = None
+    for msg in messages:
+        role = msg.get("role", "assistant")
+        agent = msg.get("agent_name", "Agent")
+        content = (msg.get("content") or "").strip()
+        rn = msg.get("round_number")
+        if rn is not None and rn != current_round:
+            current_round = rn
+            lines.append(f"### Round {current_round}")
+            lines.append("")
+        if role == "user":
+            lines.append(f"**User:** {_escape_md_code(content)}")
+        else:
+            lines.append(f"**{agent}:**")
+            lines.append("")
+            lines.append(content)
+        lines.append("")
+        lines.append("")
+
+    if artifacts:
+        lines.append("---")
+        lines.append("")
+        lines.append("## Generated Artifacts")
+        lines.append("")
+        for a in artifacts:
+            fn = a.get("filename", "file")
+            lines.append(f"- `{fn}`")
+        lines.append("")
+        lines.append("---")
+        lines.append("")
+        lines.append("## Appendix: Code")
+        lines.append("")
+        for a in artifacts:
+            fn = a.get("filename", "file")
+            lang = a.get("language", "text")
+            content = a.get("content", "")
+            lines.append(f"### {fn}")
+            lines.append("")
+            lines.append(f"```{lang}")
+            lines.append(_escape_md_code(content))
+            lines.append("```")
+            lines.append("")
+
+    return "\n".join(lines).strip()
+
+
+def export_as_blog(
+    meeting_title: str,
+    meeting_description: str | None,
+    messages: list[dict],
+    artifacts: list[dict],
+    summary: str | None = None,
+) -> str:
+    """Export meeting as a blog post (markdown).
+
+    Narrative style: intro, discussion flow, code snippets inline.
+    """
+    title = meeting_title or "Meeting Notes"
+    lines = [
+        f"# {title}",
+        "",
+        (meeting_description or summary or "Notes from a virtual lab session.").strip(),
+        "",
+        "---",
+        "",
+    ]
+
+    for msg in messages:
+        role = msg.get("role", "assistant")
+        agent = msg.get("agent_name", "Agent")
+        content = (msg.get("content") or "").strip()
+        if not content:
+            continue
+        if role == "user":
+            lines.append(f"> **User:** {_escape_md_code(content)}")
+        else:
+            lines.append(f"### {agent}")
+            lines.append("")
+            lines.append(content)
+        lines.append("")
+        lines.append("")
+
+    if artifacts:
+        lines.append("---")
+        lines.append("")
+        lines.append("## Code from this session")
+        lines.append("")
+        for a in artifacts:
+            fn = a.get("filename", "file")
+            lang = a.get("language", "text")
+            content = a.get("content", "")
+            lines.append(f"**{fn}**")
+            lines.append("")
+            lines.append(f"```{lang}")
+            lines.append(_escape_md_code(content))
+            lines.append("```")
+            lines.append("")
+
+    return "\n".join(lines).strip()

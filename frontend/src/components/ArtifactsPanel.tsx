@@ -10,6 +10,15 @@ import { Button } from "@/components/ui/button";
 import FileTree from "@/components/FileTree";
 import ArtifactViewer from "@/components/ArtifactViewer";
 import { ExportToGithubDialog } from "@/components/ExportToGithubDialog";
+import { MarkdownContent } from "@/components/MarkdownContent";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,6 +35,8 @@ import {
   Archive,
   Upload,
   Sparkles,
+  FileText,
+  BookOpen,
 } from "lucide-react";
 
 interface ArtifactsPanelProps {
@@ -48,6 +59,11 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [smartExtractResult, setSmartExtractResult] = useState<SmartExtractResponse | null>(null);
+  const [exportPreviewOpen, setExportPreviewOpen] = useState(false);
+  const [exportPreviewMode, setExportPreviewMode] = useState<"paper" | "blog">("paper");
+  const [exportPreviewContent, setExportPreviewContent] = useState("");
+  const [exportPreviewTitle, setExportPreviewTitle] = useState("");
+  const [exportPreviewLoading, setExportPreviewLoading] = useState(false);
 
   const loadArtifacts = async () => {
     try {
@@ -186,6 +202,50 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
     }
   };
 
+  const handleExportPaper = async () => {
+    setExportPreviewLoading(true);
+    setExportPreviewMode("paper");
+    setExportPreviewOpen(true);
+    setExportPreviewContent("");
+    setExportPreviewTitle(meetingTitle);
+    try {
+      const data = await exportAPI.paper(meetingId);
+      setExportPreviewContent(data.content);
+      setExportPreviewTitle(data.title || meetingTitle);
+    } catch (err) {
+      setError(getErrorMessage(err, "Failed to load paper"));
+      setExportPreviewContent("");
+    } finally {
+      setExportPreviewLoading(false);
+    }
+  };
+
+  const handleExportBlog = async () => {
+    setExportPreviewLoading(true);
+    setExportPreviewMode("blog");
+    setExportPreviewOpen(true);
+    setExportPreviewContent("");
+    setExportPreviewTitle(meetingTitle);
+    try {
+      const data = await exportAPI.blog(meetingId);
+      setExportPreviewContent(data.content);
+      setExportPreviewTitle(data.title || meetingTitle);
+    } catch (err) {
+      setError(getErrorMessage(err, "Failed to load blog"));
+      setExportPreviewContent("");
+    } finally {
+      setExportPreviewLoading(false);
+    }
+  };
+
+  const handleExportPreviewDownload = () => {
+    if (exportPreviewMode === "paper") {
+      exportAPI.paperDownload(meetingId, exportPreviewTitle);
+    } else {
+      exportAPI.blogDownload(meetingId, exportPreviewTitle);
+    }
+  };
+
   if (loading) return <p className="text-muted-foreground text-sm py-4">{tc("loading")}</p>;
 
   return (
@@ -275,33 +335,45 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
         </DropdownMenu>
 
         {artifacts.length > 0 && (
-          <>
-            <Button size="sm" onClick={handleExportZip} disabled={exporting}>
-              {exporting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Archive className="h-4 w-4 mr-1" />}
-              {exporting ? t("exporting") : t("exportZip")}
-            </Button>
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button size="sm" variant="outline" disabled={exporting}>
-                  <Download className="h-4 w-4 mr-1" />
-                  {t("moreExports")}
-                  <ChevronDown className="h-3 w-3 ml-1" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem onClick={handleExportNotebook}>
-                  <FileCode className="h-4 w-4 mr-2" />
-                  {t("exportNotebook")}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setPushGithubOpen(true)}>
-                  <Upload className="h-4 w-4 mr-2" />
-                  {t("exportToGithub")}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </>
+          <Button size="sm" onClick={handleExportZip} disabled={exporting}>
+            {exporting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Archive className="h-4 w-4 mr-1" />}
+            {exporting ? t("exporting") : t("exportZip")}
+          </Button>
         )}
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="sm" variant="outline" disabled={exporting}>
+              <Download className="h-4 w-4 mr-1" />
+              {t("moreExports")}
+              <ChevronDown className="h-3 w-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem
+              onClick={handleExportNotebook}
+              disabled={artifacts.length === 0}
+            >
+              <FileCode className="h-4 w-4 mr-2" />
+              {t("exportNotebook")}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => setPushGithubOpen(true)}
+              disabled={artifacts.length === 0}
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              {t("exportToGithub")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleExportPaper}>
+              <FileText className="h-4 w-4 mr-2" />
+              {t("exportPaper")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleExportBlog}>
+              <BookOpen className="h-4 w-4 mr-2" />
+              {t("exportBlog")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* File tree */}
@@ -319,6 +391,34 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
           onDeleteSelected={handleDeleteSelected}
         />
       )}
+
+      <Dialog open={exportPreviewOpen} onOpenChange={setExportPreviewOpen}>
+        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>
+              {exportPreviewMode === "paper" ? t("exportPaper") : t("exportBlog")}: {exportPreviewTitle}
+            </DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="flex-1 min-h-0 rounded border p-4 text-sm">
+            {exportPreviewLoading ? (
+              <p className="text-muted-foreground">{tc("loading")}</p>
+            ) : exportPreviewContent ? (
+              <MarkdownContent content={exportPreviewContent} className="prose prose-sm dark:prose-invert max-w-none" />
+            ) : (
+              <p className="text-muted-foreground">{t("noContent")}</p>
+            )}
+          </ScrollArea>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setExportPreviewOpen(false)}>
+              {tc("close")}
+            </Button>
+            <Button onClick={handleExportPreviewDownload} disabled={!exportPreviewContent || exportPreviewLoading}>
+              <Download className="h-4 w-4 mr-1" />
+              {t("downloadExport")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <ExportToGithubDialog
         open={pushGithubOpen}

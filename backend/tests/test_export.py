@@ -285,3 +285,28 @@ class TestExportAPI:
         """Export nonexistent meeting returns 404."""
         resp = client.get("/api/export/meeting/nonexistent/zip")
         assert resp.status_code == 404
+
+    def test_export_paper(self, client, meeting_with_artifacts):
+        """Paper export returns JSON with content and title; download=1 returns markdown."""
+        resp = client.get(f"/api/export/meeting/{meeting_with_artifacts['id']}/paper")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "content" in data
+        assert "title" in data
+        assert "Abstract" in data["content"] or "Discussion" in data["content"]
+
+        resp_dl = client.get(f"/api/export/meeting/{meeting_with_artifacts['id']}/paper?download=1")
+        assert resp_dl.status_code == 200
+        assert "text/markdown" in resp_dl.headers.get("content-type", "")
+
+    def test_export_blog(self, client, meeting_with_artifacts):
+        """Blog export returns JSON with content and title; download=1 returns markdown."""
+        resp = client.get(f"/api/export/meeting/{meeting_with_artifacts['id']}/blog")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "content" in data
+        assert "title" in data
+
+        resp_dl = client.get(f"/api/export/meeting/{meeting_with_artifacts['id']}/blog?download=1")
+        assert resp_dl.status_code == 200
+        assert "text/markdown" in resp_dl.headers.get("content-type", "")
