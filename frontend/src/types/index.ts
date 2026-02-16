@@ -184,6 +184,26 @@ export interface CodeArtifact {
   updated_at: string;
 }
 
+// Smart code extraction types
+export interface SmartExtractedFile {
+  filename: string;
+  language: string;
+  content: string;
+  description: string;
+  dependencies: string[];
+  source_agent: string | null;
+  related_files: string[];
+}
+
+export interface SmartExtractResponse {
+  project_type: string;
+  suggested_folders: string[];
+  entry_point: string | null;
+  readme_content: string | null;
+  files: SmartExtractedFile[];
+  requirements_txt: string | null;
+}
+
 // Onboarding
 export type OnboardingStage =
   | "problem"
