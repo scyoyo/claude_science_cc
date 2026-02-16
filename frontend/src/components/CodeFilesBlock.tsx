@@ -125,9 +125,59 @@ function tryParseFilesJson(jsonStr: string): ReturnType<typeof toFiles> | null {
 }
 
 /**
+ * Extract complete file objects from truncated JSON like `{"files": [{...}, {...}, <truncated>`.
+ * Walks the string scanning for balanced `{...}` objects inside the `"files": [` array,
+ * skipping content inside JSON strings (handles `\"`, `\\`, etc.).
+ */
+function tryParsePartialFilesJson(jsonStr: string): CodeFileItem[] | null {
+  const arrIdx = jsonStr.indexOf("[");
+  if (arrIdx === -1) return null;
+  const files: CodeFileItem[] = [];
+  let i = arrIdx + 1;
+  const n = jsonStr.length;
+  while (i < n) {
+    // Skip whitespace and commas between objects
+    const ch = jsonStr[i];
+    if (ch === " " || ch === "\n" || ch === "\r" || ch === "\t" || ch === ",") { i++; continue; }
+    if (ch === "]") break; // end of array
+    if (ch !== "{") { i++; continue; }
+    // Found start of an object — find its balanced end
+    const objStart = i;
+    const objEnd = findJsonObjectEnd(jsonStr, objStart);
+    if (objEnd === -1) break; // truncated — stop here
+    const objStr = jsonStr.slice(objStart, objEnd + 1);
+    try {
+      const obj = JSON.parse(objStr) as Record<string, unknown>;
+      if (obj.path && typeof obj.content === "string") {
+        files.push({
+          path: String(obj.path),
+          content: obj.content,
+          language: obj.language != null ? String(obj.language) : undefined,
+        });
+      }
+    } catch {
+      // Try with repair
+      try {
+        const obj = JSON.parse(repairJsonLiteralNewlines(objStr)) as Record<string, unknown>;
+        if (obj.path && typeof obj.content === "string") {
+          files.push({
+            path: String(obj.path),
+            content: obj.content,
+            language: obj.language != null ? String(obj.language) : undefined,
+          });
+        }
+      } catch { /* skip malformed object */ }
+    }
+    i = objEnd + 1;
+  }
+  return files.length > 0 ? files : null;
+}
+
+/**
  * Try to parse content for JSON with "files" array.
  * Returns { files, restContent } if valid, else null.
  * Tolerates literal newlines inside "content" (repairs before parse when needed).
+ * Also handles truncated JSON (LLM hit token limit) by extracting complete file objects.
  */
 export function parseCodeFilesJson(content: string): {
   files: CodeFileItem[];
@@ -136,7 +186,7 @@ export function parseCodeFilesJson(content: string): {
   if (!content || typeof content !== "string") return null;
   const text = content.trim();
 
-  // 1) Strip ```json ... ``` if present
+  // 1) Strip ```json ... ``` if present (closed fence)
   const jsonFence = /```(?:json)?\s*\n([\s\S]*?)```/;
   const fenceMatch = text.match(jsonFence);
   if (fenceMatch) {
@@ -160,14 +210,28 @@ export function parseCodeFilesJson(content: string): {
   let start = text.lastIndexOf("{", idx);
   if (start === -1) return null;
   const end = findJsonObjectEnd(text, start);
-  if (end === -1) return null;
-  const segment = text.slice(start, end + 1);
-  files = tryParseFilesJson(segment);
-  if (!files) files = tryParseFilesJson(repairJsonLiteralNewlines(segment));
-  if (files && files.length > 0) {
-    const rest = (text.slice(0, start).trim() + " " + text.slice(end + 1).trim()).trim();
-    return { files, restContent: rest };
+  if (end !== -1) {
+    const segment = text.slice(start, end + 1);
+    files = tryParseFilesJson(segment);
+    if (!files) files = tryParseFilesJson(repairJsonLiteralNewlines(segment));
+    if (files && files.length > 0) {
+      const rest = (text.slice(0, start).trim() + " " + text.slice(end + 1).trim()).trim();
+      return { files, restContent: rest };
+    }
   }
+
+  // 4) Truncated JSON: braces not balanced (LLM hit token limit).
+  //    Extract whatever complete file objects exist before the truncation point.
+  //    Handles both unclosed ```json fences and bare truncated JSON.
+  const truncated = text.slice(start);
+  if (truncated.includes('"files"')) {
+    const partial = tryParsePartialFilesJson(truncated);
+    if (partial && partial.length > 0) {
+      const rest = text.slice(0, start).trim();
+      return { files: partial, restContent: rest };
+    }
+  }
+
   return null;
 }
 
