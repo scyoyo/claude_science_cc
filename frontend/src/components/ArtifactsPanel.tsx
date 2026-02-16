@@ -17,7 +17,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Code,
   Download,
   FileCode,
   ChevronDown,
@@ -116,21 +115,6 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
     }
   };
 
-  const handleExportGithub = async () => {
-    try {
-      setExporting(true);
-      setError(null);
-      const data = await exportAPI.github(meetingId);
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-      downloadBlob(blob, `${meetingTitle.replace(/\s+/g, "_")}_github.json`);
-    } catch (err) {
-      setError(err instanceof ApiError && err.status === 400 ? t("extractCodeFirst") : getErrorMessage(err, "Export failed"));
-    } finally {
-      setExporting(false);
-    }
-  };
-
-
   if (loading) return <p className="text-muted-foreground text-sm py-4">{tc("loading")}</p>;
 
   return (
@@ -171,13 +155,9 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
                   <FileCode className="h-4 w-4 mr-2" />
                   {t("exportNotebook")}
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleExportGithub}>
-                  <Code className="h-4 w-4 mr-2" />
-                  {t("exportGithub")}
-                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setPushGithubOpen(true)}>
                   <Upload className="h-4 w-4 mr-2" />
-                  {t("pushToGithub")}
+                  {t("exportToGithub")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -200,6 +180,7 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
         open={pushGithubOpen}
         onOpenChange={setPushGithubOpen}
         meetingId={meetingId}
+        meetingTitle={meetingTitle}
         onSuccess={(repoUrl) => {
           setSuccessMessage(`${t("pushSuccess")}: ${repoUrl}`);
           setError(null);

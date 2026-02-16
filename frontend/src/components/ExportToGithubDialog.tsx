@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { exportAPI, ApiError } from "@/lib/api";
-import { getErrorMessage } from "@/lib/utils";
+import { getErrorMessage, downloadBlob } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -14,12 +14,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2 } from "lucide-react";
+import { Loader2, Download } from "lucide-react";
 
 interface ExportToGithubDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   meetingId: string;
+  meetingTitle: string;
   onSuccess?: (repoUrl: string) => void;
 }
 
@@ -27,6 +28,7 @@ export function ExportToGithubDialog({
   open,
   onOpenChange,
   meetingId,
+  meetingTitle,
   onSuccess,
 }: ExportToGithubDialogProps) {
   const t = useTranslations("meeting");
@@ -36,7 +38,26 @@ export function ExportToGithubDialog({
   const [createIfMissing, setCreateIfMissing] = useState(false);
   const [githubToken, setGithubToken] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const handleDownloadJson = async () => {
+    setError(null);
+    setDownloading(true);
+    try {
+      const data = await exportAPI.github(meetingId);
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      downloadBlob(blob, `${(meetingTitle || "export").replace(/\s+/g, "_")}_github.json`);
+    } catch (err) {
+      const msg =
+        err instanceof ApiError && err.status === 400
+          ? t("extractCodeFirst")
+          : getErrorMessage(err, "Download failed");
+      setError(msg);
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,8 +94,22 @@ export function ExportToGithubDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{t("pushToGithubTitle")}</DialogTitle>
+          <DialogTitle>{t("exportToGithubTitle")}</DialogTitle>
         </DialogHeader>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between rounded-lg border p-3 bg-muted/30">
+            <span className="text-sm text-muted-foreground">{t("downloadAsJsonHint")}</span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleDownloadJson}
+              disabled={downloading}
+            >
+              {downloading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Download className="h-4 w-4 mr-1" />}
+              {t("downloadAsJson")}
+            </Button>
+          </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
             <div className="rounded-lg bg-destructive/10 text-destructive text-sm p-3">{error}</div>
@@ -135,6 +170,7 @@ export function ExportToGithubDialog({
             </Button>
           </DialogFooter>
         </form>
+        </div>
       </DialogContent>
     </Dialog>
   );
