@@ -219,6 +219,8 @@
     "exportZip": "导出 ZIP",
     "exportNotebook": "导出 Colab 笔记本",
     "exportToGithub": "导出到 GitHub",
+    "exportPaper": "生成论文",
+    "exportTechBlog": "生成技术博客",
     "pushToGithub": "推送到 GitHub",
     "exportToGithubTitle": "导出到 GitHub",
     "downloadAsJson": "下载为 JSON",

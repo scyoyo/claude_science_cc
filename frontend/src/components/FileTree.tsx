@@ -240,7 +240,7 @@ export default function FileTree({
   const t = useTranslations("meeting");
 
   return (
-    <div className="border rounded-lg flex flex-col min-h-0 max-h-[320px]">
+    <div className="border rounded-lg flex flex-col min-h-0 max-h-[70dvh] overflow-hidden">
       {hasSelection && (
         <div className="flex items-center gap-2 p-2 border-b bg-muted/30 shrink-0">
           {onSelectAll && (

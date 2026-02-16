@@ -9,7 +9,13 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Meeting, MeetingMessage, CodeArtifact, Agent
-from app.core.exporter import export_as_zip, export_as_colab_notebook, export_as_github_files
+from app.core.exporter import (
+    export_as_zip,
+    export_as_colab_notebook,
+    export_as_github_files,
+    export_as_paper,
+    export_as_blog,
+)
 from app.core.github_client import GitHubPushError, ensure_repo, push_files
 
 router = APIRouter(prefix="/export", tags=["export"])
@@ -36,6 +42,31 @@ def _get_artifacts(meeting_id: str, db: Session) -> tuple:
     ]
 
     return meeting, artifact_dicts
+
+
+def _get_meeting_for_paper_blog(meeting_id: str, db: Session):
+    """Get meeting, messages, summary, and artifacts for paper/blog export."""
+    meeting, artifact_dicts = _get_artifacts(meeting_id, db)
+    messages = (
+        db.query(MeetingMessage)
+        .filter(MeetingMessage.meeting_id == meeting_id)
+        .order_by(MeetingMessage.created_at)
+        .all()
+    )
+    summary_text = getattr(meeting, "cached_summary_text", None)
+    key_points: list = []
+    raw_rounds = getattr(meeting, "cached_round_summaries", None) or []
+    if isinstance(raw_rounds, list):
+        for item in raw_rounds:
+            if isinstance(item, dict) and "key_points" in item and item["key_points"]:
+                key_points.extend(item["key_points"])
+    transcript_lines = []
+    for m in messages:
+        name = getattr(m, "agent_name", None) or (m.role if m.role != "user" else "User")
+        transcript_lines.append(f"**{name}:**")
+        transcript_lines.append((m.content or "").strip())
+        transcript_lines.append("")
+    return meeting, summary_text, key_points, transcript_lines, artifact_dicts
 
 
 @router.get("/meeting/{meeting_id}/json")
@@ -182,6 +213,47 @@ def export_notebook(meeting_id: str, db: Session = Depends(get_db)):
         io.BytesIO(notebook_json.encode()),
         media_type="application/json",
         headers={"Content-Disposition": f'attachment; filename="{_safe_attachment_filename(meeting.title, ".ipynb")}"'},
+    )
+
+
+@router.get("/meeting/{meeting_id}/paper")
+def export_paper(meeting_id: str, db: Session = Depends(get_db)):
+    """Download meeting as an academic-style paper (markdown)."""
+    meeting, summary_text, key_points, transcript_lines, artifact_dicts = _get_meeting_for_paper_blog(
+        meeting_id, db
+    )
+    title = meeting.title or "Meeting"
+    content = export_as_paper(
+        meeting_title=title,
+        summary_text=summary_text,
+        key_points=key_points,
+        transcript_lines=transcript_lines,
+        artifact_dicts=artifact_dicts,
+    )
+    return StreamingResponse(
+        io.BytesIO(content.encode("utf-8")),
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{_safe_attachment_filename(title, "_paper.md")}"'},
+    )
+
+
+@router.get("/meeting/{meeting_id}/blog")
+def export_blog(meeting_id: str, db: Session = Depends(get_db)):
+    """Download meeting as a tech blog post (markdown)."""
+    meeting, summary_text, _, transcript_lines, artifact_dicts = _get_meeting_for_paper_blog(
+        meeting_id, db
+    )
+    title = meeting.title or "Meeting"
+    content = export_as_blog(
+        meeting_title=title,
+        summary_text=summary_text,
+        transcript_lines=transcript_lines,
+        artifact_dicts=artifact_dicts,
+    )
+    return StreamingResponse(
+        io.BytesIO(content.encode("utf-8")),
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{_safe_attachment_filename(title, "_blog.md")}"'},
     )
 
 

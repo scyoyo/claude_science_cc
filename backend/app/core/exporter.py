@@ -224,3 +224,76 @@ def export_as_github_files(
         files.append({"path": "requirements.txt", "content": requirements})
 
     return files
+
+
+def export_as_paper(
+    meeting_title: str,
+    summary_text: str | None,
+    key_points: list | None,
+    transcript_lines: list[str],
+    artifact_dicts: List[dict],
+) -> str:
+    """Export meeting as an academic-style paper (markdown)."""
+    lines = [
+        f"# {meeting_title}",
+        "",
+        "## Abstract",
+        "",
+        (summary_text or "No summary available.").strip(),
+        "",
+    ]
+    if key_points:
+        lines.append("## Key Points")
+        lines.append("")
+        for p in key_points:
+            lines.append(f"- {p}")
+        lines.append("")
+    if transcript_lines:
+        lines.append("## Discussion")
+        lines.append("")
+        lines.extend(transcript_lines)
+        lines.append("")
+    if artifact_dicts:
+        lines.append("## Appendix: Code and Artifacts")
+        lines.append("")
+        for a in artifact_dicts:
+            lines.append(f"### {a['filename']}")
+            lines.append("")
+            lines.append("```" + (a.get("language") or "text"))
+            lines.append(a.get("content", ""))
+            lines.append("```")
+            lines.append("")
+    return "\n".join(lines)
+
+
+def export_as_blog(
+    meeting_title: str,
+    summary_text: str | None,
+    transcript_lines: list[str],
+    artifact_dicts: List[dict],
+) -> str:
+    """Export meeting as a tech blog post (markdown)."""
+    lines = [
+        f"# {meeting_title}",
+        "",
+        (summary_text or "").strip() or "This post summarizes the discussion and outputs from the meeting.",
+        "",
+        "---",
+        "",
+    ]
+    if transcript_lines:
+        lines.append("## Discussion")
+        lines.append("")
+        lines.extend(transcript_lines)
+        lines.append("")
+    if artifact_dicts:
+        lines.append("## Code")
+        lines.append("")
+        for a in artifact_dicts:
+            lines.append(f"**{a['filename']}**")
+            lines.append("")
+            lines.append("```" + (a.get("language") or "text"))
+            lines.append(a.get("content", ""))
+            lines.append("```")
+            lines.append("")
+    return "\n".join(lines)

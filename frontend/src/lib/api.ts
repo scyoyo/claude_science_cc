@@ -266,6 +266,14 @@ export const exportAPI = {
     const res = await fetchRaw(`/export/meeting/${meetingId}/json`);
     return res.blob();
   },
+  paper: async (meetingId: string): Promise<Blob> => {
+    const res = await fetchRaw(`/export/meeting/${meetingId}/paper`);
+    return res.blob();
+  },
+  blog: async (meetingId: string): Promise<Blob> => {
+    const res = await fetchRaw(`/export/meeting/${meetingId}/blog`);
+    return res.blob();
+  },
 };
 
 // Onboarding

@@ -219,6 +219,8 @@
     "exportZip": "Export ZIP",
     "exportNotebook": "Export Colab Notebook",
     "exportToGithub": "Export to GitHub",
+    "exportPaper": "Export as Paper",
+    "exportTechBlog": "Export as Tech Blog",
     "pushToGithub": "Push to GitHub",
     "exportToGithubTitle": "Export to GitHub",
     "downloadAsJson": "Download as JSON",

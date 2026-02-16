@@ -24,6 +24,8 @@ import {
   Loader2,
   Archive,
   Upload,
+  FileText,
+  PenLine,
 } from "lucide-react";
 
 interface ArtifactsPanelProps {
@@ -148,6 +150,32 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
     }
   };
 
+  const handleExportPaper = async () => {
+    try {
+      setExporting(true);
+      setError(null);
+      const blob = await exportAPI.paper(meetingId);
+      downloadBlob(blob, `${meetingTitle.replace(/\s+/g, "_")}_paper.md`);
+    } catch (err) {
+      setError(getErrorMessage(err, "Export failed"));
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportBlog = async () => {
+    try {
+      setExporting(true);
+      setError(null);
+      const blob = await exportAPI.blog(meetingId);
+      downloadBlob(blob, `${meetingTitle.replace(/\s+/g, "_")}_blog.md`);
+    } catch (err) {
+      setError(getErrorMessage(err, "Export failed"));
+    } finally {
+      setExporting(false);
+    }
+  };
+
   if (loading) return <p className="text-muted-foreground text-sm py-4">{tc("loading")}</p>;
 
   return (
@@ -191,6 +219,14 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
                 <DropdownMenuItem onClick={() => setPushGithubOpen(true)}>
                   <Upload className="h-4 w-4 mr-2" />
                   {t("exportToGithub")}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportPaper}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  {t("exportPaper")}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportBlog}>
+                  <PenLine className="h-4 w-4 mr-2" />
+                  {t("exportTechBlog")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

@@ -62,16 +62,20 @@ export function CodeFilesBlock({ files, className = "" }: CodeFilesBlockProps) {
   );
 }
 
+function isFileLike(f: unknown): f is { path: unknown; content: unknown; language?: unknown } {
+  return !!f && typeof f === "object" && "path" in (f as object) && "content" in (f as object);
+}
+
 function toFiles(data: unknown): CodeFileItem[] {
   if (!data || typeof data !== "object" || !Array.isArray((data as { files?: unknown }).files))
     return [];
   const arr = (data as { files: unknown[] }).files;
   return arr
-    .filter((f: unknown) => f && typeof f === "object" && "path" in (f as object) && "content" in (f as object))
-    .map((f: Record<string, unknown>) => ({
-      path: String((f as { path: string }).path || ""),
-      content: String((f as { content: string }).content ?? ""),
-      language: (f as { language?: string }).language != null ? String((f as { language: string }).language) : undefined,
+    .filter(isFileLike)
+    .map((f) => ({
+      path: String(f.path || ""),
+      content: String(f.content ?? ""),
+      language: f.language != null ? String(f.language) : undefined,
     }))
     .filter((f) => f.path);
 }
