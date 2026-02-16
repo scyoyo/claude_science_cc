@@ -43,6 +43,7 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
   const [viewerOpen, setViewerOpen] = useState(false);
   const [pushGithubOpen, setPushGithubOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const loadArtifacts = async () => {
     try {
@@ -79,6 +80,38 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
     try {
       await artifactsAPI.delete(id);
       setArtifacts((prev) => prev.filter((a) => a.id !== id));
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    } catch (err) {
+      setError(getErrorMessage(err, "Failed to delete"));
+    }
+  };
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => setSelectedIds(new Set(artifacts.map((a) => a.id)));
+  const handleClearSelection = () => setSelectedIds(new Set());
+
+  const handleDeleteSelected = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(t("deleteSelectedConfirm", { count: selectedIds.size }))) return;
+    try {
+      setError(null);
+      for (const id of selectedIds) {
+        await artifactsAPI.delete(id);
+      }
+      await loadArtifacts();
+      setSelectedIds(new Set());
     } catch (err) {
       setError(getErrorMessage(err, "Failed to delete"));
     }
@@ -173,6 +206,11 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
           artifacts={artifacts}
           onViewFile={handleViewFile}
           onDeleteFile={handleDelete}
+          selectedIds={selectedIds}
+          onToggleSelect={handleToggleSelect}
+          onSelectAll={handleSelectAll}
+          onClearSelection={handleClearSelection}
+          onDeleteSelected={handleDeleteSelected}
         />
       )}
 

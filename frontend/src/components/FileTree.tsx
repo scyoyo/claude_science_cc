@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import type { CodeArtifact } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +20,12 @@ interface FileTreeProps {
   artifacts: CodeArtifact[];
   onViewFile: (artifact: CodeArtifact) => void;
   onDeleteFile: (id: string) => void;
+  /** Selection for bulk delete */
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
+  onSelectAll?: () => void;
+  onClearSelection?: () => void;
+  onDeleteSelected?: () => void;
 }
 
 interface TreeNode {
@@ -87,9 +94,11 @@ interface TreeNodeViewProps {
   level: number;
   onViewFile: (artifact: CodeArtifact) => void;
   onDeleteFile: (id: string) => void;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
 }
 
-function TreeNodeView({ node, level, onViewFile, onDeleteFile }: TreeNodeViewProps) {
+function TreeNodeView({ node, level, onViewFile, onDeleteFile, selectedIds, onToggleSelect }: TreeNodeViewProps) {
   const [expanded, setExpanded] = useState(level === 0);
 
   const langColor = (lang: string) => {
@@ -107,12 +116,28 @@ function TreeNodeView({ node, level, onViewFile, onDeleteFile }: TreeNodeViewPro
   };
 
   if (node.type === "file" && node.artifact) {
+    const id = node.artifact.id;
+    const selected = selectedIds?.has(id) ?? false;
     return (
       <div
         className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-muted/50 cursor-pointer group"
         style={{ paddingLeft: `${level * 1.25 + 0.5}rem` }}
         onClick={() => onViewFile(node.artifact!)}
       >
+        {onToggleSelect ? (
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={(e) => {
+              e.stopPropagation();
+              onToggleSelect(id);
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="h-4 w-4 rounded border-input shrink-0 cursor-pointer"
+          />
+        ) : (
+          <span className="w-4 shrink-0" />
+        )}
         <FileCode className="h-4 w-4 text-muted-foreground shrink-0" />
         <span className="text-sm flex-1 truncate">{node.name}</span>
         <Badge variant="outline" className={`text-xs ${langColor(node.artifact.language)}`}>
@@ -171,6 +196,8 @@ function TreeNodeView({ node, level, onViewFile, onDeleteFile }: TreeNodeViewPro
                 level={level + 1}
                 onViewFile={onViewFile}
                 onDeleteFile={onDeleteFile}
+                selectedIds={selectedIds}
+                onToggleSelect={onToggleSelect}
               />
             ))}
           </div>
@@ -193,16 +220,53 @@ function countFiles(node: TreeNode): number {
   return count;
 }
 
-export default function FileTree({ artifacts, onViewFile, onDeleteFile }: FileTreeProps) {
+export default function FileTree({
+  artifacts,
+  onViewFile,
+  onDeleteFile,
+  selectedIds,
+  onToggleSelect,
+  onSelectAll,
+  onClearSelection,
+  onDeleteSelected,
+}: FileTreeProps) {
   if (artifacts.length === 0) {
     return null;
   }
 
   const tree = buildTree(artifacts);
+  const selectedCount = selectedIds?.size ?? 0;
+  const hasSelection = onToggleSelect && (onSelectAll || onClearSelection || onDeleteSelected);
+  const t = useTranslations("meeting");
 
   return (
-    <div className="border rounded-lg">
-      <ScrollArea className="max-h-[60vh]">
+    <div className="border rounded-lg flex flex-col min-h-0 max-h-[320px]">
+      {hasSelection && (
+        <div className="flex items-center gap-2 p-2 border-b bg-muted/30 shrink-0">
+          {onSelectAll && (
+            <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={onSelectAll}>
+              {t("selectAll")}
+            </Button>
+          )}
+          {onClearSelection && (
+            <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={onClearSelection}>
+              {t("clearSelection")}
+            </Button>
+          )}
+          {selectedCount > 0 && onDeleteSelected && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs text-destructive hover:text-destructive"
+              onClick={onDeleteSelected}
+            >
+              {t("deleteSelectedCount", { count: selectedCount })}
+            </Button>
+          )}
+        </div>
+      )}
+      <ScrollArea className="flex-1 min-h-0">
         <div className="p-2">
           {tree.children.map((node) => (
             <TreeNodeView
@@ -211,6 +275,8 @@ export default function FileTree({ artifacts, onViewFile, onDeleteFile }: FileTr
               level={0}
               onViewFile={onViewFile}
               onDeleteFile={onDeleteFile}
+              selectedIds={selectedIds}
+              onToggleSelect={onToggleSelect}
             />
           ))}
         </div>
