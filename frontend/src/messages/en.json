@@ -206,6 +206,7 @@
     "roundsCompleted": "Rounds completed",
     "roundLabel": "Round {n}",
     "noKeyPoints": "No key points extracted yet.",
+    "summaryFromRounds": "Summary will appear here after each round when the meeting runs.",
     "noSummary": "Run a meeting round first to generate a summary.",
     "noArtifacts": "No code artifacts yet.",
     "selectAll": "Select all",

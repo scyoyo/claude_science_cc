@@ -485,7 +485,7 @@ from app.core.meeting_summary import generate_summary_for_meeting, ensure_meetin
 
 @router.get("/{meeting_id}/summary", response_model=MeetingSummary)
 def get_meeting_summary(meeting_id: str, db: Session = Depends(get_db)):
-    """Return meeting summary from cache if present; otherwise generate once, save to DB, and return."""
+    """Return meeting summary from cache only. Uses per-round summaries from the run; no on-demand LLM generation."""
     meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
     if not meeting:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
@@ -515,25 +515,9 @@ def get_meeting_summary(meeting_id: str, db: Session = Depends(get_db)):
 
     cached_text = getattr(meeting, "cached_summary_text", None)
     cached_points = getattr(meeting, "cached_key_points", None)
-    if cached_text is not None or (cached_points is not None and len(cached_points) > 0):
-        return MeetingSummary(
-            meeting_id=meeting_id,
-            title=meeting.title,
-            total_rounds=meeting.current_round,
-            max_rounds=getattr(meeting, "max_rounds", 5),
-            total_messages=len(messages),
-            participants=participants,
-            key_points=list(cached_points) if cached_points else [],
-            status=meeting.status,
-            summary_text=cached_text,
-            round_summaries=_round_summaries(meeting),
-        )
+    round_summaries = _round_summaries(meeting)
 
-    summary_text, key_points = generate_summary_for_meeting(meeting, messages, db)
-    meeting.cached_summary_text = summary_text
-    meeting.cached_key_points = key_points
-    db.commit()
-
+    # Return only cached data: full summary if present, else per-round summaries (from run), else empty
     return MeetingSummary(
         meeting_id=meeting_id,
         title=meeting.title,
@@ -541,10 +525,10 @@ def get_meeting_summary(meeting_id: str, db: Session = Depends(get_db)):
         max_rounds=getattr(meeting, "max_rounds", 5),
         total_messages=len(messages),
         participants=participants,
-        key_points=key_points,
+        key_points=list(cached_points) if cached_points else [],
         status=meeting.status,
-        summary_text=summary_text,
-        round_summaries=_round_summaries(meeting),
+        summary_text=cached_text,
+        round_summaries=round_summaries,
     )
 
 

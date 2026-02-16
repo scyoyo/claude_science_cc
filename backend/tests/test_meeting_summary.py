@@ -51,9 +51,16 @@ class TestMeetingSummary:
         return meeting
 
     def test_meeting_summary(self, client, test_db):
-        """Get summary with participants and key points."""
+        """Get summary returns cached data only (participants, and round_summaries when present)."""
         team = client.post("/api/teams/", json={"name": "Team"}).json()
         meeting = self._setup_meeting_with_messages(test_db, team["id"])
+        # Pre-populate cached round summaries (as would be done during meeting run)
+        meeting.cached_round_summaries = [
+            {"round": 1, "summary_text": "Round 1 summary.", "key_points": ["Point A."]},
+            {"round": 2, "summary_text": "Round 2 summary.", "key_points": ["Point B."]},
+        ]
+        test_db.commit()
+        test_db.refresh(meeting)
 
         resp = client.get(f"/api/meetings/{meeting.id}/summary")
         assert resp.status_code == 200
@@ -64,7 +71,10 @@ class TestMeetingSummary:
         assert data["total_messages"] == 5
         assert set(data["participants"]) == {"Alice", "Bob"}
         assert data["status"] == "completed"
-        assert len(data["key_points"]) > 0
+        assert len(data["round_summaries"]) == 2
+        assert data["round_summaries"][0]["round"] == 1
+        assert data["round_summaries"][0]["summary_text"] == "Round 1 summary."
+        assert data["round_summaries"][1]["round"] == 2
 
     def test_summary_empty_meeting(self, client):
         """Summary of meeting with no messages."""
@@ -86,27 +96,17 @@ class TestMeetingSummary:
         resp = client.get("/api/meetings/nonexistent/summary")
         assert resp.status_code == 404
 
-    def test_key_points_deduped(self, client, test_db):
-        """Key points don't repeat the same sentence."""
+    def test_summary_returns_cached_full_summary(self, client, test_db):
+        """When cached_summary_text / cached_key_points exist, GET returns them."""
         team = client.post("/api/teams/", json={"name": "Team"}).json()
         meeting = Meeting(team_id=team["id"], title="Test", current_round=1, status="completed")
+        meeting.cached_summary_text = "Cached full summary."
+        meeting.cached_key_points = ["Key one.", "Key two."]
         test_db.add(meeting)
         test_db.commit()
         test_db.refresh(meeting)
 
-        # Two messages with the same first sentence
-        for i in range(3):
-            test_db.add(MeetingMessage(
-                meeting_id=meeting.id,
-                role="assistant",
-                agent_name=f"Agent{i}",
-                content="We should use transformers. Additional unique content here.",
-                round_number=1,
-            ))
-        test_db.commit()
-
         resp = client.get(f"/api/meetings/{meeting.id}/summary")
         data = resp.json()
-        # Only one key point since first sentences are identical
-        points_text = [p.split("] ", 1)[1] if "] " in p else p for p in data["key_points"]]
-        assert len(set(points_text)) == len(points_text)
+        assert data["summary_text"] == "Cached full summary."
+        assert data["key_points"] == ["Key one.", "Key two."]

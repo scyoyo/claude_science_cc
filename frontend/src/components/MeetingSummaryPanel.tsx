@@ -84,7 +84,7 @@ export default function MeetingSummaryPanel({ meetingId }: MeetingSummaryPanelPr
             </div>
           </div>
 
-          {/* Per-round summaries (preferred when present) */}
+          {/* Per-round summaries (from run; no on-demand generation) */}
           {summary.round_summaries && summary.round_summaries.length > 0 ? (
             <>
               <Separator />
@@ -137,7 +137,9 @@ export default function MeetingSummaryPanel({ meetingId }: MeetingSummaryPanelPr
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-sm text-muted-foreground">{t("noKeyPoints")}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {summary.total_rounds > 0 ? t("noKeyPoints") : t("summaryFromRounds")}
+                  </p>
                 )}
               </div>
             </>
