@@ -233,6 +233,8 @@
     "exportBlog": "导出为博客",
     "downloadExport": "下载",
     "noContent": "暂无内容。",
+    "smartExtracting": "AI 提取中…（约 1–2 分钟）",
+    "smartExtractTimeout": "智能提取超时（2 分钟）。请检查设置中是否配置 API 密钥，或改用快速提取。",
     "exportJson": "导出 JSON",
     "exporting": "导出中...",
     "contextMeetings": "引用历史会议",

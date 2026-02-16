@@ -233,6 +233,8 @@
     "exportBlog": "Export to Blog",
     "downloadExport": "Download",
     "noContent": "No content to display.",
+    "smartExtracting": "AI extracting… (may take 1–2 min)",
+    "smartExtractTimeout": "Smart extract timed out (2 min). Check Settings for an API key, or use Quick Extract.",
     "exportJson": "Export JSON",
     "exporting": "Exporting...",
     "contextMeetings": "Reference previous meetings",

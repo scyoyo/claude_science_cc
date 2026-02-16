@@ -18,7 +18,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -103,7 +102,14 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
       setError(null);
       setSmartExtractResult(null);
 
-      const result = await artifactsAPI.extractSmart(meetingId);
+      const SMART_EXTRACT_TIMEOUT_MS = 120_000; // 2 min
+      const result = await Promise.race([
+        artifactsAPI.extractSmart(meetingId),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("smartExtractTimeout")), SMART_EXTRACT_TIMEOUT_MS)
+        ),
+      ]);
+
       setSmartExtractResult(result);
 
       await loadArtifacts();
@@ -123,7 +129,11 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
       );
       setTimeout(() => setSuccessMessage(null), 10000);
     } catch (err) {
-      setError(getErrorMessage(err, "AI extraction failed. Try basic extraction instead."));
+      const message =
+        err instanceof Error && err.message === "smartExtractTimeout"
+          ? t("smartExtractTimeout")
+          : getErrorMessage(err, "AI extraction failed. Try basic extraction instead.");
+      setError(message);
     } finally {
       setExtractingSmart(false);
     }
@@ -314,7 +324,7 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
               ) : (
                 <Wand2 className="h-4 w-4 mr-1" />
               )}
-              {extracting ? t("extracting") : extractingSmart ? "AI Extracting..." : t("extractArtifacts")}
+              {extracting ? t("extracting") : extractingSmart ? t("smartExtracting") : t("extractArtifacts")}
               <ChevronDown className="h-3 w-3 ml-1" />
             </Button>
           </DropdownMenuTrigger>
@@ -393,13 +403,13 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
       )}
 
       <Dialog open={exportPreviewOpen} onOpenChange={setExportPreviewOpen}>
-        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
-          <DialogHeader>
+        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col overflow-hidden">
+          <DialogHeader className="shrink-0">
             <DialogTitle>
               {exportPreviewMode === "paper" ? t("exportPaper") : t("exportBlog")}: {exportPreviewTitle}
             </DialogTitle>
           </DialogHeader>
-          <ScrollArea className="flex-1 min-h-0 rounded border p-4 text-sm">
+          <div className="min-h-0 flex-1 overflow-y-auto rounded border p-4 text-sm max-h-[60vh]">
             {exportPreviewLoading ? (
               <p className="text-muted-foreground">{tc("loading")}</p>
             ) : exportPreviewContent ? (
@@ -407,8 +417,8 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
             ) : (
               <p className="text-muted-foreground">{t("noContent")}</p>
             )}
-          </ScrollArea>
-          <DialogFooter>
+          </div>
+          <DialogFooter className="shrink-0">
             <Button variant="outline" onClick={() => setExportPreviewOpen(false)}>
               {tc("close")}
             </Button>
