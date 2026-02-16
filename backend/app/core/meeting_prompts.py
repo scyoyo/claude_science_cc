@@ -88,7 +88,8 @@ CODE_OUTPUT_JSON_RULE = (
     "When you output code, use this exact JSON format so it can be parsed and displayed as files: "
     '{"files": [{"path": "relative/filepath.ext", "content": "<full file content>", "language": "python"}]}. '
     "Use relative paths (e.g. src/main.py). You may add brief explanation in plain text before or after the JSON block. "
-    "Output valid JSON only for the files array."
+    "Output valid JSON only: inside each \"content\" string escape newlines as \\n and quotes as \\\" so the whole payload is valid JSON. "
+    "Prefer wrapping the JSON in a markdown code block: ```json\\n<your JSON>\\n``` so it parses reliably."
 )
 
 
@@ -310,6 +311,8 @@ def integrator_consolidation_prompt(integrator_name: str) -> str:
     """Prompt for the integrator to consolidate code from the round."""
     return (
         f"{integrator_name}, consolidate all code contributions from this round into a single folder structure. "
+        "Output exactly the JSON format requested in your instructions: {\"files\": [{\"path\": \"...\", \"content\": \"...\", \"language\": \"...\"}]}. "
+        "Use valid JSON: escape newlines in file content as \\n and internal quotes as \\\". "
         "List filenames and ensure the project is runnable (e.g. entry point, dependencies). "
         "Do not duplicate code; integrate and document. "
         "If no code was contributed this round, summarize what was discussed and what files would be needed."

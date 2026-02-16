@@ -81,8 +81,53 @@ function toFiles(data: unknown): CodeFileItem[] {
 }
 
 /**
+ * Repair JSON string by replacing literal newlines inside double-quoted strings with \\n
+ * so that JSON.parse can accept it (LLM often outputs unescaped newlines in "content").
+ */
+function repairJsonLiteralNewlines(jsonStr: string): string {
+  let out = "";
+  let inString = false;
+  let escapeNext = false;
+  for (let i = 0; i < jsonStr.length; i++) {
+    const ch = jsonStr[i];
+    if (escapeNext) {
+      escapeNext = false;
+      out += ch;
+      continue;
+    }
+    if (ch === "\\") {
+      escapeNext = true;
+      out += ch;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      out += ch;
+      continue;
+    }
+    if (inString && (ch === "\n" || ch === "\r")) {
+      out += ch === "\r" ? "\\r" : "\\n";
+      continue;
+    }
+    out += ch;
+  }
+  return out;
+}
+
+function tryParseFilesJson(jsonStr: string): ReturnType<typeof toFiles> | null {
+  try {
+    const data = JSON.parse(jsonStr) as { files?: unknown };
+    const files = toFiles(data);
+    return files.length > 0 ? files : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Try to parse content for JSON with "files" array.
  * Returns { files, restContent } if valid, else null.
+ * Tolerates literal newlines inside "content" (repairs before parse when needed).
  */
 export function parseCodeFilesJson(content: string): {
   files: CodeFileItem[];
@@ -95,26 +140,19 @@ export function parseCodeFilesJson(content: string): {
   const jsonFence = /```(?:json)?\s*\n([\s\S]*?)```/;
   const fenceMatch = text.match(jsonFence);
   if (fenceMatch) {
-    try {
-      const data = JSON.parse(fenceMatch[1].trim());
-      const files = toFiles(data);
-      if (files.length > 0) {
-        const rest = text.replace(fenceMatch[0], "").trim();
-        return { files, restContent: rest };
-      }
-    } catch {
-      // ignore
+    const raw = fenceMatch[1].trim();
+    let files = tryParseFilesJson(raw);
+    if (!files) files = tryParseFilesJson(repairJsonLiteralNewlines(raw));
+    if (files && files.length > 0) {
+      const rest = text.replace(fenceMatch[0], "").trim();
+      return { files, restContent: rest };
     }
   }
 
   // 2) Try parse whole content as JSON
-  try {
-    const data = JSON.parse(text);
-    const files = toFiles(data);
-    if (files.length > 0) return { files, restContent: "" };
-  } catch {
-    // ignore
-  }
+  let files = tryParseFilesJson(text);
+  if (!files) files = tryParseFilesJson(repairJsonLiteralNewlines(text));
+  if (files && files.length > 0) return { files, restContent: "" };
 
   // 3) Find {...} containing "files", with text before/after. Match braces while skipping inside strings.
   const idx = text.indexOf("files");
@@ -123,15 +161,12 @@ export function parseCodeFilesJson(content: string): {
   if (start === -1) return null;
   const end = findJsonObjectEnd(text, start);
   if (end === -1) return null;
-  try {
-    const data = JSON.parse(text.slice(start, end + 1));
-    const files = toFiles(data);
-    if (files.length > 0) {
-      const rest = (text.slice(0, start).trim() + " " + text.slice(end + 1).trim()).trim();
-      return { files, restContent: rest };
-    }
-  } catch {
-    // ignore
+  const segment = text.slice(start, end + 1);
+  files = tryParseFilesJson(segment);
+  if (!files) files = tryParseFilesJson(repairJsonLiteralNewlines(segment));
+  if (files && files.length > 0) {
+    const rest = (text.slice(0, start).trim() + " " + text.slice(end + 1).trim()).trim();
+    return { files, restContent: rest };
   }
   return null;
 }
