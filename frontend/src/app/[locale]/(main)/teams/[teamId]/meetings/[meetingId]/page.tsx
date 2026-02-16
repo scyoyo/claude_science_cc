@@ -99,25 +99,22 @@ export default function MeetingDetailPage() {
     [meeting?.current_round, meeting?.max_rounds]
   );
 
-  /** Assign each artifact to the first assistant message whose content contains that artifact's code. */
+  /** Assign artifacts to assistant messages by order: backend extracts in message order, so we assign by code-block count per message. */
   const artifactsByMessageId = useMemo(() => {
     const map = new Map<string, CodeArtifact[]>();
     const assigned = new Set<string>();
     const all = [...(meeting?.messages ?? []), ...liveMessages];
-    const norm = (s: string) => s.replace(/\s+/g, " ").trim();
-    for (const artifact of chatArtifacts) {
-      const needle = norm(artifact.content).slice(0, 120);
-      if (!needle) continue;
-      for (const msg of all) {
-        if (msg.role !== "assistant") continue;
-        if (norm(msg.content).includes(needle)) {
-          const list = map.get(msg.id) ?? [];
-          list.push(artifact);
-          map.set(msg.id, list);
-          assigned.add(artifact.id);
-          break;
-        }
+    const assistantOrder = all.filter((m) => m.role === "assistant");
+    const countCodeBlocks = (content: string) => (content.match(/```[\w]*\s*\n/g) || []).length;
+    let artifactIdx = 0;
+    for (const msg of assistantOrder) {
+      const n = countCodeBlocks(msg.content);
+      const slice = chatArtifacts.slice(artifactIdx, artifactIdx + n);
+      if (slice.length > 0) {
+        map.set(msg.id, slice);
+        slice.forEach((a) => assigned.add(a.id));
       }
+      artifactIdx += n;
     }
     return { map, assigned };
   }, [chatArtifacts, meeting?.messages, liveMessages]);

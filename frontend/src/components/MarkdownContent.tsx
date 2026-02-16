@@ -66,8 +66,8 @@ export function MarkdownContent({
               }
             }
             return (
-              <div className="max-w-full min-w-0 overflow-hidden my-2">
-                <pre className="bg-muted/70 rounded-md p-2.5 overflow-x-auto text-xs w-full block">
+              <div className="max-w-full min-w-0 overflow-x-auto my-2 rounded-md [scrollbar-gutter:stable]">
+                <pre className="bg-muted/70 rounded-md p-2.5 text-xs block whitespace-pre min-w-0">
                   {children}
                 </pre>
               </div>
