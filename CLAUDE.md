@@ -46,9 +46,13 @@ Building a web app based on https://github.com/zou-group/virtual-lab that allows
 │   ├── nginx/                   # Nginx reverse proxy config
 │   ├── k8s/                     # Kubernetes manifests
 │   └── .env.example
-├── docs/                        # V2 architecture plan
-├── IMPLEMENTATION_STATUS.md     # Detailed progress tracking
-└── CLAUDE.md                    # This file
+├── docs/                        # Architecture and deployment guides
+│   ├── DEPLOY.md                # Railway deployment
+│   ├── ONBOARDING_FLOW.md       # AI-guided team composition
+│   └── V2_ARCHITECTURE.md       # Multi-user architecture
+├── LICENSE                      # MIT License
+├── README.md                    # Project overview and quick start
+└── CLAUDE.md                    # This file (development guide)
 ```
 
 ## Development Environment

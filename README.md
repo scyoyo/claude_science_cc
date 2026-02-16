@@ -185,11 +185,44 @@ Endpoints are available under `/api/` and `/api/v1/`. Interactive docs: http://l
 
 ## Documentation
 
-- [CLAUDE.md](CLAUDE.md) — Development guide: migrations, test layout, API list, deployment notes
-- [docs/DEPLOY.md](docs/DEPLOY.md) — Railway single-service deployment
-- [docs/ONBOARDING_FLOW.md](docs/ONBOARDING_FLOW.md) — Onboarding wizard flow and semantics
-- [docs/V2_ARCHITECTURE.md](docs/V2_ARCHITECTURE.md) — V2 multi-user architecture
+- **[CLAUDE.md](CLAUDE.md)** — Development guide: environment setup, database migrations, testing, API reference
+- **[docs/DEPLOY.md](docs/DEPLOY.md)** — Railway deployment guide (single-service setup)
+- **[docs/ONBOARDING_FLOW.md](docs/ONBOARDING_FLOW.md)** — AI-guided team composition flow
+- **[docs/V2_ARCHITECTURE.md](docs/V2_ARCHITECTURE.md)** — Multi-user cloud architecture design
+
+## Testing
+
+The project has **555+ tests** covering all features:
+
+```bash
+cd backend && source venv/bin/activate
+pytest tests/ -v                    # Run all tests
+pytest tests/ -v --cov=app          # With coverage report
+```
+
+Test categories:
+- **Unit tests**: Core logic (LLM client, meeting engine, code extractor, team builder)
+- **API tests**: All endpoints (teams, agents, meetings, auth, search, webhooks)
+- **Integration tests**: End-to-end workflows
+- **WebSocket tests**: Real-time meeting streaming
+- **Background tests**: Async meeting execution
+
+## Contributing
+
+Contributions are welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Run tests (`cd backend && pytest tests/ -v`)
+4. Commit changes (`git commit -m 'Add amazing feature'`)
+5. Push to branch (`git push origin feature/amazing-feature`)
+6. Open a Pull Request
 
 ## License
 
-MIT
+MIT License - see [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+- Based on [virtual-lab](https://github.com/zou-group/virtual-lab) by Zou Group @ Stanford
+- Built with FastAPI, Next.js, React Flow, and Monaco Editor
