@@ -167,6 +167,7 @@ export interface MeetingSummary {
   max_rounds?: number;
   total_messages: number;
   participants: string[];
+  round_summaries: Array<{ round: number; summary_text: string; key_points: string[] }>;
   key_points: string[];
   status: string;
   summary_text?: string;

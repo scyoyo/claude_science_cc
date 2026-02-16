@@ -64,9 +64,23 @@ CONCISENESS_RULE = (
     "Go straight to substance."
 )
 
+# Instruction for coding agents: output code in JSON format for easy parsing and display
+CODE_JSON_OUTPUT_RULE = (
+    "When outputting code, use JSON format so it can be parsed and rendered as files. "
+    "Include a JSON array of objects, each with: path (file path, e.g. src/main.py), language (e.g. python), code (the code content). "
+    "Example: [{\"path\": \"src/main.py\", \"language\": \"python\", \"code\": \"def main():\\n    pass\"}]. "
+    "You may include explanatory text before/after the JSON block."
+)
+
+# Instruction for non-coding agents when output_type is "code"
+NO_CODE_FOR_NON_CODING = (
+    "Do not output full code blocks; provide recommendations and discussion only. "
+    "Code will be produced by the coding-focused team members."
+)
+
 # output_type -> default rules
 DEFAULT_RULES: Dict[str, List[str]] = {
-    "code": CODING_RULES + [CONCISENESS_RULE],
+    "code": CODING_RULES + [CODE_JSON_OUTPUT_RULE, CONCISENESS_RULE],
     "report": REPORT_RULES + [CONCISENESS_RULE],
     "paper": PAPER_RULES + [CONCISENESS_RULE],
 }
@@ -75,13 +89,6 @@ DEFAULT_RULES: Dict[str, List[str]] = {
 def get_default_rules(output_type: str) -> List[str]:
     """Return default agenda_rules for the given output_type."""
     return list(DEFAULT_RULES.get(output_type, [CONCISENESS_RULE]))
-
-
-# Instruction for non-coding agents when output_type is "code"
-NO_CODE_FOR_NON_CODING = (
-    "Do not output full code blocks; provide recommendations and discussion only. "
-    "Code will be produced by the coding-focused team members."
-)
 
 
 def get_agenda_rules_for_agent(output_type: str, agent: Dict) -> List[str]:
@@ -297,7 +304,8 @@ def integrator_consolidation_prompt(integrator_name: str) -> str:
         f"{integrator_name}, consolidate all code contributions from this round into a single folder structure. "
         "List filenames and ensure the project is runnable (e.g. entry point, dependencies). "
         "Do not duplicate code; integrate and document. "
-        "If no code was contributed this round, summarize what was discussed and what files would be needed."
+        "If no code was contributed this round, summarize what was discussed and what files would be needed. "
+        f"{CODE_JSON_OUTPUT_RULE}"
     )
 
 
@@ -367,7 +375,7 @@ def output_structure_prompt(output_type: str, has_questions: bool) -> str:
     sections = {
         "code": _agenda + _team_input + _recommendation + _summary + _answers_block + [
             "### Code Artifacts",
-            "Complete, runnable code with comments.",
+            "Complete, runnable code with comments. " + CODE_JSON_OUTPUT_RULE,
             "",
             "### Usage Instructions",
             "How to run the code, required dependencies, expected inputs/outputs.",

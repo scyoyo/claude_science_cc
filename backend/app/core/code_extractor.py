@@ -1,10 +1,12 @@
 """
 CodeExtractor: Extracts code blocks from meeting messages.
 
-Parses markdown-style code fences (```language ... ```) from agent responses
-and creates structured code artifacts.
+Parses:
+1. Markdown-style code fences (```language ... ```) from agent responses
+2. JSON format from agent outputs: [{"path": "...", "language": "...", "code": "..."}]
 """
 
+import json
 import re
 from dataclasses import dataclass
 from typing import List, Optional, Set
@@ -190,6 +192,70 @@ def _detect_filepath_hint(text_before_block: str) -> Optional[str]:
     return None
 
 
+def _extract_json_code_blocks(
+    text: str,
+    source_agent: Optional[str] = None,
+) -> List[ExtractedCode]:
+    """Extract code from JSON format: [{"path": "...", "language": "...", "code": "..."}].
+
+    Agents may output this format when instructed. Handles both raw JSON and
+    JSON inside ```json ... ``` fences.
+    """
+    results = []
+    # Try JSON array pattern (possibly inside markdown fence)
+    json_pattern = re.compile(
+        r'\[\s*\{[^\[\]]*"path"[^\[\]]*"language"[^\[\]]*"code"[^\[\]]*\}[\s,]*\{[^\[\]]*\}[^\]]*\]',
+        re.DOTALL,
+    )
+    # Simpler: find ```json ... ``` or raw [...]
+    for fence_match in re.finditer(r'```(?:json)?\s*\n?(.*?)\n?```', text, re.DOTALL):
+        block = fence_match.group(1).strip()
+        try:
+            data = json.loads(block)
+            if isinstance(data, list):
+                for item in data:
+                    if isinstance(item, dict) and "path" in item and "code" in item:
+                        path = str(item["path"]).strip()
+                        lang = str(item.get("language", "python")).lower()
+                        code = str(item["code"]).strip()
+                        if path and code:
+                            ext = LANG_EXTENSIONS.get(lang, ".txt")
+                            if "." not in path.split("/")[-1]:
+                                path = path.rstrip("/") + ext
+                            results.append(ExtractedCode(
+                                language=lang,
+                                content=code,
+                                source_agent=source_agent,
+                                suggested_filename=path,
+                            ))
+        except json.JSONDecodeError:
+            pass
+    # Also try raw JSON array in text (no fence)
+    brace_match = re.search(r'\[\s*\{[^\]]*"path"[^\]]*"code"[^\]]*\}[^\]]*\]', text, re.DOTALL)
+    if brace_match and not results:
+        try:
+            data = json.loads(brace_match.group(0))
+            if isinstance(data, list):
+                for item in data:
+                    if isinstance(item, dict) and "path" in item and "code" in item:
+                        path = str(item["path"]).strip()
+                        lang = str(item.get("language", "python")).lower()
+                        code = str(item["code"]).strip()
+                        if path and code:
+                            ext = LANG_EXTENSIONS.get(lang, ".txt")
+                            if "." not in path.split("/")[-1]:
+                                path = path.rstrip("/") + ext
+                            results.append(ExtractedCode(
+                                language=lang,
+                                content=code,
+                                source_agent=source_agent,
+                                suggested_filename=path,
+                            ))
+        except json.JSONDecodeError:
+            pass
+    return results
+
+
 def extract_code_blocks(
     text: str,
     source_agent: Optional[str] = None,
@@ -198,7 +264,9 @@ def extract_code_blocks(
 ) -> List[ExtractedCode]:
     """Extract all code blocks from a text string.
 
-    Parses markdown-style fenced code blocks (```language ... ```).
+    Parses:
+    1. JSON format [{"path": "...", "language": "...", "code": "..."}] (from agent prompt)
+    2. Markdown-style fenced code blocks (```language ... ```)
     Checks text before each code block for filepath hints; if none, uses path_candidates
     by global block index when provided (from transcript-wide path list).
 
@@ -211,6 +279,11 @@ def extract_code_blocks(
     Returns:
         List of ExtractedCode objects.
     """
+    # First try JSON format (agent-instructed output)
+    json_blocks = _extract_json_code_blocks(text, source_agent)
+    if json_blocks:
+        return json_blocks
+
     blocks = []
     for i, match in enumerate(CODE_BLOCK_PATTERN.finditer(text)):
         language = (match.group(1) or "text").lower()

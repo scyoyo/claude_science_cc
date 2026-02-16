@@ -9,7 +9,13 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Meeting, MeetingMessage, CodeArtifact, Agent
-from app.core.exporter import export_as_zip, export_as_colab_notebook, export_as_github_files
+from app.core.exporter import (
+    export_as_zip,
+    export_as_colab_notebook,
+    export_as_github_files,
+    export_as_paper,
+    export_as_blog,
+)
 from app.core.github_client import GitHubPushError, ensure_repo, push_files
 
 router = APIRouter(prefix="/export", tags=["export"])
@@ -36,6 +42,42 @@ def _get_artifacts(meeting_id: str, db: Session) -> tuple:
     ]
 
     return meeting, artifact_dicts
+
+
+def _get_meeting_full(meeting_id: str, db: Session):
+    """Get meeting with messages and artifacts for paper/blog export."""
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    if not meeting:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+
+    messages = db.query(MeetingMessage).filter(
+        MeetingMessage.meeting_id == meeting_id,
+    ).order_by(MeetingMessage.created_at).all()
+
+    artifacts = db.query(CodeArtifact).filter(
+        CodeArtifact.meeting_id == meeting_id,
+    ).all()
+
+    msg_dicts = [
+        {
+            "role": m.role,
+            "agent_name": m.agent_name,
+            "content": m.content,
+            "round_number": m.round_number,
+        }
+        for m in messages
+    ]
+    artifact_dicts = [
+        {"filename": a.filename, "language": a.language, "content": a.content}
+        for a in artifacts
+    ]
+    summary = getattr(meeting, "cached_summary_text", None) or ""
+    for m in reversed(messages):
+        if m.role == "assistant" and (m.content or "").strip():
+            summary = summary or (m.content or "").strip()
+            break
+
+    return meeting, msg_dicts, artifact_dicts, summary
 
 
 @router.get("/meeting/{meeting_id}/json")
@@ -201,6 +243,56 @@ def export_github(meeting_id: str, db: Session = Depends(get_db)):
 
     files = export_as_github_files(artifact_dicts, project_name=meeting.title)
     return {"project_name": meeting.title, "files": files}
+
+
+@router.get("/meeting/{meeting_id}/paper")
+def export_paper(
+    meeting_id: str,
+    download: int = 0,
+    db: Session = Depends(get_db),
+):
+    """Export meeting as a paper (markdown). Use ?download=1 for file attachment."""
+    meeting, msg_dicts, artifact_dicts, summary = _get_meeting_full(meeting_id, db)
+    title = (meeting.title or "Meeting").replace(" ", "_")
+    content = export_as_paper(
+        meeting_title=meeting.title or "Meeting",
+        meeting_description=meeting.description or None,
+        messages=msg_dicts,
+        artifacts=artifact_dicts,
+        summary=summary or None,
+    )
+    if download:
+        return StreamingResponse(
+            io.BytesIO(content.encode("utf-8")),
+            media_type="text/markdown; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{title}_paper.md"'},
+        )
+    return {"content": content, "title": meeting.title or "Meeting"}
+
+
+@router.get("/meeting/{meeting_id}/blog")
+def export_blog(
+    meeting_id: str,
+    download: int = 0,
+    db: Session = Depends(get_db),
+):
+    """Export meeting as a blog post (markdown). Use ?download=1 for file attachment."""
+    meeting, msg_dicts, artifact_dicts, summary = _get_meeting_full(meeting_id, db)
+    title = (meeting.title or "Meeting").replace(" ", "_")
+    content = export_as_blog(
+        meeting_title=meeting.title or "Meeting",
+        meeting_description=meeting.description or None,
+        messages=msg_dicts,
+        artifacts=artifact_dicts,
+        summary=summary or None,
+    )
+    if download:
+        return StreamingResponse(
+            io.BytesIO(content.encode("utf-8")),
+            media_type="text/markdown; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{title}_blog.md"'},
+        )
+    return {"content": content, "title": meeting.title or "Meeting"}
 
 
 class PushGithubRequest(BaseModel):

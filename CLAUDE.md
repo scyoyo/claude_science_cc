@@ -69,6 +69,9 @@ Building a web app based on https://github.com/zou-group/virtual-lab that allows
 4. **Forward reference in team.py**: `TeamWithAgents` imports `AgentResponse` at bottom and calls `model_rebuild()`
 5. **System prompt auto-generated** from agent's title/expertise/goal/role fields
 6. **Mirror agent support**: Agent model has `is_mirror` and `primary_agent_id` fields
+7. **Dual code extraction modes**:
+   - **Regex-based** (`/extract`): Fast, rule-based extraction for standard markdown code blocks
+   - Regex + JSON format extraction (agents output code in JSON path/code format for easy parsing)
 
 ## Database Migration Rules (CRITICAL)
 
@@ -182,7 +185,7 @@ GET    /api/artifacts/{artifact_id}        # Get artifact
 POST   /api/artifacts/                     # Create artifact
 PUT    /api/artifacts/{artifact_id}        # Update artifact (bumps version)
 DELETE /api/artifacts/{artifact_id}        # Delete artifact
-POST   /api/artifacts/meeting/{id}/extract # Auto-extract code from messages
+POST   /api/artifacts/meeting/{id}/extract # Auto-extract code from messages (regex-based)
 GET    /api/export/meeting/{id}/zip        # Download ZIP
 GET    /api/export/meeting/{id}/notebook   # Download Colab notebook
 GET    /api/export/meeting/{id}/github     # Get GitHub-ready files
@@ -199,7 +202,7 @@ GET    /api/export/meeting/{id}/github     # Get GitHub-ready files
 
 ## Test Results (Last Run)
 
-- **382/382 tests passed** across 28 test files
+- **397/397 tests passed** across 29 test files
 - test_main.py (2): root endpoint, health check
 - test_models.py (4): create team, create agent, cascade delete, mirror agent
 - test_teams_api.py (6): CRUD + 404 handling
@@ -286,7 +289,7 @@ GET    /api/export/meeting/{id}/github     # Get GitHub-ready files
 ### Step 1.8: Code Generation (DONE)
 - `backend/app/models/artifact.py` ✅ - CodeArtifact model with versioning
 - `backend/app/core/code_extractor.py` ✅ - Regex code block extraction + filename suggestion
-- `backend/app/api/artifacts.py` ✅ - CRUD + auto-extract endpoints
+- `backend/app/api/artifacts.py` ✅ - CRUD + auto-extract endpoints (regex and LLM-assisted)
 - `backend/tests/test_artifacts.py` ✅ - 19 tests
 
 ### Step 1.9: Export Functionality (DONE)

@@ -222,6 +222,14 @@ async def _handle_start_round(websocket: WebSocket, db: Session, meeting: Meetin
 
             db.commit()
 
+            # Auto-generate summary for this round
+            try:
+                from app.core.meeting_summary import generate_summary_for_round, append_round_summary
+                summary_text, key_points = generate_summary_for_round(meeting, round_messages, db)
+                append_round_summary(meeting.id, round_number, summary_text, key_points, db)
+            except Exception:
+                pass
+
             await websocket.send_json({
                 "type": "round_complete",
                 "round": round_number,
@@ -236,13 +244,8 @@ async def _handle_start_round(websocket: WebSocket, db: Session, meeting: Meetin
         db.commit()
 
         if meeting.status == MeetingStatus.completed.value:
-            # Auto-extract artifacts and cache summary
+            # Auto-extract artifacts (per-round summaries already generated)
             _auto_extract_artifacts(db, meeting.id)
-            try:
-                from app.core.meeting_summary import ensure_meeting_summary_cached
-                ensure_meeting_summary_cached(meeting.id, db)
-            except Exception:
-                pass
             await websocket.send_json({"type": "meeting_complete", "status": "completed"})
 
     except LLMQuotaError as e:

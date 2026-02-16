@@ -4,7 +4,11 @@ from typing import List
 
 from app.database import get_db
 from app.models import Meeting, MeetingMessage, CodeArtifact
-from app.schemas.artifact import CodeArtifactCreate, CodeArtifactUpdate, CodeArtifactResponse
+from app.schemas.artifact import (
+    CodeArtifactCreate,
+    CodeArtifactUpdate,
+    CodeArtifactResponse,
+)
 from app.schemas.pagination import PaginatedResponse
 from app.core.code_extractor import extract_from_meeting_messages
 from app.api.deps import pagination_params, build_paginated_response
@@ -80,7 +84,10 @@ def delete_artifact(artifact_id: str, db: Session = Depends(get_db)):
 
 @router.post("/meeting/{meeting_id}/extract", response_model=List[CodeArtifactResponse], status_code=status.HTTP_201_CREATED)
 def extract_artifacts(meeting_id: str, db: Session = Depends(get_db)):
-    """Auto-extract code blocks from meeting messages and create artifacts."""
+    """Auto-extract code blocks from meeting messages and create artifacts.
+
+    Supports both markdown code fences and JSON format (path/code) from agent outputs.
+    """
     meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
     if not meeting:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")

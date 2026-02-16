@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 
 class CodeArtifactCreate(BaseModel):
@@ -30,3 +30,4 @@ class CodeArtifactResponse(BaseModel):
     version: int
     created_at: datetime
     updated_at: datetime
+
