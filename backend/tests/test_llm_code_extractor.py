@@ -10,7 +10,7 @@ Covers:
 
 import json
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -20,26 +20,19 @@ from app.core.llm_code_extractor import (
     SmartExtractedCode,
     extract_with_llm,
 )
-from app.core.llm_client import LLMResponse
 
 
 # ==================== Mock LLM Function ====================
 
 
 def make_mock_llm(responses):
-    """Create a mock LLM function that returns predefined responses."""
+    """Create a sync mock llm_call(system_prompt, messages) -> str."""
     responses_iter = iter(responses)
 
-    async def mock_llm(messages, model, params):
-        content = next(responses_iter)
-        return LLMResponse(
-            content=content,
-            model=model,
-            provider="mock",
-            usage={},
-        )
+    def mock_call(system_prompt, messages):
+        return next(responses_iter)
 
-    return mock_llm
+    return mock_call
 
 
 # ==================== LLMCodeExtractor Unit Tests ====================
@@ -64,7 +57,7 @@ class TestProjectStructureAnalysis:
         })
 
         mock_llm = make_mock_llm([llm_response])
-        extractor = LLMCodeExtractor(llm_func=mock_llm)
+        extractor = LLMCodeExtractor(llm_call=mock_llm)
 
         structure = await extractor.analyze_project_structure(messages)
 
@@ -90,7 +83,7 @@ class TestProjectStructureAnalysis:
         })
 
         mock_llm = make_mock_llm([llm_response])
-        extractor = LLMCodeExtractor(llm_func=mock_llm)
+        extractor = LLMCodeExtractor(llm_call=mock_llm)
 
         structure = await extractor.analyze_project_structure(messages)
 
@@ -105,7 +98,7 @@ class TestProjectStructureAnalysis:
         messages = [{"content": "Some discussion", "agent_name": "Dev", "role": "assistant"}]
 
         mock_llm = make_mock_llm(["This is not JSON"])
-        extractor = LLMCodeExtractor(llm_func=mock_llm)
+        extractor = LLMCodeExtractor(llm_call=mock_llm)
 
         structure = await extractor.analyze_project_structure(messages)
 
@@ -153,7 +146,7 @@ class TestSmartCodeExtraction:
         ])
 
         mock_llm = make_mock_llm([structure_response, code_response])
-        extractor = LLMCodeExtractor(llm_func=mock_llm)
+        extractor = LLMCodeExtractor(llm_call=mock_llm)
 
         code_files = await extractor.extract_code_smart(messages)
 
@@ -189,7 +182,7 @@ class TestSmartCodeExtraction:
         ])
 
         mock_llm = make_mock_llm([structure_response, code_response])
-        extractor = LLMCodeExtractor(llm_func=mock_llm)
+        extractor = LLMCodeExtractor(llm_call=mock_llm)
 
         code_files = await extractor.extract_code_smart(messages)
 
@@ -224,7 +217,7 @@ class TestSmartCodeExtraction:
         ])
 
         mock_llm = make_mock_llm([structure_response, code_response])
-        extractor = LLMCodeExtractor(llm_func=mock_llm)
+        extractor = LLMCodeExtractor(llm_call=mock_llm)
 
         code_files = await extractor.extract_code_smart(messages)
 
@@ -250,7 +243,7 @@ class TestSmartCodeExtraction:
         code_response = json.dumps([])  # No code found
 
         mock_llm = make_mock_llm([structure_response, code_response])
-        extractor = LLMCodeExtractor(llm_func=mock_llm)
+        extractor = LLMCodeExtractor(llm_call=mock_llm)
 
         code_files = await extractor.extract_code_smart(messages)
 
@@ -282,7 +275,7 @@ class TestSmartCodeExtraction:
         ])
 
         mock_llm = make_mock_llm([structure_response, code_response])
-        extractor = LLMCodeExtractor(llm_func=mock_llm)
+        extractor = LLMCodeExtractor(llm_call=mock_llm)
 
         code_files = await extractor.extract_code_smart(messages)
 
@@ -307,7 +300,7 @@ class TestSmartRequirements:
 
         llm_response = "numpy\npandas\nscikit-learn"
         mock_llm = make_mock_llm([llm_response])
-        extractor = LLMCodeExtractor(llm_func=mock_llm)
+        extractor = LLMCodeExtractor(llm_call=mock_llm)
 
         requirements = await extractor.generate_smart_requirements(code_files)
 
@@ -330,7 +323,7 @@ class TestSmartRequirements:
 
         llm_response = "flask>=2.0.0"
         mock_llm = make_mock_llm([llm_response])
-        extractor = LLMCodeExtractor(llm_func=mock_llm)
+        extractor = LLMCodeExtractor(llm_call=mock_llm)
 
         requirements = await extractor.generate_smart_requirements(code_files)
 
@@ -349,7 +342,7 @@ class TestSmartRequirements:
             ),
         ]
 
-        extractor = LLMCodeExtractor(llm_func=AsyncMock())
+        extractor = LLMCodeExtractor(llm_call=lambda s, m: "")
 
         requirements = await extractor.generate_smart_requirements(code_files)
 
@@ -386,7 +379,7 @@ class TestConvenienceFunction:
 
         mock_llm = make_mock_llm([structure_response, code_response])
 
-        code_files, structure = await extract_with_llm(messages, llm_func=mock_llm)
+        code_files, structure = await extract_with_llm(messages, llm_call=mock_llm)
 
         assert structure.project_type == "cli_tool"
         assert len(code_files) == 1

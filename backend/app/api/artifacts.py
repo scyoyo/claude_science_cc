@@ -14,6 +14,7 @@ from app.schemas.artifact import (
 )
 from app.schemas.pagination import PaginatedResponse
 from app.core.code_extractor import extract_from_meeting_messages
+from app.core.llm_client import resolve_llm_call
 from app.core.llm_code_extractor import LLMCodeExtractor
 from app.api.deps import pagination_params, build_paginated_response
 
@@ -164,8 +165,9 @@ async def extract_artifacts_smart(
         for m in messages
     ]
 
-    # Use LLM to extract and organize code
-    extractor = LLMCodeExtractor(model=request.model)
+    # Use LLM to extract and organize code (model chosen by resolve_llm_call)
+    llm_call = resolve_llm_call(db)
+    extractor = LLMCodeExtractor(llm_call=llm_call)
 
     try:
         # Analyze project structure

@@ -9,6 +9,7 @@ Uses LLM to:
 - Generate accurate dependency lists
 """
 
+import asyncio
 import json
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
@@ -46,18 +47,15 @@ class LLMCodeExtractor:
 
     def __init__(
         self,
-        llm_func: Optional[Callable] = None,
-        model: str = "gpt-4",
+        llm_call: Optional[Callable[[str, List[ChatMessage]], str]] = None,
     ):
         """Initialize the LLM code extractor.
 
         Args:
-            llm_func: Callable that takes (messages, model, params) and returns LLMResponse.
-                     If None, uses default implementation (requires API key in DB).
-            model: LLM model to use for extraction analysis.
+            llm_call: Sync callable (system_prompt, messages) -> str. Uses stored API keys when
+                      invoked from API via resolve_llm_call(db). Required for production.
         """
-        self.llm_func = llm_func
-        self.model = model
+        self.llm_call = llm_call
 
     async def analyze_project_structure(
         self,
@@ -98,20 +96,16 @@ Respond ONLY with valid JSON, no markdown formatting."""
 
         llm_messages = [ChatMessage(role="user", content=prompt)]
 
-        # Call LLM
-        if self.llm_func:
-            response = await self.llm_func(llm_messages, self.model, {})
-        else:
-            from app.core.llm_client import get_llm_client
-            from app.database import get_db
-
-            db = next(get_db())
-            client = get_llm_client(db, self.model)
-            response = client.chat(llm_messages, self.model)
+        # Call LLM (sync llm_call run in executor)
+        if not self.llm_call:
+            raise RuntimeError("LLM callable required. Pass resolve_llm_call(db) from the API.")
+        content = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: self.llm_call("", llm_messages)
+        )
 
         # Parse response
         try:
-            data = json.loads(response.content.strip())
+            data = json.loads(content.strip())
             return ProjectStructure(
                 project_type=data.get("project_type", "other"),
                 suggested_folders=data.get("suggested_folders", []),
@@ -191,20 +185,16 @@ Respond ONLY with valid JSON array, no markdown formatting."""
 
         llm_messages = [ChatMessage(role="user", content=prompt)]
 
-        # Call LLM
-        if self.llm_func:
-            response = await self.llm_func(llm_messages, self.model, {})
-        else:
-            from app.core.llm_client import get_llm_client
-            from app.database import get_db
-
-            db = next(get_db())
-            client = get_llm_client(db, self.model)
-            response = client.chat(llm_messages, self.model)
+        # Call LLM (sync llm_call run in executor)
+        if not self.llm_call:
+            raise RuntimeError("LLM callable required. Pass resolve_llm_call(db) from the API.")
+        content = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: self.llm_call("", llm_messages)
+        )
 
         # Parse response
         try:
-            data = json.loads(response.content.strip())
+            data = json.loads(content.strip())
             results = []
             for item in data:
                 # Find source agent if possible
@@ -276,19 +266,15 @@ Respond ONLY with the requirements list, no explanations or markdown."""
 
         llm_messages = [ChatMessage(role="user", content=prompt)]
 
-        # Call LLM
-        if self.llm_func:
-            response = await self.llm_func(llm_messages, self.model, {})
-        else:
-            from app.core.llm_client import get_llm_client
-            from app.database import get_db
-
-            db = next(get_db())
-            client = get_llm_client(db, self.model)
-            response = client.chat(llm_messages, self.model)
+        # Call LLM (sync llm_call run in executor)
+        if not self.llm_call:
+            raise RuntimeError("LLM callable required. Pass resolve_llm_call(db) from the API.")
+        content = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: self.llm_call("", llm_messages)
+        )
 
         # Return cleaned response
-        requirements = response.content.strip()
+        requirements = content.strip()
         # Remove any markdown code blocks if present
         requirements = requirements.replace("```", "").strip()
         return requirements
@@ -319,20 +305,18 @@ Respond ONLY with the requirements list, no explanations or markdown."""
 
 async def extract_with_llm(
     messages: List[Dict[str, Any]],
-    model: str = "gpt-4",
-    llm_func: Optional[Callable] = None,
+    llm_call: Callable[[str, List[ChatMessage]], str],
 ) -> tuple[List[SmartExtractedCode], ProjectStructure]:
     """Convenience function for LLM-assisted extraction.
 
     Args:
         messages: Meeting messages.
-        model: LLM model to use.
-        llm_func: Optional callable for LLM (for testing/mocking).
+        llm_call: Sync callable (system_prompt, messages) -> str (e.g. resolve_llm_call(db)).
 
     Returns:
         Tuple of (extracted code files, project structure).
     """
-    extractor = LLMCodeExtractor(llm_func=llm_func, model=model)
+    extractor = LLMCodeExtractor(llm_call=llm_call)
     structure = await extractor.analyze_project_structure(messages)
     code_files = await extractor.extract_code_smart(messages, structure)
     return code_files, structure

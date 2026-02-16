@@ -33,8 +33,8 @@ class CodeArtifactResponse(BaseModel):
 
 
 class SmartExtractRequest(BaseModel):
-    """Request parameters for smart LLM-assisted extraction."""
-    model: str = "gpt-4"  # LLM model to use for analysis
+    """Request parameters for smart LLM-assisted extraction (no model selection)."""
+    pass
 
 
 class SmartExtractedFileResponse(BaseModel):

@@ -81,13 +81,13 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
     }
   };
 
-  const handleExtractSmart = async (model: string = "gpt-4") => {
+  const handleExtractSmart = async () => {
     try {
       setExtractingSmart(true);
       setError(null);
       setSmartExtractResult(null);
 
-      const result = await artifactsAPI.extractSmart(meetingId, model);
+      const result = await artifactsAPI.extractSmart(meetingId);
       setSmartExtractResult(result);
 
       await loadArtifacts();
@@ -263,21 +263,13 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
               <Wand2 className="h-4 w-4 mr-2" />
               Quick Extract (Regex)
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
             <DropdownMenuItem
-              onClick={() => handleExtractSmart("gpt-4")}
+              onClick={handleExtractSmart}
               disabled={extracting || extractingSmart}
               className="text-purple-600 dark:text-purple-400"
             >
               <Sparkles className="h-4 w-4 mr-2" />
-              🤖 AI Smart Extract (GPT-4)
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => handleExtractSmart("gpt-3.5-turbo")}
-              disabled={extracting || extractingSmart}
-            >
-              <Sparkles className="h-4 w-4 mr-2" />
-              AI Extract (GPT-3.5 Fast)
+              AI Smart Extract
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
