@@ -71,7 +71,7 @@ Building a web app based on https://github.com/zou-group/virtual-lab that allows
 6. **Mirror agent support**: Agent model has `is_mirror` and `primary_agent_id` fields
 7. **Dual code extraction modes**:
    - **Regex-based** (`/extract`): Fast, rule-based extraction for standard markdown code blocks
-   - **LLM-assisted** (`/extract-smart`): Intelligent extraction with project structure inference, file organization, and dependency analysis
+   - Regex + JSON format extraction (agents output code in JSON path/code format for easy parsing)
 
 ## Database Migration Rules (CRITICAL)
 
@@ -186,7 +186,6 @@ POST   /api/artifacts/                     # Create artifact
 PUT    /api/artifacts/{artifact_id}        # Update artifact (bumps version)
 DELETE /api/artifacts/{artifact_id}        # Delete artifact
 POST   /api/artifacts/meeting/{id}/extract # Auto-extract code from messages (regex-based)
-POST   /api/artifacts/meeting/{id}/extract-smart # LLM-assisted smart code extraction
 GET    /api/export/meeting/{id}/zip        # Download ZIP
 GET    /api/export/meeting/{id}/notebook   # Download Colab notebook
 GET    /api/export/meeting/{id}/github     # Get GitHub-ready files
@@ -212,7 +211,6 @@ GET    /api/export/meeting/{id}/github     # Get GitHub-ready files
 - test_llm_client.py (35): Encryption, Provider factory, Providers, API key mgmt, LLM chat
 - test_meetings.py (19): MeetingEngine, Meeting CRUD, Meeting run
 - test_artifacts.py (19): CodeExtractor, Artifact CRUD, Auto-extract
-- test_llm_code_extractor.py (15): LLM-assisted code extraction, project structure inference, smart file organization
 - test_export.py (11): Exporter, Export API
 - test_integration.py (9): Full end-to-end workflows
 - test_auth.py (28): Password hashing, JWT tokens, Auth API, Protected endpoints
@@ -291,10 +289,8 @@ GET    /api/export/meeting/{id}/github     # Get GitHub-ready files
 ### Step 1.8: Code Generation (DONE)
 - `backend/app/models/artifact.py` ✅ - CodeArtifact model with versioning
 - `backend/app/core/code_extractor.py` ✅ - Regex code block extraction + filename suggestion
-- `backend/app/core/llm_code_extractor.py` ✅ - LLM-assisted smart code extraction and organization
 - `backend/app/api/artifacts.py` ✅ - CRUD + auto-extract endpoints (regex and LLM-assisted)
 - `backend/tests/test_artifacts.py` ✅ - 19 tests
-- `backend/tests/test_llm_code_extractor.py` ✅ - 15 tests for smart extraction
 
 ### Step 1.9: Export Functionality (DONE)
 - `backend/app/core/exporter.py` ✅ - ZIP, Colab notebook, GitHub file format

@@ -22,6 +22,7 @@ from app.schemas.meeting import (
     UserMessageRequest,
     MeetingMessageResponse,
     MeetingSummary,
+    RoundSummary,
     ContextPreviewResponse,
     BatchMeetingRunRequest,
     BatchMeetingRunResponse,
@@ -479,12 +480,16 @@ def get_meeting(meeting_id: str, db: Session = Depends(get_db)):
     return meeting
 
 
-from app.core.meeting_summary import generate_summary_for_meeting, ensure_meeting_summary_cached
+from app.core.meeting_summary import (
+    generate_summary_for_meeting,
+    generate_summary_for_round,
+    append_round_summary,
+)
 
 
 @router.get("/{meeting_id}/summary", response_model=MeetingSummary)
 def get_meeting_summary(meeting_id: str, db: Session = Depends(get_db)):
-    """Return meeting summary from cache if present; otherwise generate once, save to DB, and return."""
+    """Return meeting summary with per-round summaries."""
     meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
     if not meeting:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
@@ -498,25 +503,16 @@ def get_meeting_summary(meeting_id: str, db: Session = Depends(get_db)):
         if m.agent_name and m.role == "assistant"
     })
 
-    cached_text = getattr(meeting, "cached_summary_text", None)
-    cached_points = getattr(meeting, "cached_key_points", None)
-    if cached_text is not None or (cached_points is not None and len(cached_points) > 0):
-        return MeetingSummary(
-            meeting_id=meeting_id,
-            title=meeting.title,
-            total_rounds=meeting.current_round,
-            max_rounds=getattr(meeting, "max_rounds", 5),
-            total_messages=len(messages),
-            participants=participants,
-            key_points=list(cached_points) if cached_points else [],
-            status=meeting.status,
-            summary_text=cached_text,
+    round_summaries_raw = getattr(meeting, "round_summaries", None) or []
+    round_summaries = [
+        RoundSummary(
+            round=s.get("round", i + 1),
+            summary_text=s.get("summary_text", "") or "",
+            key_points=s.get("key_points", []) or [],
         )
-
-    summary_text, key_points = generate_summary_for_meeting(meeting, messages, db)
-    meeting.cached_summary_text = summary_text
-    meeting.cached_key_points = key_points
-    db.commit()
+        for i, s in enumerate(round_summaries_raw)
+        if isinstance(s, dict)
+    ]
 
     return MeetingSummary(
         meeting_id=meeting_id,
@@ -525,9 +521,10 @@ def get_meeting_summary(meeting_id: str, db: Session = Depends(get_db)):
         max_rounds=getattr(meeting, "max_rounds", 5),
         total_messages=len(messages),
         participants=participants,
-        key_points=key_points,
+        round_summaries=round_summaries,
+        key_points=[],  # Deprecated
         status=meeting.status,
-        summary_text=summary_text,
+        summary_text=None,  # Deprecated; use round_summaries
     )
 
 
@@ -930,7 +927,7 @@ def run_meeting(
                 preferred_lang=preferred_lang,
             )
 
-        # Store messages
+        # Store messages and generate per-round summary
         for round_idx, round_messages in enumerate(all_rounds):
             round_number = meeting.current_round + round_idx + 1
             for msg_data in round_messages:
@@ -943,6 +940,13 @@ def run_meeting(
                     round_number=round_number,
                 )
                 db.add(message)
+
+            # Auto-generate summary for this round
+            try:
+                summary_text, key_points = generate_summary_for_round(meeting, round_messages, db)
+                append_round_summary(meeting_id, round_number, summary_text, key_points, db)
+            except Exception:
+                pass
 
         meeting.current_round += rounds_to_run
         if meeting.current_round >= meeting.max_rounds:

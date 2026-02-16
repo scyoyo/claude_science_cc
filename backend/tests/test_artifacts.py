@@ -77,6 +77,25 @@ class TestCodeExtractor:
         blocks = extract_code_blocks(text)
         assert blocks[0].suggested_filename == "code_1.py"
 
+    def test_extract_json_format(self):
+        """Extract code from JSON format (agent-instructed output)."""
+        text = '''Here are the files:
+
+```json
+[
+  {"path": "src/main.py", "language": "python", "code": "def main():\\n    print(42)"},
+  {"path": "tests/test_main.py", "language": "python", "code": "def test_main():\\n    assert True"}
+]
+```
+'''
+        blocks = extract_code_blocks(text, source_agent="Coder")
+        assert len(blocks) == 2
+        assert blocks[0].suggested_filename == "src/main.py"
+        assert blocks[0].language == "python"
+        assert "def main" in blocks[0].content
+        assert blocks[1].suggested_filename == "tests/test_main.py"
+        assert blocks[0].source_agent == "Coder"
+
     def test_source_agent_attribution(self):
         """Source agent is attributed."""
         text = "```python\nprint('hello')\n```"

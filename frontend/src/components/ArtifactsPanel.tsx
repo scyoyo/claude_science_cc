@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { artifactsAPI, exportAPI, ApiError } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
 import { downloadBlob } from "@/lib/utils";
-import type { CodeArtifact, SmartExtractResponse } from "@/types";
+import type { CodeArtifact } from "@/types";
 import { Button } from "@/components/ui/button";
 import FileTree from "@/components/FileTree";
 import ArtifactViewer from "@/components/ArtifactViewer";
@@ -33,7 +33,6 @@ import {
   Loader2,
   Archive,
   Upload,
-  Sparkles,
   FileText,
   BookOpen,
 } from "lucide-react";
@@ -49,7 +48,6 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
   const [artifacts, setArtifacts] = useState<CodeArtifact[]>([]);
   const [loading, setLoading] = useState(true);
   const [extracting, setExtracting] = useState(false);
-  const [extractingSmart, setExtractingSmart] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [viewerArtifact, setViewerArtifact] = useState<CodeArtifact | null>(null);
@@ -57,7 +55,6 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
   const [pushGithubOpen, setPushGithubOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [smartExtractResult, setSmartExtractResult] = useState<SmartExtractResponse | null>(null);
   const [exportPreviewOpen, setExportPreviewOpen] = useState(false);
   const [exportPreviewMode, setExportPreviewMode] = useState<"paper" | "blog">("paper");
   const [exportPreviewContent, setExportPreviewContent] = useState("");
@@ -93,49 +90,6 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
       setError(getErrorMessage(err, "Failed to extract"));
     } finally {
       setExtracting(false);
-    }
-  };
-
-  const handleExtractSmart = async () => {
-    try {
-      setExtractingSmart(true);
-      setError(null);
-      setSmartExtractResult(null);
-
-      const SMART_EXTRACT_TIMEOUT_MS = 120_000; // 2 min
-      const result = await Promise.race([
-        artifactsAPI.extractSmart(meetingId),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("smartExtractTimeout")), SMART_EXTRACT_TIMEOUT_MS)
-        ),
-      ]);
-
-      setSmartExtractResult(result);
-
-      await loadArtifacts();
-
-      // Show success message with project info
-      const fileCount = result.files.length;
-      const additionalFiles = [];
-      if (result.readme_content) additionalFiles.push("README.md");
-      if (result.requirements_txt) additionalFiles.push("requirements.txt");
-      const totalFiles = fileCount + additionalFiles.length;
-
-      setSuccessMessage(
-        `🤖 AI Smart Extract Complete!\n` +
-        `Project Type: ${result.project_type}\n` +
-        `Files Created: ${totalFiles} (${fileCount} code + ${additionalFiles.length} docs)\n` +
-        `Folders: ${result.suggested_folders.join(", ")}`
-      );
-      setTimeout(() => setSuccessMessage(null), 10000);
-    } catch (err) {
-      const message =
-        err instanceof Error && err.message === "smartExtractTimeout"
-          ? t("smartExtractTimeout")
-          : getErrorMessage(err, "AI extraction failed. Try basic extraction instead.");
-      setError(message);
-    } finally {
-      setExtractingSmart(false);
     }
   };
 
@@ -269,80 +223,22 @@ export default function ArtifactsPanel({ meetingId, meetingTitle }: ArtifactsPan
         </div>
       )}
 
-      {/* Smart Extract Result Info */}
-      {smartExtractResult && (
-        <div className="p-4 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20 border border-purple-200 dark:border-purple-800 rounded-lg">
-          <div className="flex items-start gap-3">
-            <Sparkles className="h-5 w-5 text-purple-600 dark:text-purple-400 mt-0.5 shrink-0" />
-            <div className="flex-1 space-y-2 text-sm">
-              <div className="font-medium text-purple-900 dark:text-purple-100">
-                AI Project Analysis Complete
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-muted-foreground">
-                <div>
-                  <span className="font-medium">Project Type:</span>{" "}
-                  <span className="capitalize">{smartExtractResult.project_type.replace("_", " ")}</span>
-                </div>
-                <div>
-                  <span className="font-medium">Files Created:</span>{" "}
-                  {smartExtractResult.files.length}
-                </div>
-                {smartExtractResult.suggested_folders.length > 0 && (
-                  <div className="sm:col-span-2">
-                    <span className="font-medium">Folder Structure:</span>{" "}
-                    {smartExtractResult.suggested_folders.join(" / ")}
-                  </div>
-                )}
-                {smartExtractResult.entry_point && (
-                  <div className="sm:col-span-2">
-                    <span className="font-medium">Entry Point:</span>{" "}
-                    <code className="text-xs bg-black/5 dark:bg-white/5 px-1.5 py-0.5 rounded">
-                      {smartExtractResult.entry_point}
-                    </code>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Actions bar */}
       <div className="flex items-center gap-2 flex-wrap">
         {/* Extract Code Dropdown */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={extracting || extractingSmart}
-            >
-              {extracting ? (
-                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-              ) : extractingSmart ? (
-                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-              ) : (
-                <Wand2 className="h-4 w-4 mr-1" />
-              )}
-              {extracting ? t("extracting") : extractingSmart ? t("smartExtracting") : t("extractArtifacts")}
-              <ChevronDown className="h-3 w-3 ml-1" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuItem onClick={handleExtract} disabled={extracting || extractingSmart}>
-              <Wand2 className="h-4 w-4 mr-2" />
-              Quick Extract (Regex)
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={handleExtractSmart}
-              disabled={extracting || extractingSmart}
-              className="text-purple-600 dark:text-purple-400"
-            >
-              <Sparkles className="h-4 w-4 mr-2" />
-              AI Smart Extract
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={extracting}
+          onClick={handleExtract}
+        >
+          {extracting ? (
+            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+          ) : (
+            <Wand2 className="h-4 w-4 mr-1" />
+          )}
+          {extracting ? t("extracting") : t("extractArtifacts")}
+        </Button>
 
         {artifacts.length > 0 && (
           <Button size="sm" onClick={handleExportZip} disabled={exporting}>

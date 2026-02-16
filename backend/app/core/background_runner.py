@@ -216,7 +216,7 @@ def _run_meeting_thread(
                 )
 
             if use_structured:
-                engine.run_structured_round(
+                round_messages = engine.run_structured_round(
                     agents=agent_dicts,
                     conversation_history=conversation_history,
                     round_num=current_round_num,
@@ -232,7 +232,7 @@ def _run_meeting_thread(
                 )
             else:
                 round_topic = topic if round_idx == 0 else None
-                engine.run_round(
+                round_messages = engine.run_round(
                     agent_dicts, conversation_history, round_topic,
                     preferred_lang=preferred_lang if round_idx == 0 else None,
                     on_agent_start=_on_agent_start,
@@ -243,6 +243,15 @@ def _run_meeting_thread(
             # just update the round counter.
             meeting.current_round = current_round_num
             db.commit()
+
+            # Auto-generate summary for this round
+            try:
+                from app.core.meeting_summary import generate_summary_for_round, append_round_summary
+                summary_text, key_points = generate_summary_for_round(meeting, round_messages, db)
+                append_round_summary(meeting_id, current_round_num, summary_text, key_points, db)
+            except Exception:
+                logger.exception("Failed to generate round summary for %s round %s", meeting_id, current_round_num)
+
             event_bus.publish(meeting_id, {
                 "type": "round_complete",
                 "round": current_round_num,
@@ -261,14 +270,9 @@ def _run_meeting_thread(
             "status": meeting.status,
         })
 
-        # Auto-extract artifacts and generate summary on completion
+        # Auto-extract artifacts on completion (per-round summaries already generated)
         if meeting.status == MeetingStatus.completed.value:
             _auto_extract_artifacts(db, meeting_id)
-            try:
-                from app.core.meeting_summary import ensure_meeting_summary_cached
-                ensure_meeting_summary_cached(meeting_id, db)
-            except Exception:
-                logger.exception("Failed to cache meeting summary for %s", meeting_id)
 
     except LLMQuotaError as e:
         logger.warning("API quota exhausted for meeting %s", meeting_id)

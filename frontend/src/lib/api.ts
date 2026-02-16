@@ -10,7 +10,6 @@ import type {
   MeetingUpdate,
   MeetingSummary,
   CodeArtifact,
-  SmartExtractResponse,
   OnboardingChatRequest,
   OnboardingChatResponse,
   GenerateTeamRequest,
@@ -243,11 +242,6 @@ export const artifactsAPI = {
     fetchAPI<CodeArtifact>("/artifacts/", { method: "POST", body: JSON.stringify(data) }),
   extract: (meetingId: string) =>
     fetchAPI<CodeArtifact[]>(`/artifacts/meeting/${meetingId}/extract`, { method: "POST" }),
-  extractSmart: (meetingId: string) =>
-    fetchAPI<SmartExtractResponse>(`/artifacts/meeting/${meetingId}/extract-smart`, {
-      method: "POST",
-      body: JSON.stringify({}),
-    }),
   delete: (id: string) =>
     fetchAPI<void>(`/artifacts/${id}`, { method: "DELETE" }),
 };

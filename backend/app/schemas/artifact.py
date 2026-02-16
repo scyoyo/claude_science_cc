@@ -31,28 +31,3 @@ class CodeArtifactResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-
-class SmartExtractRequest(BaseModel):
-    """Request parameters for smart LLM-assisted extraction (no model selection)."""
-    pass
-
-
-class SmartExtractedFileResponse(BaseModel):
-    """Response for a single extracted file with LLM-enhanced metadata."""
-    filename: str
-    language: str
-    content: str
-    description: str
-    dependencies: List[str] = []
-    source_agent: Optional[str] = None
-    related_files: List[str] = []
-
-
-class SmartExtractResponse(BaseModel):
-    """Response for smart extraction endpoint."""
-    project_type: str
-    suggested_folders: List[str]
-    entry_point: Optional[str] = None
-    readme_content: Optional[str] = None
-    files: List[SmartExtractedFileResponse]
-    requirements_txt: Optional[str] = None

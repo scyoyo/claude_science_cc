@@ -84,34 +84,39 @@ export default function MeetingSummaryPanel({ meetingId }: MeetingSummaryPanelPr
             </div>
           </div>
 
-          {summary.summary_text && (
-            <>
-              <Separator />
-              <div>
-                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{summary.summary_text}</p>
-              </div>
-            </>
-          )}
-
           <Separator />
 
-          {/* Key Points */}
+          {/* Per-round summaries */}
           <div>
             <div className="flex items-center gap-2 mb-2">
               <Lightbulb className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">{t("keyPoints")}</span>
+              <span className="text-sm font-medium">{t("roundSummaries")}</span>
             </div>
-            {summary.key_points.length > 0 ? (
-              <ul className="space-y-2">
-                {summary.key_points.map((point, i) => (
-                  <li key={i} className="text-sm text-muted-foreground pl-4 border-l-2 border-muted">
-                    {point}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-muted-foreground">{t("noKeyPoints")}</p>
-            )}
+            <div className="space-y-4">
+              {(summary.round_summaries || []).length > 0 ? (
+                summary.round_summaries!.map((rs, i) => (
+                  <div key={i} className="rounded-lg border p-3 space-y-2">
+                    <div className="text-sm font-medium text-muted-foreground">
+                      {t("roundLabel", { round: rs.round })}
+                    </div>
+                    {rs.summary_text && (
+                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">{rs.summary_text}</p>
+                    )}
+                    {rs.key_points && rs.key_points.length > 0 && (
+                      <ul className="space-y-1">
+                        {rs.key_points.map((point, j) => (
+                          <li key={j} className="text-sm text-muted-foreground pl-4 border-l-2 border-muted">
+                            {point}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">{t("noRoundSummaries")}</p>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>

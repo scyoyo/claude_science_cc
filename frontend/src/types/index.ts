@@ -167,6 +167,7 @@ export interface MeetingSummary {
   max_rounds?: number;
   total_messages: number;
   participants: string[];
+  round_summaries: Array<{ round: number; summary_text: string; key_points: string[] }>;
   key_points: string[];
   status: string;
   summary_text?: string;
@@ -182,26 +183,6 @@ export interface CodeArtifact {
   version: number;
   created_at: string;
   updated_at: string;
-}
-
-// Smart code extraction types
-export interface SmartExtractedFile {
-  filename: string;
-  language: string;
-  content: string;
-  description: string;
-  dependencies: string[];
-  source_agent: string | null;
-  related_files: string[];
-}
-
-export interface SmartExtractResponse {
-  project_type: string;
-  suggested_folders: string[];
-  entry_point: string | null;
-  readme_content: string | null;
-  files: SmartExtractedFile[];
-  requirements_txt: string | null;
 }
 
 // Onboarding
