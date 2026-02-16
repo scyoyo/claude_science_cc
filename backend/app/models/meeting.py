@@ -42,6 +42,8 @@ class Meeting(Base):
     # Cached AI summary (generated when meeting completes or on first GET)
     cached_summary_text = Column(Text, nullable=True)
     cached_key_points = Column(JSON, nullable=True)  # list of str
+    # Per-round summaries: [{round: int, summary_text: str | null, key_points: list[str]}]
+    cached_round_summaries = Column(JSON, nullable=True, default=list)
 
     # Relationships
     team = relationship("Team", backref=backref("meetings", cascade="all, delete-orphan"))

@@ -21,7 +21,7 @@ from app.database import get_db, SessionLocal
 from app.models import Meeting, Agent, MeetingMessage, MeetingStatus, CodeArtifact
 from app.schemas.onboarding import ChatMessage
 from app.core.meeting_engine import MeetingEngine
-from app.core.meeting_prompts import content_for_user_message
+from app.core.meeting_prompts import content_for_user_message, system_prompt_for_meeting
 from app.core.lang_detect import meeting_preferred_lang
 from app.core.llm_client import resolve_llm_call, LLMQuotaError
 from app.core.code_extractor import extract_from_meeting_messages
@@ -125,8 +125,13 @@ async def _handle_start_round(websocket: WebSocket, db: Session, meeting: Meetin
         await websocket.send_json({"type": "error", "detail": "No agents in team"})
         return
 
+    output_type = getattr(meeting, "output_type", None) or "code"
     agent_dicts = [
-        {"id": str(a.id), "name": a.name, "system_prompt": a.system_prompt, "model": a.model}
+        {
+            "id": str(a.id), "name": a.name,
+            "system_prompt": system_prompt_for_meeting(a.system_prompt, output_type),
+            "model": a.model,
+        }
         for a in agents
     ]
 
@@ -227,6 +232,36 @@ async def _handle_start_round(websocket: WebSocket, db: Session, meeting: Meetin
                 "round": round_number,
                 "total_rounds": meeting.max_rounds,
             })
+
+            # Generate and cache per-round summary
+            try:
+                from app.core.meeting_summary import generate_round_summary
+                db.refresh(meeting)
+                round_messages_db = (
+                    db.query(MeetingMessage)
+                    .filter(
+                        MeetingMessage.meeting_id == meeting.id,
+                        MeetingMessage.round_number == round_number,
+                    )
+                    .order_by(MeetingMessage.created_at)
+                    .all()
+                )
+                if round_messages_db:
+                    summary_text, key_points = generate_round_summary(
+                        meeting, round_messages_db, db
+                    )
+                    round_summaries = getattr(meeting, "cached_round_summaries", None) or []
+                    if not isinstance(round_summaries, list):
+                        round_summaries = []
+                    round_summaries.append({
+                        "round": round_number,
+                        "summary_text": summary_text,
+                        "key_points": key_points or [],
+                    })
+                    meeting.cached_round_summaries = round_summaries
+                    db.commit()
+            except Exception:
+                pass  # do not fail the run if round summary fails
 
         meeting.current_round += rounds_to_run
         if meeting.current_round >= meeting.max_rounds:

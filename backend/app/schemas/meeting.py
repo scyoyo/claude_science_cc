@@ -105,6 +105,14 @@ class UserMessageRequest(BaseModel):
     content: str = Field(..., min_length=1)
 
 
+class RoundSummaryItem(BaseModel):
+    """Per-round summary."""
+
+    round: int
+    summary_text: Optional[str] = None
+    key_points: List[str] = []
+
+
 class MeetingSummary(BaseModel):
     """Summary of a meeting. total_rounds = rounds completed (current_round)."""
 
@@ -117,6 +125,7 @@ class MeetingSummary(BaseModel):
     key_points: List[str]
     status: str
     summary_text: Optional[str] = None  # AI-generated paragraph; None if LLM not used
+    round_summaries: List[RoundSummaryItem] = []  # Per-round summaries (new flow)
 
 
 # ==================== Agenda Strategy Schemas ====================

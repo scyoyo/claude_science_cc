@@ -43,6 +43,7 @@ def _ensure_meetings_columns_sqlite(engine):
             ("round_plans", "TEXT"),
             ("cached_summary_text", "TEXT"),
             ("cached_key_points", "TEXT"),
+            ("cached_round_summaries", "TEXT"),
         ],
     )
 

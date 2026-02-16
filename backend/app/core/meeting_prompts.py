@@ -83,6 +83,21 @@ NO_CODE_FOR_NON_CODING = (
     "Code will be produced by the coding-focused team members."
 )
 
+# When output_type is "code", inject this so agents output code in a parseable JSON format
+CODE_OUTPUT_JSON_RULE = (
+    "When you output code, use this exact JSON format so it can be parsed and displayed as files: "
+    '{"files": [{"path": "relative/filepath.ext", "content": "<full file content>", "language": "python"}]}. '
+    "Use relative paths (e.g. src/main.py). You may add brief explanation in plain text before or after the JSON block. "
+    "Output valid JSON only for the files array."
+)
+
+
+def system_prompt_for_meeting(system_prompt: str, output_type: str) -> str:
+    """Append code-output JSON rule when meeting output_type is code. Otherwise return unchanged."""
+    if (output_type or "").strip().lower() != "code":
+        return system_prompt
+    return system_prompt + "\n\n" + CODE_OUTPUT_JSON_RULE
+
 
 def get_agenda_rules_for_agent(output_type: str, agent: Dict) -> List[str]:
     """Return agenda rules for this agent. When output_type is code, non-coding roles skip CODING_RULES."""

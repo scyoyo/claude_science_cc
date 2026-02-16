@@ -17,6 +17,7 @@ import MeetingSummaryPanel from "@/components/MeetingSummaryPanel";
 import ArtifactsPanel from "@/components/ArtifactsPanel";
 import ArtifactViewer from "@/components/ArtifactViewer";
 import { MarkdownContent } from "@/components/MarkdownContent";
+import { CodeFilesBlock, parseCodeFilesJson } from "@/components/CodeFilesBlock";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -725,24 +726,40 @@ export default function MeetingDetailPage() {
                           <p className="text-sm text-muted-foreground whitespace-pre-wrap break-words max-w-full overflow-wrap-anywhere">
                             {msg.content}
                           </p>
-                        ) : (
-                          <MarkdownContent
-                            content={msg.content}
-                            className="text-sm text-muted-foreground max-w-full"
-                            codeBlockArtifacts={
-                              messageArtifacts.length > 0
-                                ? messageArtifacts.map((a) => ({ id: a.id, filename: a.filename }))
-                                : undefined
-                            }
-                            onOpenArtifact={(id) => {
-                              const a = chatArtifacts.find((x) => x.id === id);
-                              if (a) {
-                                setViewerArtifact(a);
-                                setViewerOpen(true);
+                        ) : (() => {
+                          const parsed = parseCodeFilesJson(msg.content || "");
+                          if (parsed && parsed.files.length > 0) {
+                            return (
+                              <div className="space-y-2">
+                                {parsed.restContent ? (
+                                  <MarkdownContent
+                                    content={parsed.restContent}
+                                    className="text-sm text-muted-foreground max-w-full"
+                                  />
+                                ) : null}
+                                <CodeFilesBlock files={parsed.files} className="mt-2" />
+                              </div>
+                            );
+                          }
+                          return (
+                            <MarkdownContent
+                              content={msg.content}
+                              className="text-sm text-muted-foreground max-w-full"
+                              codeBlockArtifacts={
+                                messageArtifacts.length > 0
+                                  ? messageArtifacts.map((a) => ({ id: a.id, filename: a.filename }))
+                                  : undefined
                               }
-                            }}
-                          />
-                        )}
+                              onOpenArtifact={(id) => {
+                                const a = chatArtifacts.find((x) => x.id === id);
+                                if (a) {
+                                  setViewerArtifact(a);
+                                  setViewerOpen(true);
+                                }
+                              }}
+                            />
+                          );
+                        })()}
                       </div>
                     </div>
                   );

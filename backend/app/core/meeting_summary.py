@@ -81,6 +81,60 @@ def generate_summary_for_meeting(meeting: Meeting, messages: list, db: Session) 
     return summary_text, key_points
 
 
+def generate_round_summary(
+    meeting: Meeting, messages_of_round: list, db: Session
+) -> tuple[str | None, list[str]]:
+    """Generate summary_text and key_points for a single round. Does not write to DB."""
+    key_points: list[str] = []
+    seen = set()
+    for m in messages_of_round:
+        if m.role != "assistant" or not m.content:
+            continue
+        first_line = m.content.strip().split("\n")[0].strip()
+        first_sentence = m.content.split(".")[0].strip()
+        if first_sentence.startswith("```") or first_sentence.startswith("#"):
+            continue
+        if first_line.startswith("```") or first_line.startswith("#"):
+            continue
+        if len(first_sentence) < 15 or len(first_sentence) > 300:
+            continue
+        if first_sentence in seen:
+            continue
+        seen.add(first_sentence)
+        key_points.append(f"[{m.agent_name or 'Agent'}] {first_sentence}")
+
+    summary_text: str | None = None
+    try:
+        llm_call = resolve_llm_call(db)
+    except Exception:
+        llm_call = None
+    if llm_call and messages_of_round:
+        transcript = "\n\n".join(
+            f"{m.agent_name or m.role}: {m.content}" for m in messages_of_round
+        )
+        if len(transcript) > 6000:
+            transcript = transcript[:6000] + "\n\n[... truncated ...]"
+        system = (
+            "You are a meeting round summarizer. Output exactly two sections: SUMMARY: (one short paragraph, 2-4 sentences), "
+            "then KEY_POINTS: (2-5 bullet items, each on a new line starting with '- '). "
+            "Use the same language as the meeting content when possible."
+        )
+        user_content = (
+            f"Meeting title: {meeting.title}\n\nRound transcript:\n{transcript}\n\n"
+            "Provide SUMMARY: and KEY_POINTS: as described."
+        )
+        try:
+            response = llm_call(system, [ChatMessage(role="user", content=user_content)])
+            parsed_summary, parsed_points = _parse_summary_llm_response(response)
+            if parsed_summary:
+                summary_text = parsed_summary
+            if parsed_points:
+                key_points = parsed_points
+        except (LLMQuotaError, Exception):
+            pass
+    return summary_text, key_points
+
+
 def ensure_meeting_summary_cached(meeting_id: str, db: Session) -> None:
     """If the meeting has no cached summary, generate and save it. Call when meeting completes."""
     meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()

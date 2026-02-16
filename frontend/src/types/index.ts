@@ -160,6 +160,12 @@ export interface MeetingUpdate {
   max_rounds?: number;
 }
 
+export interface RoundSummaryItem {
+  round: number;
+  summary_text: string | null;
+  key_points: string[];
+}
+
 export interface MeetingSummary {
   meeting_id: string;
   title: string;
@@ -170,6 +176,7 @@ export interface MeetingSummary {
   key_points: string[];
   status: string;
   summary_text?: string;
+  round_summaries?: RoundSummaryItem[];
 }
 
 export interface CodeArtifact {

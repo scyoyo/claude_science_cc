@@ -22,6 +22,7 @@ from app.schemas.meeting import (
     UserMessageRequest,
     MeetingMessageResponse,
     MeetingSummary,
+    RoundSummaryItem,
     ContextPreviewResponse,
     BatchMeetingRunRequest,
     BatchMeetingRunResponse,
@@ -40,7 +41,7 @@ from app.core.llm_client import create_provider, detect_provider, resolve_llm_ca
 from app.core.lang_detect import meeting_preferred_lang
 from app.core.context_extractor import extract_relevant_context, extract_keywords_from_agenda
 from app.core.agenda_proposer import AgendaProposer
-from app.core.meeting_prompts import content_for_user_message, rewrite_meeting_prompt
+from app.core.meeting_prompts import content_for_user_message, rewrite_meeting_prompt, system_prompt_for_meeting
 from app.core.background_runner import start_background_run, is_running
 from app.schemas.onboarding import ChatMessage
 from app.schemas.pagination import PaginatedResponse
@@ -498,6 +499,20 @@ def get_meeting_summary(meeting_id: str, db: Session = Depends(get_db)):
         if m.agent_name and m.role == "assistant"
     })
 
+    def _round_summaries(meeting_obj) -> list:
+        raw = getattr(meeting_obj, "cached_round_summaries", None) or []
+        if not isinstance(raw, list):
+            return []
+        return [
+            RoundSummaryItem(
+                round=item.get("round", 0),
+                summary_text=item.get("summary_text"),
+                key_points=list(item.get("key_points") or []),
+            )
+            for item in raw
+            if isinstance(item, dict)
+        ]
+
     cached_text = getattr(meeting, "cached_summary_text", None)
     cached_points = getattr(meeting, "cached_key_points", None)
     if cached_text is not None or (cached_points is not None and len(cached_points) > 0):
@@ -511,6 +526,7 @@ def get_meeting_summary(meeting_id: str, db: Session = Depends(get_db)):
             key_points=list(cached_points) if cached_points else [],
             status=meeting.status,
             summary_text=cached_text,
+            round_summaries=_round_summaries(meeting),
         )
 
     summary_text, key_points = generate_summary_for_meeting(meeting, messages, db)
@@ -528,6 +544,7 @@ def get_meeting_summary(meeting_id: str, db: Session = Depends(get_db)):
         key_points=key_points,
         status=meeting.status,
         summary_text=summary_text,
+        round_summaries=_round_summaries(meeting),
     )
 
 
@@ -788,12 +805,13 @@ def run_meeting(
             detail="No agents found in this team",
         )
 
-    # Prepare agent data
+    # Prepare agent data (inject JSON code-output rule when output_type is code)
+    output_type = getattr(meeting, "output_type", None) or "code"
     agent_dicts = [
         {
             "id": str(a.id),
             "name": a.name,
-            "system_prompt": a.system_prompt,
+            "system_prompt": system_prompt_for_meeting(a.system_prompt, output_type),
             "model": a.model,
             "title": a.title or "",
             "role": getattr(a, "role", "") or "",
@@ -872,7 +890,7 @@ def run_meeting(
                 agent_dict = {
                     "id": str(ind_agent.id),
                     "name": ind_agent.name,
-                    "system_prompt": ind_agent.system_prompt,
+                    "system_prompt": system_prompt_for_meeting(ind_agent.system_prompt, output_type),
                     "model": ind_agent.model,
                     "title": ind_agent.title or "",
                     "role": getattr(ind_agent, "role", "") or "",
@@ -952,6 +970,38 @@ def run_meeting(
 
         db.commit()
         db.refresh(meeting)
+
+        # Generate per-round summaries for each round we just ran
+        try:
+            from app.core.meeting_summary import generate_round_summary
+            round_summaries_list = list(getattr(meeting, "cached_round_summaries", None) or [])
+            if not isinstance(round_summaries_list, list):
+                round_summaries_list = []
+            for round_idx in range(rounds_to_run):
+                rn = meeting.current_round - rounds_to_run + round_idx + 1
+                round_msgs = (
+                    db.query(MeetingMessage)
+                    .filter(
+                        MeetingMessage.meeting_id == meeting_id,
+                        MeetingMessage.round_number == rn,
+                    )
+                    .order_by(MeetingMessage.created_at)
+                    .all()
+                )
+                if round_msgs:
+                    summary_text, key_points = generate_round_summary(
+                        meeting, round_msgs, db
+                    )
+                    round_summaries_list.append({
+                        "round": rn,
+                        "summary_text": summary_text,
+                        "key_points": key_points or [],
+                    })
+            if round_summaries_list:
+                meeting.cached_round_summaries = round_summaries_list
+                db.commit()
+        except Exception:
+            pass  # do not fail the run if round summaries fail
 
         # Auto-extract artifacts on completion
         if meeting.status == MeetingStatus.completed.value:

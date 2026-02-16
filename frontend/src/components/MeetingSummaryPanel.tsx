@@ -84,35 +84,64 @@ export default function MeetingSummaryPanel({ meetingId }: MeetingSummaryPanelPr
             </div>
           </div>
 
-          {summary.summary_text && (
+          {/* Per-round summaries (preferred when present) */}
+          {summary.round_summaries && summary.round_summaries.length > 0 ? (
             <>
               <Separator />
+              <div className="space-y-4">
+                {summary.round_summaries.map((rs) => (
+                  <div key={rs.round} className="space-y-2">
+                    <h4 className="text-sm font-medium text-foreground">
+                      {t("roundLabel", { n: rs.round })}
+                    </h4>
+                    {rs.summary_text && (
+                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                        {rs.summary_text}
+                      </p>
+                    )}
+                    {rs.key_points && rs.key_points.length > 0 && (
+                      <ul className="space-y-1">
+                        {rs.key_points.map((point, i) => (
+                          <li key={i} className="text-sm text-muted-foreground pl-4 border-l-2 border-muted">
+                            {point}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <>
+              {summary.summary_text && (
+                <>
+                  <Separator />
+                  <div>
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">{summary.summary_text}</p>
+                  </div>
+                </>
+              )}
+              <Separator />
               <div>
-                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{summary.summary_text}</p>
+                <div className="flex items-center gap-2 mb-2">
+                  <Lightbulb className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">{t("keyPoints")}</span>
+                </div>
+                {summary.key_points.length > 0 ? (
+                  <ul className="space-y-2">
+                    {summary.key_points.map((point, i) => (
+                      <li key={i} className="text-sm text-muted-foreground pl-4 border-l-2 border-muted">
+                        {point}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-muted-foreground">{t("noKeyPoints")}</p>
+                )}
               </div>
             </>
           )}
-
-          <Separator />
-
-          {/* Key Points */}
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <Lightbulb className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">{t("keyPoints")}</span>
-            </div>
-            {summary.key_points.length > 0 ? (
-              <ul className="space-y-2">
-                {summary.key_points.map((point, i) => (
-                  <li key={i} className="text-sm text-muted-foreground pl-4 border-l-2 border-muted">
-                    {point}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-muted-foreground">{t("noKeyPoints")}</p>
-            )}
-          </div>
         </CardContent>
       </Card>
     </div>

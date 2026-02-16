@@ -1,13 +1,15 @@
 """
 CodeExtractor: Extracts code blocks from meeting messages.
 
-Parses markdown-style code fences (```language ... ```) from agent responses
-and creates structured code artifacts.
+Parses:
+1. JSON format: {"files": [{"path": "...", "content": "...", "language": "..."}]} (preferred when present)
+2. Markdown-style code fences (```language ... ```) from agent responses
 """
 
+import json
 import re
 from dataclasses import dataclass
-from typing import List, Optional, Set
+from typing import Any, List, Optional, Set
 
 
 @dataclass
@@ -304,20 +306,96 @@ def generate_requirements(artifacts: List[dict]) -> str:
     return "\n".join(sorted(packages))
 
 
+def _extract_from_json_files(content: str, source_agent: Optional[str] = None) -> List[ExtractedCode]:
+    """Try to parse JSON with 'files' array and return ExtractedCode list. Empty if not valid."""
+    blocks: List[ExtractedCode] = []
+    # Try to find a JSON object that has "files" key (may be inside ```json ... ``` or raw)
+    text = content.strip()
+    # Strip markdown code fence if present
+    if text.startswith("```"):
+        first_newline = text.find("\n")
+        if first_newline >= 0:
+            text = text[first_newline + 1 :].strip()
+        if text.endswith("```"):
+            text = text[:-3].strip()
+    # Try parse as whole content
+    try:
+        data: Any = json.loads(text)
+        if not isinstance(data, dict):
+            return blocks
+        files = data.get("files")
+        if not isinstance(files, list):
+            return blocks
+        for item in files:
+            if not isinstance(item, dict):
+                continue
+            path_val = item.get("path")
+            content_val = item.get("content")
+            if not path_val or content_val is None:
+                continue
+            path_str = str(path_val).strip()
+            content_str = str(content_val) if isinstance(content_val, str) else str(content_val)
+            lang = item.get("language")
+            if isinstance(lang, str) and lang.strip():
+                language = lang.strip().lower()
+            else:
+                # Infer from path extension
+                if "." in path_str.split("/")[-1]:
+                    ext = path_str.split("/")[-1].split(".")[-1].lower()
+                    language = ext if ext in LANG_EXTENSIONS else "text"
+                else:
+                    language = "text"
+            filename = path_str if path_str else f"code_{len(blocks) + 1}.txt"
+            blocks.append(ExtractedCode(
+                language=language,
+                content=content_str,
+                source_agent=source_agent,
+                suggested_filename=filename,
+            ))
+    except (json.JSONDecodeError, TypeError):
+        # Try to find JSON object in the middle of content (e.g. after some text)
+        for start in ("{", "\n{"):
+            idx = content.find(start)
+            if idx < 0:
+                continue
+            try:
+                data = json.loads(content[idx:].strip())
+                if isinstance(data, dict) and isinstance(data.get("files"), list):
+                    for item in data["files"]:
+                        if not isinstance(item, dict):
+                            continue
+                        path_val = item.get("path")
+                        content_val = item.get("content")
+                        if not path_val or content_val is None:
+                            continue
+                        path_str = str(path_val).strip()
+                        content_str = str(content_val) if isinstance(content_val, str) else str(content_val)
+                        lang = item.get("language")
+                        language = str(lang).strip().lower() if isinstance(lang, str) and lang else "text"
+                        if not language or language == "text":
+                            if "." in path_str.split("/")[-1]:
+                                ext = path_str.split("/")[-1].split(".")[-1].lower()
+                                language = ext if ext in LANG_EXTENSIONS else "text"
+                        filename = path_str or f"code_{len(blocks) + 1}.txt"
+                        blocks.append(ExtractedCode(
+                            language=language,
+                            content=content_str,
+                            source_agent=source_agent,
+                            suggested_filename=filename,
+                        ))
+                    break
+            except (json.JSONDecodeError, TypeError):
+                continue
+    return blocks
+
+
 def extract_from_meeting_messages(
     messages: List[dict],
 ) -> List[ExtractedCode]:
     """Extract code blocks from a list of meeting messages.
 
-    Uses filepath hints from each block's preceding text; also collects path-like
-    strings (e.g. src/main.py) from the full transcript in order and assigns them
-    to blocks that have no hint, so meeting-described folder structure is preserved.
-
-    Args:
-        messages: List of dicts with 'content', 'agent_name', 'role' keys.
-
-    Returns:
-        All code blocks found across all messages.
+    Prefers JSON format {"files": [{"path", "content", "language"}]} when present;
+    otherwise uses markdown code fences and filepath hints.
     """
     full_text = "\n\n".join(m.get("content", "") or "" for m in messages)
     path_candidates = _collect_path_candidates_from_text(full_text)
@@ -326,9 +404,19 @@ def extract_from_meeting_messages(
     block_start = 0
     for msg in messages:
         content = msg.get("content") or ""
+        source_agent = msg.get("agent_name")
+
+        # Try JSON extraction first (agent output format from CODE_OUTPUT_JSON_RULE)
+        json_blocks = _extract_from_json_files(content, source_agent=source_agent)
+        if json_blocks:
+            all_blocks.extend(json_blocks)
+            block_start += len(json_blocks)
+            continue
+
+        # Fall back to markdown code blocks
         blocks = extract_code_blocks(
             content,
-            source_agent=msg.get("agent_name"),
+            source_agent=source_agent,
             path_candidates=path_candidates if path_candidates else None,
             block_start_index=block_start,
         )
