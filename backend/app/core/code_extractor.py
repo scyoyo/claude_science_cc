@@ -53,6 +53,12 @@ CODE_BLOCK_PATTERN = re.compile(
     re.DOTALL,
 )
 
+# Pattern to find path-like filenames in transcript (e.g. src/main.py, lib/utils.py)
+# Matches: word chars, slashes, then filename with extension
+PATH_IN_TEXT_PATTERN = re.compile(
+    r"(?:^|[\s,，、:(\[\])\n])((?:[\w.-]+/)+[\w.-]+\.\w+)(?=[\s,\)\]}\n.]|$)"
+)
+
 # Patterns to detect filepath hints in text before a code block
 FILEPATH_PATTERNS = [
     # # filename: path/to/file.py  or  # Filename: path/to/file.py
@@ -145,6 +151,16 @@ IMPORT_TO_PACKAGE = {
 }
 
 
+def _collect_path_candidates_from_text(text: str) -> List[str]:
+    """Collect path-like filenames (e.g. src/main.py) from text in order. Used for transcript-wide hints."""
+    candidates: List[str] = []
+    for m in PATH_IN_TEXT_PATTERN.finditer(text):
+        path = m.group(1).strip()
+        if path and "." in path.split("/")[-1] and path not in candidates:
+            candidates.append(path)
+    return candidates
+
+
 def _detect_filepath_hint(text_before_block: str) -> Optional[str]:
     """Search text preceding a code block for filepath hints.
 
@@ -177,15 +193,20 @@ def _detect_filepath_hint(text_before_block: str) -> Optional[str]:
 def extract_code_blocks(
     text: str,
     source_agent: Optional[str] = None,
+    path_candidates: Optional[List[str]] = None,
+    block_start_index: int = 0,
 ) -> List[ExtractedCode]:
     """Extract all code blocks from a text string.
 
     Parses markdown-style fenced code blocks (```language ... ```).
-    Checks text before each code block for filepath hints.
+    Checks text before each code block for filepath hints; if none, uses path_candidates
+    by global block index when provided (from transcript-wide path list).
 
     Args:
         text: The text to extract code from.
         source_agent: Optional agent name for attribution.
+        path_candidates: Optional ordered list of path hints from full transcript.
+        block_start_index: Global index of first block in this text (for path_candidates).
 
     Returns:
         List of ExtractedCode objects.
@@ -206,6 +227,8 @@ def extract_code_blocks(
 
         if filepath_hint:
             filename = filepath_hint
+        elif path_candidates and (block_start_index + i) < len(path_candidates):
+            filename = path_candidates[block_start_index + i]
         else:
             filename = _suggest_filename(content, language, ext, i)
 
@@ -286,17 +309,29 @@ def extract_from_meeting_messages(
 ) -> List[ExtractedCode]:
     """Extract code blocks from a list of meeting messages.
 
+    Uses filepath hints from each block's preceding text; also collects path-like
+    strings (e.g. src/main.py) from the full transcript in order and assigns them
+    to blocks that have no hint, so meeting-described folder structure is preserved.
+
     Args:
         messages: List of dicts with 'content', 'agent_name', 'role' keys.
 
     Returns:
         All code blocks found across all messages.
     """
+    full_text = "\n\n".join(m.get("content", "") or "" for m in messages)
+    path_candidates = _collect_path_candidates_from_text(full_text)
+
     all_blocks = []
+    block_start = 0
     for msg in messages:
+        content = msg.get("content") or ""
         blocks = extract_code_blocks(
-            msg["content"],
+            content,
             source_agent=msg.get("agent_name"),
+            path_candidates=path_candidates if path_candidates else None,
+            block_start_index=block_start,
         )
         all_blocks.extend(blocks)
+        block_start += len(blocks)
     return all_blocks

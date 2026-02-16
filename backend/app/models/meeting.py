@@ -39,6 +39,9 @@ class Meeting(Base):
     current_round = Column(Integer, default=0)
     created_at = Column(DateTime, default=lambda: datetime.now(UTC))
     updated_at = Column(DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
+    # Cached AI summary (generated when meeting completes or on first GET)
+    cached_summary_text = Column(Text, nullable=True)
+    cached_key_points = Column(JSON, nullable=True)  # list of str
 
     # Relationships
     team = relationship("Team", backref=backref("meetings", cascade="all, delete-orphan"))

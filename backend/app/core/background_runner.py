@@ -261,9 +261,14 @@ def _run_meeting_thread(
             "status": meeting.status,
         })
 
-        # Auto-extract artifacts on completion
+        # Auto-extract artifacts and generate summary on completion
         if meeting.status == MeetingStatus.completed.value:
             _auto_extract_artifacts(db, meeting_id)
+            try:
+                from app.core.meeting_summary import ensure_meeting_summary_cached
+                ensure_meeting_summary_cached(meeting_id, db)
+            except Exception:
+                logger.exception("Failed to cache meeting summary for %s", meeting_id)
 
     except LLMQuotaError as e:
         logger.warning("API quota exhausted for meeting %s", meeting_id)

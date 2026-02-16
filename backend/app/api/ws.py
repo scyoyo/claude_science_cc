@@ -236,8 +236,13 @@ async def _handle_start_round(websocket: WebSocket, db: Session, meeting: Meetin
         db.commit()
 
         if meeting.status == MeetingStatus.completed.value:
-            # Auto-extract artifacts
+            # Auto-extract artifacts and cache summary
             _auto_extract_artifacts(db, meeting.id)
+            try:
+                from app.core.meeting_summary import ensure_meeting_summary_cached
+                ensure_meeting_summary_cached(meeting.id, db)
+            except Exception:
+                pass
             await websocket.send_json({"type": "meeting_complete", "status": "completed"})
 
     except LLMQuotaError as e:

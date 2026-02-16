@@ -41,6 +41,8 @@ def _ensure_meetings_columns_sqlite(engine):
             ("rewrite_feedback", "TEXT DEFAULT ''"),
             ("agenda_strategy", "VARCHAR(30) DEFAULT 'manual'"),
             ("round_plans", "TEXT"),
+            ("cached_summary_text", "TEXT"),
+            ("cached_key_points", "TEXT"),
         ],
     )
 

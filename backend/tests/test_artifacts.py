@@ -15,6 +15,7 @@ from app.core.code_extractor import (
     extract_from_meeting_messages,
     generate_requirements,
     _detect_filepath_hint,
+    _collect_path_candidates_from_text,
 )
 
 
@@ -150,6 +151,25 @@ class TestFilepathDetection:
         text = "Here is some code:\n```python\nclass DataLoader:\n    pass\n```"
         blocks = extract_code_blocks(text)
         assert blocks[0].suggested_filename == "data_loader.py"
+
+    def test_collect_path_candidates_from_transcript(self):
+        """Path-like paths in transcript are collected in order for assignment to blocks."""
+        text = "We will create src/main.py and src/utils.py for the project."
+        paths = _collect_path_candidates_from_text(text)
+        assert paths == ["src/main.py", "src/utils.py"]
+
+    def test_extract_from_meeting_uses_transcript_paths(self):
+        """When transcript mentions paths (e.g. src/main.py, src/utils.py), blocks get them by order."""
+        messages = [
+            {"content": "Project structure: src/main.py, src/utils.py, tests/test_main.py.", "agent_name": "Lead", "role": "assistant"},
+            {"content": "Here is the code.\n\n```python\ndef main():\n    pass\n```\n\n```python\ndef util():\n    pass\n```\n\n```python\ndef test_main():\n    pass\n```",
+             "agent_name": "Dev", "role": "assistant"},
+        ]
+        blocks = extract_from_meeting_messages(messages)
+        assert len(blocks) == 3
+        assert blocks[0].suggested_filename == "src/main.py"
+        assert blocks[1].suggested_filename == "src/utils.py"
+        assert blocks[2].suggested_filename == "tests/test_main.py"
 
 
 # ==================== Requirements Generation Tests ====================
