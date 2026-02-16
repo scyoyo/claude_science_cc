@@ -179,6 +179,7 @@ class OpenAIProvider(LLMProvider):
         body = {
             "model": model,
             "messages": [{"role": m.role, "content": m.content} for m in messages],
+            "max_tokens": params.pop("max_tokens", 16384),
             **params,
         }
         return self.BASE_URL, headers, body
@@ -226,7 +227,7 @@ class AnthropicProvider(LLMProvider):
         body = {
             "model": model,
             "messages": chat_messages,
-            "max_tokens": params.pop("max_tokens", 4096),
+            "max_tokens": params.pop("max_tokens", 16384),
             **params,
         }
         if system_msg:
@@ -270,6 +271,7 @@ class DeepSeekProvider(LLMProvider):
         body = {
             "model": model,
             "messages": [{"role": m.role, "content": m.content} for m in messages],
+            "max_tokens": params.pop("max_tokens", 8192),
             **params,
         }
         return self.BASE_URL, headers, body
@@ -342,8 +344,8 @@ def resolve_llm_call(db: Session) -> Callable[[str, List[ChatMessage]], str]:
         "deepseek": settings.DEEPSEEK_API_KEY,
     }
     model_map = {
-        "openai": "gpt-4",
-        "anthropic": "claude-3-opus-20240229",
+        "openai": "gpt-4o",
+        "anthropic": "claude-sonnet-4-5-20250929",
         "deepseek": "deepseek-chat",
     }
 

@@ -226,7 +226,7 @@ class TestAnthropicProvider:
         assert headers["x-api-key"] == "sk-ant-test"
         assert body["system"] == "You are helpful"
         assert body["messages"] == [{"role": "user", "content": "Hello"}]
-        assert body["max_tokens"] == 4096  # default
+        assert body["max_tokens"] == 16384  # default
 
     def test_build_request_custom_max_tokens(self):
         messages = [ChatMessage(role="user", content="Hi")]
