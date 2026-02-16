@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useTranslations, useLocale } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { meetingsAPI, agendaAPI, agentsAPI, artifactsAPI, ApiError } from "@/lib/api";
-import { getErrorMessage } from "@/lib/utils";
+import { getErrorMessage, tryFormatJson } from "@/lib/utils";
 import { useQuotaExhausted } from "@/contexts/QuotaExhaustedContext";
 import { useMeetingPolling } from "@/hooks/useMeetingPolling";
 import { downloadBlob } from "@/lib/utils";
@@ -738,6 +738,16 @@ export default function MeetingDetailPage() {
                                   />
                                 ) : null}
                                 <CodeFilesBlock files={parsed.files} className="mt-2" />
+                              </div>
+                            );
+                          }
+                          const formattedJson = tryFormatJson(msg.content || "");
+                          if (formattedJson) {
+                            return (
+                              <div className="max-w-full min-w-0 overflow-x-auto rounded-md [scrollbar-gutter:stable] my-0">
+                                <pre className="bg-muted/70 rounded-md p-2.5 text-xs font-mono whitespace-pre block min-w-0 max-w-full">
+                                  {formattedJson}
+                                </pre>
                               </div>
                             );
                           }

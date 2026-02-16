@@ -19,3 +19,19 @@ export function downloadBlob(blob: Blob, filename: string) {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+
+/**
+ * If content is valid JSON (object or array), return pretty-printed string; otherwise null.
+ * Used to detect raw JSON in meeting messages and render as a code block.
+ */
+export function tryFormatJson(content: string): string | null {
+  if (!content || typeof content !== "string") return null;
+  const t = content.trim();
+  if (t.length < 2 || (t[0] !== "{" && t[0] !== "[")) return null;
+  try {
+    const parsed = JSON.parse(t);
+    return JSON.stringify(parsed, null, 2);
+  } catch {
+    return null;
+  }
+}
