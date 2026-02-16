@@ -12,6 +12,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.config import settings
 from app.core.cache import InMemoryBackend, set_cache, reset_cache
 
 
@@ -35,7 +36,7 @@ class TestRateLimitHeaders:
         resp = client.get("/api/teams/")
         assert "X-RateLimit-Limit" in resp.headers
         assert "X-RateLimit-Remaining" in resp.headers
-        assert resp.headers["X-RateLimit-Limit"] == "120"
+        assert resp.headers["X-RateLimit-Limit"] == str(settings.RATE_LIMIT_API_MAX_REQUESTS)
 
     def test_health_endpoint_no_rate_limit(self, client):
         resp = client.get("/health")
@@ -48,8 +49,9 @@ class TestRateLimitHeaders:
 
 class TestRateLimitEnforcement:
     def test_api_rate_limit_enforcement(self, client):
-        """Exceed 120 requests/min and get 429."""
-        for i in range(120):
+        """Exceed configured API limit and get 429."""
+        limit = settings.RATE_LIMIT_API_MAX_REQUESTS
+        for i in range(limit):
             resp = client.get("/api/teams/")
             assert resp.status_code == 200
 

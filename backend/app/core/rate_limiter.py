@@ -53,4 +53,4 @@ class RateLimiter:
 
 # Pre-configured rate limiters
 llm_rate_limiter = RateLimiter(max_requests=30, window_seconds=60)  # 30 LLM calls/min
-api_rate_limiter = RateLimiter(max_requests=120, window_seconds=60)  # 120 API calls/min
+api_rate_limiter = RateLimiter(max_requests=300, window_seconds=60)  # 300 API calls/min (default; middleware uses config)
