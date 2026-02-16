@@ -306,86 +306,184 @@ def generate_requirements(artifacts: List[dict]) -> str:
     return "\n".join(sorted(packages))
 
 
-def _extract_from_json_files(content: str, source_agent: Optional[str] = None) -> List[ExtractedCode]:
-    """Try to parse JSON with 'files' array and return ExtractedCode list. Empty if not valid."""
+def _file_item_to_extracted(
+    item: dict, source_agent: Optional[str], fallback_index: int,
+) -> Optional[ExtractedCode]:
+    """Convert a single file dict to ExtractedCode, or None if invalid."""
+    path_val = item.get("path")
+    content_val = item.get("content")
+    if not path_val or content_val is None:
+        return None
+    path_str = str(path_val).strip()
+    content_str = str(content_val)
+    lang = item.get("language")
+    if isinstance(lang, str) and lang.strip():
+        language = lang.strip().lower()
+    else:
+        if "." in path_str.split("/")[-1]:
+            ext = path_str.split("/")[-1].split(".")[-1].lower()
+            language = ext if ext in LANG_EXTENSIONS else "text"
+        else:
+            language = "text"
+    filename = path_str if path_str else f"code_{fallback_index + 1}.txt"
+    return ExtractedCode(
+        language=language,
+        content=content_str,
+        source_agent=source_agent,
+        suggested_filename=filename,
+    )
+
+
+def _find_json_object_end(text: str, start: int) -> int:
+    """Find closing '}' for the JSON object at `start`, skipping content in strings.
+    Returns index of '}', or -1 if braces never balance (truncated JSON)."""
+    depth = 0
+    i = start
+    n = len(text)
+    while i < n:
+        ch = text[i]
+        if ch == '"':
+            i += 1
+            while i < n:
+                c = text[i]
+                if c == "\\":
+                    i += 2
+                    continue
+                if c == '"':
+                    i += 1
+                    break
+                i += 1
+            continue
+        if ch == "{":
+            depth += 1
+            i += 1
+            continue
+        if ch == "}":
+            depth -= 1
+            if depth == 0:
+                return i
+            i += 1
+            continue
+        i += 1
+    return -1
+
+
+def _extract_partial_json_files(
+    json_text: str, source_agent: Optional[str] = None,
+) -> List[ExtractedCode]:
+    """Extract complete file objects from truncated JSON `{"files": [{...}, {...}, <cut>`.
+
+    Walks the array, using brace-matching to find each complete {path, content} object.
+    Stops at the truncation point (unbalanced braces).
+    """
     blocks: List[ExtractedCode] = []
-    # Try to find a JSON object that has "files" key (may be inside ```json ... ``` or raw)
+    arr_idx = json_text.find("[")
+    if arr_idx == -1:
+        return blocks
+    i = arr_idx + 1
+    n = len(json_text)
+    while i < n:
+        ch = json_text[i]
+        if ch in " \n\r\t,":
+            i += 1
+            continue
+        if ch == "]":
+            break
+        if ch != "{":
+            i += 1
+            continue
+        obj_end = _find_json_object_end(json_text, i)
+        if obj_end == -1:
+            break  # truncated — stop here
+        obj_str = json_text[i : obj_end + 1]
+        try:
+            item = json.loads(obj_str)
+            if isinstance(item, dict):
+                ec = _file_item_to_extracted(item, source_agent, len(blocks))
+                if ec:
+                    blocks.append(ec)
+        except (json.JSONDecodeError, TypeError):
+            pass
+        i = obj_end + 1
+    return blocks
+
+
+def _extract_from_json_files(content: str, source_agent: Optional[str] = None) -> List[ExtractedCode]:
+    """Try to parse JSON with 'files' array and return ExtractedCode list. Empty if not valid.
+
+    Handles:
+    - Pure JSON content
+    - JSON inside ```json ... ``` fences (closed or unclosed/truncated)
+    - JSON embedded in markdown text
+    - Truncated JSON with partial file extraction
+    """
+    blocks: List[ExtractedCode] = []
     text = content.strip()
-    # Strip markdown code fence if present
+
+    # Strip markdown code fence if content starts with one
     if text.startswith("```"):
         first_newline = text.find("\n")
         if first_newline >= 0:
-            text = text[first_newline + 1 :].strip()
+            text = text[first_newline + 1:].strip()
         if text.endswith("```"):
             text = text[:-3].strip()
+
     # Try parse as whole content
     try:
         data: Any = json.loads(text)
-        if not isinstance(data, dict):
+        if isinstance(data, dict) and isinstance(data.get("files"), list):
+            for item in data["files"]:
+                if not isinstance(item, dict):
+                    continue
+                ec = _file_item_to_extracted(item, source_agent, len(blocks))
+                if ec:
+                    blocks.append(ec)
             return blocks
-        files = data.get("files")
-        if not isinstance(files, list):
-            return blocks
-        for item in files:
-            if not isinstance(item, dict):
-                continue
-            path_val = item.get("path")
-            content_val = item.get("content")
-            if not path_val or content_val is None:
-                continue
-            path_str = str(path_val).strip()
-            content_str = str(content_val) if isinstance(content_val, str) else str(content_val)
-            lang = item.get("language")
-            if isinstance(lang, str) and lang.strip():
-                language = lang.strip().lower()
-            else:
-                # Infer from path extension
-                if "." in path_str.split("/")[-1]:
-                    ext = path_str.split("/")[-1].split(".")[-1].lower()
-                    language = ext if ext in LANG_EXTENSIONS else "text"
-                else:
-                    language = "text"
-            filename = path_str if path_str else f"code_{len(blocks) + 1}.txt"
-            blocks.append(ExtractedCode(
-                language=language,
-                content=content_str,
-                source_agent=source_agent,
-                suggested_filename=filename,
-            ))
     except (json.JSONDecodeError, TypeError):
-        # Try to find JSON object in the middle of content (e.g. after some text)
-        for start in ("{", "\n{"):
-            idx = content.find(start)
-            if idx < 0:
-                continue
-            try:
-                data = json.loads(content[idx:].strip())
-                if isinstance(data, dict) and isinstance(data.get("files"), list):
-                    for item in data["files"]:
-                        if not isinstance(item, dict):
-                            continue
-                        path_val = item.get("path")
-                        content_val = item.get("content")
-                        if not path_val or content_val is None:
-                            continue
-                        path_str = str(path_val).strip()
-                        content_str = str(content_val) if isinstance(content_val, str) else str(content_val)
-                        lang = item.get("language")
-                        language = str(lang).strip().lower() if isinstance(lang, str) and lang else "text"
-                        if not language or language == "text":
-                            if "." in path_str.split("/")[-1]:
-                                ext = path_str.split("/")[-1].split(".")[-1].lower()
-                                language = ext if ext in LANG_EXTENSIONS else "text"
-                        filename = path_str or f"code_{len(blocks) + 1}.txt"
-                        blocks.append(ExtractedCode(
-                            language=language,
-                            content=content_str,
-                            source_agent=source_agent,
-                            suggested_filename=filename,
-                        ))
-                    break
-            except (json.JSONDecodeError, TypeError):
-                continue
+        pass
+
+    # Try to locate JSON with "files" in the middle of content (e.g. after markdown text)
+    # Look for ```json fence first, then bare { before "files"
+    json_text = None
+    fence_match = re.search(r"```(?:json)?\s*\n", content)
+    if fence_match:
+        after_fence = content[fence_match.end():]
+        # Strip closing fence if present
+        closing = re.search(r"\n```\s*$", after_fence)
+        if closing:
+            json_text = after_fence[:closing.start()].strip()
+        else:
+            # Unclosed fence (LLM truncated) — use everything after the fence
+            json_text = after_fence.strip()
+    else:
+        # No fence — look for { before "files"
+        files_idx = content.find('"files"')
+        if files_idx >= 0:
+            brace_idx = content.rfind("{", 0, files_idx)
+            if brace_idx >= 0:
+                json_text = content[brace_idx:].strip()
+
+    if json_text:
+        # Try full parse first
+        try:
+            data = json.loads(json_text)
+            if isinstance(data, dict) and isinstance(data.get("files"), list):
+                for item in data["files"]:
+                    if not isinstance(item, dict):
+                        continue
+                    ec = _file_item_to_extracted(item, source_agent, len(blocks))
+                    if ec:
+                        blocks.append(ec)
+                return blocks
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+        # Truncated JSON — extract complete file objects before truncation
+        if '"files"' in json_text:
+            partial = _extract_partial_json_files(json_text, source_agent)
+            if partial:
+                return partial
+
     return blocks
 
 
