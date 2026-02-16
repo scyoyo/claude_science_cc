@@ -250,15 +250,15 @@ async def _handle_start_round(websocket: WebSocket, db: Session, meeting: Meetin
                     summary_text, key_points = generate_round_summary(
                         meeting, round_messages_db, db
                     )
-                    round_summaries = getattr(meeting, "cached_round_summaries", None) or []
-                    if not isinstance(round_summaries, list):
-                        round_summaries = []
-                    round_summaries.append({
+                    existing = getattr(meeting, "cached_round_summaries", None) or []
+                    if not isinstance(existing, list):
+                        existing = []
+                    # Assign a new list so SQLAlchemy detects the change (in-place append may not be persisted)
+                    meeting.cached_round_summaries = list(existing) + [{
                         "round": round_number,
                         "summary_text": summary_text,
                         "key_points": key_points or [],
-                    })
-                    meeting.cached_round_summaries = round_summaries
+                    }]
                     db.commit()
             except Exception:
                 pass  # do not fail the run if round summary fails

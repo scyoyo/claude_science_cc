@@ -269,15 +269,15 @@ def _run_meeting_thread(
                     summary_text, key_points = generate_round_summary(
                         meeting, round_messages, db
                     )
-                    round_summaries = getattr(meeting, "cached_round_summaries", None) or []
-                    if not isinstance(round_summaries, list):
-                        round_summaries = []
-                    round_summaries.append({
+                    existing = getattr(meeting, "cached_round_summaries", None) or []
+                    if not isinstance(existing, list):
+                        existing = []
+                    # Assign a new list so SQLAlchemy detects the change (in-place append may not be persisted)
+                    meeting.cached_round_summaries = list(existing) + [{
                         "round": current_round_num,
                         "summary_text": summary_text,
                         "key_points": key_points or [],
-                    })
-                    meeting.cached_round_summaries = round_summaries
+                    }]
                     db.commit()
             except Exception:
                 logger.exception(
