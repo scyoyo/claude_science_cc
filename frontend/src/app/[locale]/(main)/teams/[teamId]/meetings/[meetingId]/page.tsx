@@ -100,16 +100,29 @@ export default function MeetingDetailPage() {
     [meeting?.current_round, meeting?.max_rounds]
   );
 
-  /** Assign artifacts to assistant messages by order: backend extracts in message order, so we assign by code-block count per message. */
+  /** Assign artifacts to assistant messages by order: backend extracts in message order, so we assign by code-block count per message.
+   *  Mirror backend logic: try JSON files extraction first (integrator output), then markdown code fences. */
   const artifactsByMessageId = useMemo(() => {
     const map = new Map<string, CodeArtifact[]>();
     const assigned = new Set<string>();
     const all = [...(meeting?.messages ?? []), ...liveMessages];
     const assistantOrder = all.filter((m) => m.role === "assistant");
-    const countCodeBlocks = (content: string) => (content.match(/```[\w]*\s*\n/g) || []).length;
+    const countCodeBlocks = (content: string) =>
+      (content.match(/```[\w]*\s*\n[\s\S]*?```/g) || []).length;
     let artifactIdx = 0;
     for (const msg of assistantOrder) {
-      const n = countCodeBlocks(msg.content);
+      const content = msg.content || "";
+      // Mirror backend: try JSON extraction first, then markdown
+      const jsonParsed = parseCodeFilesJson(content);
+      if (jsonParsed && jsonParsed.files.length > 0) {
+        // Backend extracted N files from JSON — mark as assigned (CodeFilesBlock renders inline)
+        const n = jsonParsed.files.length;
+        const slice = chatArtifacts.slice(artifactIdx, artifactIdx + n);
+        slice.forEach((a) => assigned.add(a.id));
+        artifactIdx += n;
+        continue;
+      }
+      const n = countCodeBlocks(content);
       const slice = chatArtifacts.slice(artifactIdx, artifactIdx + n);
       if (slice.length > 0) {
         map.set(msg.id, slice);
@@ -743,6 +756,22 @@ export default function MeetingDetailPage() {
                           }
                           const formattedJson = tryFormatJson(msg.content || "");
                           if (formattedJson) {
+                            // Safety: tryFormatJson parse+stringify may "fix" raw JSON issues
+                            // that caused parseCodeFilesJson to fail on the original content.
+                            const fallbackParsed = parseCodeFilesJson(formattedJson);
+                            if (fallbackParsed && fallbackParsed.files.length > 0) {
+                              return (
+                                <div className="space-y-2">
+                                  {fallbackParsed.restContent ? (
+                                    <MarkdownContent
+                                      content={fallbackParsed.restContent}
+                                      className="text-sm text-muted-foreground max-w-full"
+                                    />
+                                  ) : null}
+                                  <CodeFilesBlock files={fallbackParsed.files} className="mt-2" />
+                                </div>
+                              );
+                            }
                             return (
                               <div className="max-w-full min-w-0 overflow-x-auto rounded-md [scrollbar-gutter:stable] my-0">
                                 <pre className="bg-muted/70 rounded-md p-2.5 text-xs font-mono whitespace-pre block min-w-0 max-w-full">
